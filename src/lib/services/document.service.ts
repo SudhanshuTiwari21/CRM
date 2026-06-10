@@ -1,0 +1,119 @@
+import { renderToBuffer } from "@react-pdf/renderer";
+import fs from "fs/promises";
+import path from "path";
+import { prisma } from "@/lib/db";
+import { FlightTicketPDF } from "@/templates/pdf/flight-ticket";
+import { HotelVoucherPDF } from "@/templates/pdf/hotel-voucher";
+import { BusTicketPDF } from "@/templates/pdf/bus-ticket";
+import { InvoicePDF } from "@/templates/pdf/invoice";
+import type { DocumentType } from "@prisma/client";
+import type { FlightPassenger, FlightSegment, HotelGuest, BusPassenger } from "@/types/booking";
+import { logActivity } from "./activity.service";
+
+const STORAGE_DIR = path.join(process.cwd(), "storage", "documents");
+
+async function ensureStorageDir() {
+  await fs.mkdir(STORAGE_DIR, { recursive: true });
+}
+
+export async function generateBookingDocuments(bookingId: string, userId?: string) {
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      customer: true,
+      flightBooking: true,
+      hotelBooking: true,
+      busBooking: true,
+      payments: true,
+    },
+  });
+
+  if (!booking) throw new Error("Booking not found");
+
+  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+  if (!agency) throw new Error("Agency settings not found");
+
+  await ensureStorageDir();
+  const documents: { type: DocumentType; fileName: string; storagePath: string }[] = [];
+
+  if (booking.productType === "FLIGHT" && booking.flightBooking) {
+    const ticketBuffer = await renderToBuffer(
+      FlightTicketPDF({
+        agency,
+        booking,
+        flight: booking.flightBooking,
+        segments: booking.flightBooking.segments as unknown as FlightSegment[],
+        passengers: booking.flightBooking.passengers as unknown as FlightPassenger[],
+      })
+    );
+    const ticketFileName = `${booking.publicRef}-ticket.pdf`;
+    const ticketPath = path.join(STORAGE_DIR, ticketFileName);
+    await fs.writeFile(ticketPath, ticketBuffer);
+    documents.push({ type: "TICKET", fileName: ticketFileName, storagePath: ticketPath });
+  }
+
+  if (booking.productType === "HOTEL" && booking.hotelBooking) {
+    const voucherBuffer = await renderToBuffer(
+      HotelVoucherPDF({
+        agency,
+        booking,
+        hotel: booking.hotelBooking,
+        guests: booking.hotelBooking.guests as unknown as HotelGuest[],
+      })
+    );
+    const voucherFileName = `${booking.publicRef}-voucher.pdf`;
+    const voucherPath = path.join(STORAGE_DIR, voucherFileName);
+    await fs.writeFile(voucherPath, voucherBuffer);
+    documents.push({ type: "VOUCHER", fileName: voucherFileName, storagePath: voucherPath });
+  }
+
+  if (booking.productType === "BUS" && booking.busBooking) {
+    const ticketBuffer = await renderToBuffer(
+      BusTicketPDF({
+        agency,
+        booking,
+        bus: booking.busBooking,
+        passengers: booking.busBooking.passengers as unknown as BusPassenger[],
+      })
+    );
+    const ticketFileName = `${booking.publicRef}-bus-ticket.pdf`;
+    const ticketPath = path.join(STORAGE_DIR, ticketFileName);
+    await fs.writeFile(ticketPath, ticketBuffer);
+    documents.push({ type: "TICKET", fileName: ticketFileName, storagePath: ticketPath });
+  }
+
+  const invoiceBuffer = await renderToBuffer(
+    InvoicePDF({ agency, booking, payments: booking.payments })
+  );
+  const invoiceFileName = `${booking.publicRef}-invoice.pdf`;
+  const invoicePath = path.join(STORAGE_DIR, invoiceFileName);
+  await fs.writeFile(invoicePath, invoiceBuffer);
+  documents.push({ type: "INVOICE", fileName: invoiceFileName, storagePath: invoicePath });
+
+  await prisma.document.deleteMany({ where: { bookingId } });
+
+  for (const doc of documents) {
+    await prisma.document.create({
+      data: {
+        bookingId,
+        type: doc.type,
+        fileName: doc.fileName,
+        storagePath: doc.storagePath,
+      },
+    });
+  }
+
+  await logActivity({
+    bookingId,
+    userId,
+    action: "DOCUMENTS_GENERATED",
+    details: { files: documents.map((d) => d.fileName) },
+  });
+
+  return documents;
+}
+
+export async function getBookingDocumentPaths(bookingId: string) {
+  const docs = await prisma.document.findMany({ where: { bookingId } });
+  return docs.map((d) => d.storagePath);
+}
