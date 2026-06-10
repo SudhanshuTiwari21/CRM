@@ -1,20 +1,26 @@
-import NextAuth from "next-auth";
-import { authConfig } from "@/lib/auth.config";
+import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-const { auth } = NextAuth(authConfig);
-
-export default auth((req) => {
-  const isLoggedIn = !!req.auth;
-  const isAuthPage = req.nextUrl.pathname.startsWith("/login");
-  const isApiAuth = req.nextUrl.pathname.startsWith("/api/auth");
-  const isWebhook = req.nextUrl.pathname.startsWith("/api/webhooks");
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  const isAuthPage = pathname.startsWith("/login");
+  const isApiAuth = pathname.startsWith("/api/auth");
+  const isWebhook = pathname.startsWith("/api/webhooks");
 
   if (isApiAuth || isWebhook) return NextResponse.next();
 
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET,
+    secureCookie: process.env.NODE_ENV === "production",
+  });
+
+  const isLoggedIn = !!token;
+
   if (!isLoggedIn && !isAuthPage) {
     const loginUrl = new URL("/login", req.nextUrl.origin);
-    loginUrl.searchParams.set("callbackUrl", req.nextUrl.pathname);
+    loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
@@ -23,7 +29,7 @@ export default auth((req) => {
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],

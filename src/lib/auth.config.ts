@@ -1,5 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
-import type { UserRole } from "@prisma/client";
+
+type UserRole = "ADMIN" | "AGENT";
 
 /**
  * Edge-safe auth config — no Prisma/bcrypt. Used by middleware only.
