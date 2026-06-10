@@ -7,8 +7,9 @@ export async function middleware(req: NextRequest) {
   const isAuthPage = pathname.startsWith("/login");
   const isApiAuth = pathname.startsWith("/api/auth");
   const isWebhook = pathname.startsWith("/api/webhooks");
+  const isHealth = pathname.startsWith("/api/health");
 
-  if (isApiAuth || isWebhook) return NextResponse.next();
+  if (isApiAuth || isWebhook || isHealth) return NextResponse.next();
 
   const token = await getToken({
     req,
