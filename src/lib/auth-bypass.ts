@@ -2,9 +2,9 @@ import type { Session } from "next-auth";
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
-/** Set DISABLE_AUTH=true to skip login (temporary demo access). */
+/** Auth is off unless DISABLE_AUTH=false (demo default). */
 export function isAuthDisabled() {
-  return process.env.DISABLE_AUTH === "true";
+  return process.env.DISABLE_AUTH !== "false";
 }
 
 let cachedBypassSession: Session | null = null;

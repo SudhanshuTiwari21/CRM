@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { isAuthDisabled } from "@/lib/auth-bypass";
 
 /** Safe env check for Vercel debugging — never exposes secret values. */
 export async function GET() {
-  const authDisabled = process.env.DISABLE_AUTH === "true";
+  const authDisabled = isAuthDisabled();
 
   const checks = {
     DISABLE_AUTH: authDisabled,
@@ -21,11 +22,9 @@ export async function GET() {
       checks,
       hint: ok
         ? authDisabled
-          ? "Env looks good (demo mode — no login required)."
-          : "Env looks good. If login still fails, redeploy after changing variables."
-        : authDisabled
-          ? "Set DATABASE_URL on Vercel, then redeploy."
-          : "Set DISABLE_AUTH=true on Vercel for client demo access without login, then redeploy.",
+          ? "Demo mode — no login required on any device."
+          : "Login required. Set DISABLE_AUTH=false explicitly to keep auth on."
+        : "Set DATABASE_URL on Vercel, then redeploy.",
     },
     { status: ok ? 200 : 503 }
   );
