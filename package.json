@@ -11,6 +11,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:clear-demo": "tsx prisma/clear-demo-data.ts",
     "db:studio": "prisma studio",
     "demo:sync": "node scripts/sync-ngrok-env.mjs",
     "postinstall": "prisma generate"

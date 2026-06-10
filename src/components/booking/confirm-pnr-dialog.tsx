@@ -18,14 +18,16 @@ import { Label } from "@/components/ui/label";
 
 interface ConfirmPnrDialogProps {
   bookingId: string;
+  existingPnr?: string | null;
+  resume?: boolean;
   trigger?: React.ReactNode;
 }
 
-export function ConfirmPnrDialog({ bookingId, trigger }: ConfirmPnrDialogProps) {
+export function ConfirmPnrDialog({ bookingId, existingPnr, resume, trigger }: ConfirmPnrDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [pnr, setPnr] = useState("");
+  const [pnr, setPnr] = useState(existingPnr || "");
   const [supplierRef, setSupplierRef] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
@@ -61,7 +63,9 @@ export function ConfirmPnrDialog({ bookingId, trigger }: ConfirmPnrDialogProps) 
         <DialogHeader>
           <DialogTitle>Confirm Booking PNR</DialogTitle>
           <DialogDescription>
-            Enter the confirmed PNR from the airline/hotel/bus operator. This will generate tickets and send confirmation email.
+            {resume
+              ? "PNR was saved but ticket generation failed. Click below to generate PDFs and send the confirmation email."
+              : "Enter the confirmed PNR from the airline/hotel/bus operator. This will generate tickets and send confirmation email."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -86,7 +90,7 @@ export function ConfirmPnrDialog({ bookingId, trigger }: ConfirmPnrDialogProps) 
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Confirm & Send Ticket
+            {resume ? "Generate & Send Ticket" : "Confirm & Send Ticket"}
           </Button>
         </form>
       </DialogContent>

@@ -3,6 +3,8 @@ import { confirmBookingPnr } from "@/lib/services/booking.service";
 import { confirmPnrSchema } from "@/lib/validators/booking";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api-utils";
 
+export const runtime = "nodejs";
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();

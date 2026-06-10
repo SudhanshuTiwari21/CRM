@@ -105,78 +105,7 @@ Regards,
     },
   });
 
-  const customer = await prisma.customer.upsert({
-    where: { id: "seed-customer-1" },
-    update: {},
-    create: {
-      id: "seed-customer-1",
-      name: "Robert Handique",
-      email: "robert.handique@example.com",
-      phone: "9876543210",
-      address: "Kolkata, West Bengal",
-    },
-  });
-
-  const booking = await prisma.booking.upsert({
-    where: { publicRef: "FB-2026-000001" },
-    update: {},
-    create: {
-      publicRef: "FB-2026-000001",
-      channel: "HELD",
-      productType: "FLIGHT",
-      status: "PROCESSING",
-      paymentStatus: "PAID",
-      totalAmount: 18500,
-      currency: "INR",
-      customerId: customer.id,
-      assignedAgentId: agent.id,
-      metadata: { source: "seed" },
-      flightBooking: {
-        create: {
-          airline: "IndiGo",
-          segments: [
-            {
-              flightNumber: "6E 212",
-              airline: "IndiGo",
-              fromAirport: "CCU",
-              fromCity: "Kolkata",
-              toAirport: "GAU",
-              toCity: "Guwahati",
-              departureAt: "2026-05-28T09:00:00",
-              arrivalAt: "2026-05-28T10:15:00",
-              terminal: "Terminal 1",
-              aircraft: "A320",
-              duration: "1h 15m",
-              status: "Confirmed",
-            },
-          ],
-          passengers: [
-            { title: "Mr", firstName: "Robert", lastName: "Handique", gender: "Male" },
-            { title: "Mrs", firstName: "Barnali", lastName: "Barbaruah", gender: "Female" },
-            { title: "Mr", firstName: "Aarish", lastName: "Handique", gender: "Male" },
-            { title: "Ms", firstName: "Adveeka", lastName: "Handique", gender: "Female" },
-          ],
-        },
-      },
-      payments: {
-        create: {
-          amount: 18500,
-          method: "UPI",
-          gatewayRef: "PAY_SEED_001",
-          status: "PAID",
-        },
-      },
-      activityLogs: {
-        create: {
-          userId: admin.id,
-          action: "BOOKING_CREATED",
-          details: { channel: "HELD", note: "Seed booking for demo" },
-        },
-      },
-    },
-  });
-
-  console.log("Seed completed:", { admin: admin.email, agent: agent.email, booking: booking.publicRef });
+  console.log("Seed completed:", { admin: admin.email, agent: agent.email });
 }
 
 main()

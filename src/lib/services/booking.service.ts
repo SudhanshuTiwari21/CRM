@@ -352,36 +352,51 @@ async function createBookingFromWebhook(params: {
 }
 
 export async function confirmBookingPnr(bookingId: string, pnr: string, supplierRef: string | undefined, userId: string) {
-  const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { documents: true },
+  });
   if (!booking) throw new Error("Booking not found");
-  if (!["PROCESSING", "FAILED"].includes(booking.status)) {
+
+  const isInitialConfirm = ["PROCESSING", "FAILED"].includes(booking.status);
+  const isResume =
+    booking.status === "CONFIRMED" && booking.documents.length === 0;
+
+  if (!isInitialConfirm && !isResume) {
+    if (booking.status === "TICKET_SENT") {
+      throw new Error("Ticket already sent for this booking");
+    }
     throw new Error("Booking cannot be confirmed in current status");
   }
 
-  const updated = await prisma.booking.update({
-    where: { id: bookingId },
-    data: {
-      pnr,
-      supplierRef,
-      status: "CONFIRMED",
-      confirmedAt: new Date(),
-    },
-    include: { customer: true },
-  });
+  let updated = booking;
 
-  if (booking.productType === "HOTEL") {
-    await prisma.hotelBooking.updateMany({
-      where: { bookingId },
-      data: { confirmationNo: pnr },
+  if (isInitialConfirm) {
+    updated = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        pnr,
+        supplierRef,
+        status: "CONFIRMED",
+        confirmedAt: new Date(),
+      },
+      include: { customer: true, documents: true },
+    });
+
+    if (booking.productType === "HOTEL") {
+      await prisma.hotelBooking.updateMany({
+        where: { bookingId },
+        data: { confirmationNo: pnr },
+      });
+    }
+
+    await logActivity({
+      bookingId,
+      userId,
+      action: "PNR_CONFIRMED",
+      details: { pnr, supplierRef },
     });
   }
-
-  await logActivity({
-    bookingId,
-    userId,
-    action: "PNR_CONFIRMED",
-    details: { pnr, supplierRef },
-  });
 
   await generateBookingDocuments(bookingId, userId);
   await prisma.booking.update({
@@ -390,7 +405,10 @@ export async function confirmBookingPnr(bookingId: string, pnr: string, supplier
   });
   await sendBookingEmails(bookingId, "booking_confirmed");
 
-  return updated;
+  return prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { customer: true },
+  });
 }
 
 export async function resendBookingEmail(bookingId: string, userId: string) {

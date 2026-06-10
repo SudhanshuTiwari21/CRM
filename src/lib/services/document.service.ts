@@ -10,10 +10,16 @@ import type { DocumentType } from "@prisma/client";
 import type { FlightPassenger, FlightSegment, HotelGuest, BusPassenger } from "@/types/booking";
 import { logActivity } from "./activity.service";
 
-const STORAGE_DIR = path.join(process.cwd(), "storage", "documents");
+function getStorageDir() {
+  // Vercel serverless only allows writes to /tmp
+  if (process.env.VERCEL === "1") {
+    return path.join("/tmp", "flight-crm-documents");
+  }
+  return path.join(process.cwd(), "storage", "documents");
+}
 
 async function ensureStorageDir() {
-  await fs.mkdir(STORAGE_DIR, { recursive: true });
+  await fs.mkdir(getStorageDir(), { recursive: true });
 }
 
 export async function generateBookingDocuments(bookingId: string, userId?: string) {
@@ -33,6 +39,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
   const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
   if (!agency) throw new Error("Agency settings not found");
 
+  const storageDir = getStorageDir();
   await ensureStorageDir();
   const documents: { type: DocumentType; fileName: string; storagePath: string }[] = [];
 
@@ -47,7 +54,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
       })
     );
     const ticketFileName = `${booking.publicRef}-ticket.pdf`;
-    const ticketPath = path.join(STORAGE_DIR, ticketFileName);
+    const ticketPath = path.join(storageDir, ticketFileName);
     await fs.writeFile(ticketPath, ticketBuffer);
     documents.push({ type: "TICKET", fileName: ticketFileName, storagePath: ticketPath });
   }
@@ -62,7 +69,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
       })
     );
     const voucherFileName = `${booking.publicRef}-voucher.pdf`;
-    const voucherPath = path.join(STORAGE_DIR, voucherFileName);
+    const voucherPath = path.join(storageDir, voucherFileName);
     await fs.writeFile(voucherPath, voucherBuffer);
     documents.push({ type: "VOUCHER", fileName: voucherFileName, storagePath: voucherPath });
   }
@@ -77,7 +84,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
       })
     );
     const ticketFileName = `${booking.publicRef}-bus-ticket.pdf`;
-    const ticketPath = path.join(STORAGE_DIR, ticketFileName);
+    const ticketPath = path.join(storageDir, ticketFileName);
     await fs.writeFile(ticketPath, ticketBuffer);
     documents.push({ type: "TICKET", fileName: ticketFileName, storagePath: ticketPath });
   }
@@ -86,7 +93,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
     InvoicePDF({ agency, booking, payments: booking.payments })
   );
   const invoiceFileName = `${booking.publicRef}-invoice.pdf`;
-  const invoicePath = path.join(STORAGE_DIR, invoiceFileName);
+  const invoicePath = path.join(storageDir, invoiceFileName);
   await fs.writeFile(invoicePath, invoiceBuffer);
   documents.push({ type: "INVOICE", fileName: invoiceFileName, storagePath: invoicePath });
 

@@ -44,7 +44,9 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     orderBy: { name: "asc" },
   });
 
-  const canConfirmPnr = ["PROCESSING", "FAILED"].includes(booking.status);
+  const canConfirmPnr =
+    ["PROCESSING", "FAILED"].includes(booking.status) ||
+    (booking.status === "CONFIRMED" && booking.documents.length === 0);
 
   return (
     <div>
@@ -64,7 +66,11 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
           <div className="flex flex-wrap gap-2">
             <BookingQuickActions bookingId={booking.id} agents={agents} />
             {canConfirmPnr && (
-              <ConfirmPnrDialog bookingId={booking.id} />
+              <ConfirmPnrDialog
+                bookingId={booking.id}
+                existingPnr={booking.pnr}
+                resume={booking.status === "CONFIRMED" && booking.documents.length === 0}
+              />
             )}
             <BookingActions bookingId={booking.id} status={booking.status} />
           </div>
