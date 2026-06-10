@@ -42,7 +42,12 @@ export function ConfirmPnrDialog({ bookingId, existingPnr, resume, trigger }: Co
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to confirm");
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error("Session expired or demo access not enabled on this server.");
+        }
+        throw new Error(data.error || "Failed to confirm");
+      }
 
       toast.success("PNR confirmed! Documents generated and email sent.");
       setOpen(false);

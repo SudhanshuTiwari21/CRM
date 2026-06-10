@@ -20,8 +20,12 @@ export async function GET() {
       ok,
       checks,
       hint: ok
-        ? "Env looks good. If login still fails, redeploy after changing variables."
-        : "Set missing vars in Vercel → Settings → Environment Variables → Production, then Redeploy.",
+        ? authDisabled
+          ? "Env looks good (demo mode — no login required)."
+          : "Env looks good. If login still fails, redeploy after changing variables."
+        : authDisabled
+          ? "Set DATABASE_URL on Vercel, then redeploy."
+          : "Set DISABLE_AUTH=true on Vercel for client demo access without login, then redeploy.",
     },
     { status: ok ? 200 : 503 }
   );
