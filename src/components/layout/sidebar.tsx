@@ -100,15 +100,17 @@ export function Sidebar() {
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex-1 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            onClick={() => signOut({ callbackUrl: "/login" })}
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign out
-          </Button>
+          {process.env.NEXT_PUBLIC_DISABLE_AUTH !== "true" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex-1 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign out
+            </Button>
+          )}
         </div>
       </div>
     </>

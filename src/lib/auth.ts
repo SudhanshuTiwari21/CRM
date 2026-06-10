@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
+import { getBypassSession, isAuthDisabled } from "@/lib/auth-bypass";
 import type { UserRole } from "@prisma/client";
 
 declare module "next-auth" {
@@ -26,7 +27,7 @@ declare module "@auth/core/jwt" {
   }
 }
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+const nextAuth = NextAuth({
   ...authConfig,
   secret: process.env.AUTH_SECRET,
   providers: [
@@ -63,6 +64,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
 });
+
+export const { handlers, signIn, signOut } = nextAuth;
+
+export async function auth() {
+  if (isAuthDisabled()) {
+    return getBypassSession();
+  }
+  return nextAuth.auth();
+}
 
 export async function requireAuth() {
   const session = await auth();
