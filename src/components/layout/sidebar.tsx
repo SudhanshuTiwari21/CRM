@@ -52,13 +52,13 @@ export function Sidebar() {
 
   const NavContent = () => (
     <>
-      <div className="flex h-[4.5rem] items-center gap-3 px-5">
+      <div className="flex h-24 items-center px-5">
         <Image
           src="/booktoroam-logo.svg"
           alt="Book to Roam"
-          width={140}
-          height={40}
-          className="h-10 w-auto"
+          width={220}
+          height={64}
+          className="h-16 w-auto max-w-[210px]"
           priority
         />
       </div>
