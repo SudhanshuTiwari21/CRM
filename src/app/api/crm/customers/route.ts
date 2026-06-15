@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { customerSchema } from "@/lib/validators/booking";
+import { createCustomerSchema } from "@/lib/validators/customer";
+import { createCustomerRecord, customerListInclude } from "@/lib/services/customer.service";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api-utils";
 import type { Prisma } from "@prisma/client";
 
@@ -20,6 +21,8 @@ export async function GET(request: Request) {
             { name: { contains: search, mode: "insensitive" } },
             { phone: { contains: search } },
             { email: { contains: search, mode: "insensitive" } },
+            { pan: { contains: search, mode: "insensitive" } },
+            { gstin: { contains: search, mode: "insensitive" } },
           ],
         }
       : {};
@@ -27,12 +30,7 @@ export async function GET(request: Request) {
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
         where,
-        include: {
-          _count: { select: { bookings: true } },
-          bookings: {
-            select: { totalAmount: true, paymentStatus: true },
-          },
-        },
+        include: customerListInclude(),
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,
         take: limit,
@@ -62,17 +60,8 @@ export async function POST(request: Request) {
     if (!session?.user) return jsonError("Unauthorized", 401);
 
     const body = await request.json();
-    const data = customerSchema.parse(body);
-
-    const customer = await prisma.customer.create({
-      data: {
-        name: data.name,
-        email: data.email || null,
-        phone: data.phone,
-        gstin: data.gstin,
-        address: data.address,
-      },
-    });
+    const data = createCustomerSchema.parse(body);
+    const customer = await createCustomerRecord(data);
 
     return jsonOk(customer, 201);
   } catch (error) {

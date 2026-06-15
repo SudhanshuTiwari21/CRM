@@ -20,10 +20,19 @@ interface ConfirmPnrDialogProps {
   bookingId: string;
   existingPnr?: string | null;
   resume?: boolean;
+  isHotel?: boolean;
+  hotelPendingSupplier?: boolean;
   trigger?: React.ReactNode;
 }
 
-export function ConfirmPnrDialog({ bookingId, existingPnr, resume, trigger }: ConfirmPnrDialogProps) {
+export function ConfirmPnrDialog({
+  bookingId,
+  existingPnr,
+  resume,
+  isHotel,
+  hotelPendingSupplier,
+  trigger,
+}: ConfirmPnrDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -49,7 +58,9 @@ export function ConfirmPnrDialog({ bookingId, existingPnr, resume, trigger }: Co
         throw new Error(data.error || "Failed to confirm");
       }
 
-      toast.success("PNR confirmed! Documents generated and email sent.");
+      toast.success(
+        isHotel ? "Supplier confirmation saved! Voucher sent to customer." : "PNR confirmed! Documents generated and email sent."
+      );
       setOpen(false);
       router.refresh();
     } catch (error) {
@@ -62,20 +73,36 @@ export function ConfirmPnrDialog({ bookingId, existingPnr, resume, trigger }: Co
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {trigger || <Button>Enter PNR</Button>}
+        {trigger || (
+          <Button>
+            {isHotel
+              ? hotelPendingSupplier
+                ? "Add Supplier Confirmation"
+                : "Enter Supplier Confirmation"
+              : "Enter PNR"}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Confirm Booking PNR</DialogTitle>
+          <DialogTitle>
+            {isHotel ? "Supplier Hotel Confirmation" : "Confirm Booking PNR"}
+          </DialogTitle>
           <DialogDescription>
             {resume
               ? "PNR was saved but ticket generation failed. Click below to generate PDFs and send the confirmation email."
-              : "Enter the confirmed PNR from the airline/hotel/bus operator. This will generate tickets and send confirmation email."}
+              : isHotel
+                ? hotelPendingSupplier
+                  ? "Enter the hotel supplier confirmation number. This will regenerate the voucher and resend it to the customer."
+                  : "Enter the confirmed supplier number from the hotel operator."
+                : "Enter the confirmed PNR from the airline/hotel/bus operator. This will generate tickets and send confirmation email."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="pnr">PNR / Confirmation Number *</Label>
+            <Label htmlFor="pnr">
+              {isHotel ? "Supplier Confirmation Number *" : "PNR / Confirmation Number *"}
+            </Label>
             <Input
               id="pnr"
               value={pnr}
@@ -95,7 +122,7 @@ export function ConfirmPnrDialog({ bookingId, existingPnr, resume, trigger }: Co
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {resume ? "Generate & Send Ticket" : "Confirm & Send Ticket"}
+            {resume || hotelPendingSupplier ? "Regenerate & Send Voucher" : isHotel ? "Confirm & Send Voucher" : "Confirm & Send Ticket"}
           </Button>
         </form>
       </DialogContent>

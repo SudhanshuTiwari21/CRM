@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { customerSchema } from "@/lib/validators/booking";
+import { createCustomerSchema } from "@/lib/validators/customer";
+import { getCustomerWithRelations, updateCustomerRecord } from "@/lib/services/customer.service";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api-utils";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -9,19 +9,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     if (!session?.user) return jsonError("Unauthorized", 401);
 
     const { id } = await params;
-
-    const customer = await prisma.customer.findUnique({
-      where: { id },
-      include: {
-        bookings: {
-          include: {
-            assignedAgent: { select: { name: true } },
-          },
-          orderBy: { createdAt: "desc" },
-        },
-      },
-    });
-
+    const customer = await getCustomerWithRelations(id);
     if (!customer) return jsonError("Customer not found", 404);
 
     const lifetimeValue = customer.bookings
@@ -41,18 +29,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const { id } = await params;
     const body = await request.json();
-    const data = customerSchema.parse(body);
-
-    const customer = await prisma.customer.update({
-      where: { id },
-      data: {
-        name: data.name,
-        email: data.email || null,
-        phone: data.phone,
-        gstin: data.gstin,
-        address: data.address,
-      },
-    });
+    const data = createCustomerSchema.parse(body);
+    const customer = await updateCustomerRecord(id, data);
 
     return jsonOk(customer);
   } catch (error) {

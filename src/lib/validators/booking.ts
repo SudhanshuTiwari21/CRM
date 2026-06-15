@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+
 export const flightSegmentSchema = z.object({
   flightNumber: z.string().min(1),
   airline: z.string().min(1),
@@ -55,6 +57,14 @@ export const offlineFlightBookingSchema = z.object({
   passengers: z.array(flightPassengerSchema).min(1),
   paymentMethod: z.string().optional(),
   internalNotes: z.string().optional(),
+  invoiceTaxType: z.enum(["ITC", "NON_ITC"]),
+  buyerGstin: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || gstinRegex.test(v.toUpperCase()), "Invalid GSTIN format"),
+  baseFare: z.coerce.number().min(0),
+  serviceCharge: z.coerce.number().min(0),
 });
 
 export const offlineHotelBookingSchema = z.object({
@@ -64,10 +74,21 @@ export const offlineHotelBookingSchema = z.object({
   totalAmount: z.coerce.number().positive(),
   propertyName: z.string().min(1),
   propertyAddress: z.string().min(1),
+  city: z.string().optional(),
+  propertyPhone: z.string().optional(),
+  propertyEmail: z.string().email().optional().or(z.literal("")),
   checkIn: z.string().min(1),
   checkOut: z.string().min(1),
+  checkInTime: z.string().optional(),
+  checkOutTime: z.string().optional(),
   roomType: z.string().min(1),
+  roomsCount: z.coerce.number().int().positive().optional(),
+  mealPlan: z.enum(["ROOM_ONLY", "WITH_BREAKFAST", "HALF_BOARD", "FULL_BOARD"]).optional(),
+  roomAmenities: z.array(z.string()).optional(),
   guests: z.array(hotelGuestSchema).min(1),
+  inclusions: z.string().optional(),
+  cancellationPolicy: z.string().optional(),
+  includeCancellationPolicy: z.boolean().optional(),
   policies: z.string().optional(),
   agentRemarks: z.string().optional(),
   paymentMethod: z.string().optional(),

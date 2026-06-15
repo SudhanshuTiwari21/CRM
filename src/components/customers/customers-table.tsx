@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface CustomerRow {
   id: string;
+  type: "INDIVIDUAL" | "BUSINESS";
   name: string;
   phone: string;
   email: string | null;
@@ -55,6 +57,7 @@ export function CustomersTable() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Type</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Email</TableHead>
@@ -64,12 +67,17 @@ export function CustomersTable() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Loading...</TableCell></TableRow>
             ) : customers.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No customers found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No customers found</TableCell></TableRow>
             ) : (
               customers.map((c) => (
                 <TableRow key={c.id}>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs">
+                      {c.type === "BUSINESS" ? "B2B" : "Individual"}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     <Link href={`/customers/${c.id}`} className="font-medium text-primary hover:underline">{c.name}</Link>
                   </TableCell>

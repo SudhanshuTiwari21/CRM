@@ -24,6 +24,8 @@ interface SettingsData {
     phone?: string | null;
     email?: string | null;
     invoicePrefix: string;
+    msmeRegistered?: boolean;
+    msmeNumber?: string | null;
     webhookApiKey?: string | null;
     holdModeEnabled: boolean;
     smtpHost?: string | null;
@@ -137,6 +139,30 @@ export function SettingsForm() {
                 />
               </div>
             ))}
+            <div className="flex items-center justify-between rounded-lg border p-3 sm:col-span-2">
+              <div>
+                <Label>MSME Registered</Label>
+                <p className="text-xs text-muted-foreground">Show Udyam registration on tax invoices (optional)</p>
+              </div>
+              <Button
+                type="button"
+                variant={agency.msmeRegistered ? "default" : "outline"}
+                size="sm"
+                onClick={() => setAgency({ ...agency, msmeRegistered: !agency.msmeRegistered })}
+              >
+                {agency.msmeRegistered ? "Yes" : "No"}
+              </Button>
+            </div>
+            {agency.msmeRegistered && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label>MSME / Udyam Number</Label>
+                <Input
+                  value={agency.msmeNumber || ""}
+                  onChange={(e) => setAgency({ ...agency, msmeNumber: e.target.value })}
+                  placeholder="UDYAM-XX-00-0000000"
+                />
+              </div>
+            )}
             <div className="sm:col-span-2">
               <Button onClick={saveAgency} disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

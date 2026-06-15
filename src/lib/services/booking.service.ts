@@ -4,6 +4,7 @@ import { logActivity } from "./activity.service";
 import { generateBookingDocuments, getBookingDocumentPaths } from "./document.service";
 import { sendTemplatedEmail, getEmailAttachments } from "@/lib/mailer";
 import { getFlightProvider } from "./provider/flight-provider";
+import { upsertHotelProfile } from "./hotel.service";
 import type {
   BookingChannel,
   BookingStatus,
@@ -12,10 +13,17 @@ import type {
   Prisma,
 } from "@prisma/client";
 import type { z } from "zod";
-import type { offlineBookingSchema, webhookLiveBookingSchema } from "@/lib/validators/booking";
+import type { offlineBookingSchema, offlineFlightBookingSchema, webhookLiveBookingSchema } from "@/lib/validators/booking";
 import { differenceInDays } from "date-fns";
+import {
+  calculateFlightGst,
+  calculateFlightInvoiceTotal,
+  FLIGHT_SERVICE_HSN,
+  getStateCodeFromGstin,
+} from "@/lib/gst-calculator";
 
 type OfflineBookingInput = z.infer<typeof offlineBookingSchema>;
+type OfflineFlightBookingInput = z.infer<typeof offlineFlightBookingSchema>;
 type WebhookBookingInput = z.infer<typeof webhookLiveBookingSchema>;
 
 async function upsertCustomer(customer: { name: string; email?: string; phone: string; gstin?: string; address?: string }) {
@@ -36,6 +44,56 @@ async function upsertCustomer(customer: { name: string; email?: string; phone: s
   }
 
   return prisma.customer.create({ data: customer });
+}
+
+async function getAgencyStateCode() {
+  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+  return getStateCodeFromGstin(agency?.gstin);
+}
+
+function validateFlightInvoice(input: OfflineFlightBookingInput) {
+  if (input.invoiceTaxType === "ITC" && !input.buyerGstin?.trim()) {
+    throw new Error("Buyer GSTIN is required for ITC invoices");
+  }
+  if (input.baseFare + input.serviceCharge <= 0) {
+    throw new Error("Enter base fare and/or service charge");
+  }
+}
+
+function buildFlightTaxData(input: OfflineFlightBookingInput, agencyStateCode: string | null) {
+  const buyerGstin =
+    input.invoiceTaxType === "ITC"
+      ? (input.buyerGstin || input.customer.gstin || "").toUpperCase() || null
+      : (input.buyerGstin || input.customer.gstin || "").toUpperCase() || null;
+
+  const tax = calculateFlightGst({
+    serviceCharge: input.serviceCharge,
+    agencyStateCode,
+    buyerGstin,
+    invoiceTaxType: input.invoiceTaxType,
+  });
+
+  const totalAmount = calculateFlightInvoiceTotal(input.baseFare, input.serviceCharge, tax);
+
+  return {
+    totalAmount,
+    flightData: {
+      baseFare: input.baseFare,
+      serviceCharge: input.serviceCharge,
+      invoiceTaxType: input.invoiceTaxType,
+      buyerGstin,
+      buyerState: tax.buyerState,
+      buyerStateCode: tax.buyerStateCode,
+      placeOfSupply: tax.placeOfSupply,
+      hsnSac: FLIGHT_SERVICE_HSN,
+      cgstRate: tax.cgstRate,
+      sgstRate: tax.sgstRate,
+      igstRate: tax.igstRate,
+      cgstAmount: tax.cgstAmount,
+      sgstAmount: tax.sgstAmount,
+      igstAmount: tax.igstAmount,
+    },
+  };
 }
 
 async function sendBookingEmails(bookingId: string, templateKey: "held_processing" | "booking_confirmed") {
@@ -91,21 +149,28 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId: s
   let booking;
 
   if (input.productType === "FLIGHT") {
+    const agencyStateCode = await getAgencyStateCode();
+    const flightInput = input as OfflineFlightBookingInput;
+    validateFlightInvoice(flightInput);
+    const { totalAmount, flightData } = buildFlightTaxData(flightInput, agencyStateCode);
+
     booking = await prisma.booking.create({
       data: {
         ...baseData,
+        totalAmount,
         flightBooking: {
           create: {
             airline: input.airline,
             segments: input.segments,
             passengers: input.passengers,
+            ...flightData,
           },
         },
         ...(input.paymentMethod
           ? {
               payments: {
                 create: {
-                  amount: input.totalAmount,
+                  amount: totalAmount,
                   method: input.paymentMethod,
                   status: "PAID",
                 },
@@ -117,18 +182,40 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId: s
     });
   } else if (input.productType === "HOTEL") {
     const nights = differenceInDays(new Date(input.checkOut), new Date(input.checkIn));
+    const hotelProfile = await upsertHotelProfile({
+      name: input.propertyName,
+      address: input.propertyAddress,
+      city: input.city,
+      phone: input.propertyPhone,
+      email: input.propertyEmail,
+      checkInTime: input.checkInTime,
+      checkOutTime: input.checkOutTime,
+    });
+
     booking = await prisma.booking.create({
       data: {
         ...baseData,
         hotelBooking: {
           create: {
+            hotelProfileId: hotelProfile.id,
             propertyName: input.propertyName,
             propertyAddress: input.propertyAddress,
+            city: input.city,
+            propertyPhone: input.propertyPhone,
+            propertyEmail: input.propertyEmail || undefined,
             checkIn: new Date(input.checkIn),
             checkOut: new Date(input.checkOut),
+            checkInTime: input.checkInTime || "02:00 PM",
+            checkOutTime: input.checkOutTime || "12:00 PM",
             nights: Math.max(nights, 1),
+            roomsCount: input.roomsCount || 1,
             roomType: input.roomType,
+            mealPlan: input.mealPlan || "ROOM_ONLY",
+            roomAmenities: input.roomAmenities || [],
             guests: input.guests,
+            inclusions: input.inclusions,
+            cancellationPolicy: input.cancellationPolicy,
+            includeCancellationPolicy: input.includeCancellationPolicy || false,
             policies: input.policies,
             agentRemarks: input.agentRemarks,
           },
@@ -145,6 +232,17 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId: s
             }
           : {}),
       },
+      include: { customer: true, hotelBooking: true },
+    });
+
+    await generateBookingDocuments(booking.id, userId);
+    await sendBookingEmails(booking.id, "booking_confirmed");
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: { status: "TICKET_SENT" },
+    });
+    booking = await prisma.booking.findUniqueOrThrow({
+      where: { id: booking.id },
       include: { customer: true, hotelBooking: true },
     });
   } else {
@@ -354,33 +452,40 @@ async function createBookingFromWebhook(params: {
 export async function confirmBookingPnr(bookingId: string, pnr: string, supplierRef: string | undefined, userId: string) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    include: { documents: true },
+    include: { documents: true, hotelBooking: true },
   });
   if (!booking) throw new Error("Booking not found");
 
   const isInitialConfirm = ["PROCESSING", "FAILED"].includes(booking.status);
   const isResume =
     booking.status === "CONFIRMED" && booking.documents.length === 0;
+  const isHotelSupplierConfirm =
+    booking.productType === "HOTEL" &&
+    booking.status === "TICKET_SENT" &&
+    !booking.hotelBooking?.confirmationNo;
 
-  if (!isInitialConfirm && !isResume) {
-    if (booking.status === "TICKET_SENT") {
+  if (!isInitialConfirm && !isResume && !isHotelSupplierConfirm) {
+    if (booking.status === "TICKET_SENT" && booking.productType !== "HOTEL") {
       throw new Error("Ticket already sent for this booking");
+    }
+    if (booking.status === "TICKET_SENT" && booking.hotelBooking?.confirmationNo) {
+      throw new Error("Supplier confirmation already added for this booking");
     }
     throw new Error("Booking cannot be confirmed in current status");
   }
 
   let updated = booking;
 
-  if (isInitialConfirm) {
+  if (isInitialConfirm || isHotelSupplierConfirm) {
     updated = await prisma.booking.update({
       where: { id: bookingId },
       data: {
         pnr,
         supplierRef,
-        status: "CONFIRMED",
+        status: booking.productType === "HOTEL" ? "TICKET_SENT" : "CONFIRMED",
         confirmedAt: new Date(),
       },
-      include: { customer: true, documents: true },
+      include: { customer: true, documents: true, hotelBooking: true },
     });
 
     if (booking.productType === "HOTEL") {

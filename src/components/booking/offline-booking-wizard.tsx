@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { HotelBookingFields } from "@/components/booking/hotel-booking-fields";
+import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields";
 
 const baseCustomer = {
   name: "",
@@ -35,6 +37,10 @@ const wizardSchema = z.object({
   totalAmount: z.coerce.number().positive(),
   paymentMethod: z.string().optional(),
   internalNotes: z.string().optional(),
+  invoiceTaxType: z.enum(["ITC", "NON_ITC"]).optional(),
+  buyerGstin: z.string().optional(),
+  baseFare: z.coerce.number().optional(),
+  serviceCharge: z.coerce.number().optional(),
   // Flight
   airline: z.string().optional(),
   segments: z.array(z.object({
@@ -60,9 +66,20 @@ const wizardSchema = z.object({
   // Hotel
   propertyName: z.string().optional(),
   propertyAddress: z.string().optional(),
+  city: z.string().optional(),
+  propertyPhone: z.string().optional(),
+  propertyEmail: z.string().optional(),
   checkIn: z.string().optional(),
   checkOut: z.string().optional(),
+  checkInTime: z.string().optional(),
+  checkOutTime: z.string().optional(),
   roomType: z.string().optional(),
+  roomsCount: z.coerce.number().optional(),
+  mealPlan: z.string().optional(),
+  roomAmenities: z.array(z.string()).optional(),
+  inclusions: z.string().optional(),
+  cancellationPolicy: z.string().optional(),
+  includeCancellationPolicy: z.boolean().optional(),
   guests: z.array(z.object({ name: z.string(), type: z.enum(["adult", "child"]) })).optional(),
   // Bus
   operator: z.string().optional(),
@@ -77,6 +94,8 @@ const wizardSchema = z.object({
 
 type WizardForm = z.infer<typeof wizardSchema>;
 
+export type { WizardForm };
+
 export function OfflineBookingWizard() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -88,14 +107,21 @@ export function OfflineBookingWizard() {
       productType: "FLIGHT",
       customer: baseCustomer,
       totalAmount: 0,
+      invoiceTaxType: "NON_ITC",
+      buyerGstin: "",
+      baseFare: 0,
+      serviceCharge: 0,
       airline: "IndiGo",
       segments: [{
         flightNumber: "", airline: "IndiGo", fromAirport: "", fromCity: "",
         toAirport: "", toCity: "", departureAt: "", arrivalAt: "",
       }],
       passengers: [{ title: "Mr", firstName: "", lastName: "", gender: "Male" }],
+      propertyName: "", propertyAddress: "", city: "", propertyPhone: "", propertyEmail: "",
+      checkIn: "", checkOut: "", checkInTime: "02:00 PM", checkOutTime: "12:00 PM",
+      roomType: "", roomsCount: 1, mealPlan: "ROOM_ONLY", roomAmenities: [],
+      inclusions: "", cancellationPolicy: "", includeCancellationPolicy: false,
       guests: [{ name: "", type: "adult" }],
-      propertyName: "", propertyAddress: "", checkIn: "", checkOut: "", roomType: "",
       operator: "", route: "", boardingPoint: "", droppingPoint: "",
       departureAt: "", arrivalAt: "",
       busPassengers: [{ name: "", seat: "" }],
@@ -121,6 +147,10 @@ export function OfflineBookingWizard() {
           totalAmount: data.totalAmount,
           paymentMethod: data.paymentMethod,
           internalNotes: data.internalNotes,
+          invoiceTaxType: data.invoiceTaxType || "NON_ITC",
+          buyerGstin: data.buyerGstin || data.customer.gstin,
+          baseFare: data.baseFare ?? 0,
+          serviceCharge: data.serviceCharge ?? 0,
           airline: data.airline,
           segments: data.segments,
           passengers: data.passengers,
@@ -135,10 +165,21 @@ export function OfflineBookingWizard() {
           internalNotes: data.internalNotes,
           propertyName: data.propertyName,
           propertyAddress: data.propertyAddress,
+          city: data.city,
+          propertyPhone: data.propertyPhone,
+          propertyEmail: data.propertyEmail,
           checkIn: data.checkIn,
           checkOut: data.checkOut,
+          checkInTime: data.checkInTime,
+          checkOutTime: data.checkOutTime,
           roomType: data.roomType,
+          roomsCount: data.roomsCount,
+          mealPlan: data.mealPlan,
+          roomAmenities: data.roomAmenities,
           guests: data.guests,
+          inclusions: data.inclusions,
+          cancellationPolicy: data.cancellationPolicy,
+          includeCancellationPolicy: data.includeCancellationPolicy,
         };
       } else {
         payload = {
@@ -275,27 +316,8 @@ export function OfflineBookingWizard() {
         <TabsContent value="HOTEL">
           <Card>
             <CardHeader><CardTitle className="text-base">Hotel Details</CardTitle></CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <Input {...form.register("propertyName")} placeholder="Property Name" />
-              <Input {...form.register("roomType")} placeholder="Room Type" />
-              <Input {...form.register("propertyAddress")} placeholder="Address" className="sm:col-span-2" />
-              <Input {...form.register("checkIn")} type="date" />
-              <Input {...form.register("checkOut")} type="date" />
-              {guestFields.map((field, i) => (
-                <div key={field.id} className="flex gap-2 sm:col-span-2">
-                  <Input {...form.register(`guests.${i}.name`)} placeholder="Guest Name" />
-                  <Select value={form.watch(`guests.${i}.type`)} onValueChange={(v) => form.setValue(`guests.${i}.type`, v as "adult" | "child")}>
-                    <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="adult">Adult</SelectItem>
-                      <SelectItem value="child">Child</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => appendGuest({ name: "", type: "adult" })}>
-                <Plus className="mr-2 h-4 w-4" /> Add Guest
-              </Button>
+            <CardContent>
+              <HotelBookingFields form={form} guestFields={guestFields} appendGuest={appendGuest} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -327,10 +349,14 @@ export function OfflineBookingWizard() {
       <Card>
         <CardHeader><CardTitle className="text-base">Payment & Notes</CardTitle></CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Total Amount (INR) *</Label>
-            <Input {...form.register("totalAmount")} type="number" />
-          </div>
+          {productType === "FLIGHT" ? (
+            <FlightInvoiceFields form={form} />
+          ) : (
+            <div className="space-y-2">
+              <Label>Total Amount (INR) *</Label>
+              <Input {...form.register("totalAmount")} type="number" />
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Payment Method</Label>
             <Select onValueChange={(v) => form.setValue("paymentMethod", v)}>

@@ -9,6 +9,7 @@ import { InvoicePDF } from "@/templates/pdf/invoice";
 import type { DocumentType } from "@prisma/client";
 import type { FlightPassenger, FlightSegment, HotelGuest, BusPassenger } from "@/types/booking";
 import { logActivity } from "./activity.service";
+import { getPdfLogoDataUri } from "@/lib/pdf-logo";
 
 function getStorageDir() {
   // Vercel serverless only allows writes to /tmp
@@ -41,6 +42,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
 
   const storageDir = getStorageDir();
   await ensureStorageDir();
+  const logoSrc = await getPdfLogoDataUri();
   const documents: { type: DocumentType; fileName: string; storagePath: string }[] = [];
 
   if (booking.productType === "FLIGHT" && booking.flightBooking) {
@@ -66,6 +68,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
         booking,
         hotel: booking.hotelBooking,
         guests: booking.hotelBooking.guests as unknown as HotelGuest[],
+        logoSrc,
       })
     );
     const voucherFileName = `${booking.publicRef}-voucher.pdf`;
@@ -90,7 +93,19 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
   }
 
   const invoiceBuffer = await renderToBuffer(
-    InvoicePDF({ agency, booking, payments: booking.payments })
+    InvoicePDF({
+      agency,
+      booking,
+      customer: booking.customer,
+      payments: booking.payments,
+      flight: booking.flightBooking,
+      segments: booking.flightBooking
+        ? (booking.flightBooking.segments as unknown as FlightSegment[])
+        : undefined,
+      passengers: booking.flightBooking
+        ? (booking.flightBooking.passengers as unknown as FlightPassenger[])
+        : undefined,
+    })
   );
   const invoiceFileName = `${booking.publicRef}-invoice.pdf`;
   const invoicePath = path.join(storageDir, invoiceFileName);

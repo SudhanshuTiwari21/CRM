@@ -14,7 +14,10 @@ import {
   Sun,
   Menu,
   X,
+  Building2,
+  Calculator,
 } from "lucide-react";
+import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useState } from "react";
@@ -26,8 +29,10 @@ import { Separator } from "@/components/ui/separator";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/bookings", label: "Bookings", icon: Plane },
+  { href: "/hotels", label: "Hotels", icon: Building2 },
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/documents", label: "Documents", icon: FileText },
+  { href: "/accounting", label: "Accounting", icon: Calculator },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -48,15 +53,14 @@ export function Sidebar() {
   const NavContent = () => (
     <>
       <div className="flex h-[4.5rem] items-center gap-3 px-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/25">
-          <Plane className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="text-sm font-bold tracking-tight text-sidebar-foreground">Book to Roam</p>
-          <p className="text-[11px] font-medium uppercase tracking-widest text-sidebar-foreground/50">
-            Travel CRM
-          </p>
-        </div>
+        <Image
+          src="/booktoroam-logo.svg"
+          alt="Book to Roam"
+          width={140}
+          height={40}
+          className="h-10 w-auto"
+          priority
+        />
       </div>
       <Separator className="bg-sidebar-border" />
       <nav className="flex-1 space-y-1 px-3 py-4">

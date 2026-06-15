@@ -53,6 +53,23 @@ enum EmailStatus {
   FAILED
 }
 
+enum MealPlan {
+  ROOM_ONLY
+  WITH_BREAKFAST
+  HALF_BOARD
+  FULL_BOARD
+}
+
+enum CustomerType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum InvoiceTaxType {
+  ITC
+  NON_ITC
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -105,20 +122,63 @@ model VerificationToken {
 }
 
 model Customer {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
+  type      CustomerType @default(INDIVIDUAL)
   name      String
   email     String?
   phone     String
+  pan       String?
   gstin     String?
   address   String?
-  tags      String[] @default([])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  city      String?
+  state     String?
+  pincode   String?
+  tags      String[]     @default([])
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   bookings Booking[]
+  branches CustomerBranch[]
+  contacts CustomerContact[]
 
   @@index([phone])
   @@index([email])
+  @@index([type])
+}
+
+model CustomerBranch {
+  id         String   @id @default(cuid())
+  customerId String
+  name       String
+  gstin      String?
+  address    String?
+  city       String?
+  state      String?
+  pincode    String?
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([gstin])
+}
+
+model CustomerContact {
+  id          String   @id @default(cuid())
+  customerId  String
+  name        String
+  phone       String?
+  email       String?
+  designation String?
+  isPrimary   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
 }
 
 model Booking {
@@ -158,30 +218,74 @@ model Booking {
 }
 
 model FlightBooking {
-  id        String @id @default(cuid())
-  bookingId String @unique
-  airline   String
-  segments  Json
-  passengers Json
+  id             String          @id @default(cuid())
+  bookingId      String          @unique
+  airline        String
+  segments       Json
+  passengers     Json
+  baseFare       Decimal?        @db.Decimal(12, 2)
+  serviceCharge  Decimal?        @db.Decimal(12, 2)
+  invoiceTaxType InvoiceTaxType  @default(NON_ITC)
+  buyerGstin     String?
+  buyerState     String?
+  buyerStateCode String?
+  placeOfSupply  String?
+  hsnSac         String          @default("998551")
+  cgstRate       Decimal?        @db.Decimal(5, 2)
+  sgstRate       Decimal?        @db.Decimal(5, 2)
+  igstRate       Decimal?        @db.Decimal(5, 2)
+  cgstAmount     Decimal?        @db.Decimal(12, 2)
+  sgstAmount     Decimal?        @db.Decimal(12, 2)
+  igstAmount     Decimal?        @db.Decimal(12, 2)
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 }
 
-model HotelBooking {
-  id             String   @id @default(cuid())
-  bookingId      String   @unique
-  propertyName   String
-  propertyAddress String
-  confirmationNo String?
-  checkIn        DateTime
-  checkOut       DateTime
-  nights         Int
-  roomType       String
-  guests         Json
-  policies       String?
-  agentRemarks   String?
+model HotelProfile {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  address      String
+  city         String?
+  phone        String?
+  email        String?
+  checkInTime  String   @default("02:00 PM")
+  checkOutTime String   @default("12:00 PM")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hotelBookings HotelBooking[]
+
+  @@index([name])
+}
+
+model HotelBooking {
+  id                        String    @id @default(cuid())
+  bookingId                 String    @unique
+  hotelProfileId            String?
+  propertyName              String
+  propertyAddress           String
+  city                      String?
+  propertyPhone             String?
+  propertyEmail             String?
+  confirmationNo            String?
+  checkIn                   DateTime
+  checkOut                  DateTime
+  checkInTime               String    @default("02:00 PM")
+  checkOutTime              String    @default("12:00 PM")
+  nights                    Int
+  roomsCount                Int       @default(1)
+  roomType                  String
+  mealPlan                  MealPlan  @default(ROOM_ONLY)
+  roomAmenities             String[]  @default([])
+  guests                    Json
+  inclusions                String?
+  cancellationPolicy        String?
+  includeCancellationPolicy Boolean   @default(false)
+  policies                  String?
+  agentRemarks              String?
+
+  booking      Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hotelProfile HotelProfile? @relation(fields: [hotelProfileId], references: [id], onDelete: SetNull)
 }
 
 model BusBooking {
@@ -270,6 +374,8 @@ model AgencySettings {
   email            String?
   logoUrl          String?
   invoicePrefix    String  @default("INV")
+  msmeRegistered   Boolean @default(false)
+  msmeNumber       String?
   webhookApiKey    String?
   holdModeEnabled  Boolean @default(false)
   smtpHost         String?

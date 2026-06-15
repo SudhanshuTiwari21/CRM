@@ -44,9 +44,11 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     orderBy: { name: "asc" },
   });
 
+  const isHotel = booking.productType === "HOTEL";
   const canConfirmPnr =
     ["PROCESSING", "FAILED"].includes(booking.status) ||
-    (booking.status === "CONFIRMED" && booking.documents.length === 0);
+    (booking.status === "CONFIRMED" && booking.documents.length === 0) ||
+    (isHotel && booking.status === "TICKET_SENT" && !booking.hotelBooking?.confirmationNo);
 
   return (
     <div>
@@ -68,8 +70,10 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             {canConfirmPnr && (
               <ConfirmPnrDialog
                 bookingId={booking.id}
-                existingPnr={booking.pnr}
+                existingPnr={booking.hotelBooking?.confirmationNo || booking.pnr}
                 resume={booking.status === "CONFIRMED" && booking.documents.length === 0}
+                isHotel={isHotel}
+                hotelPendingSupplier={isHotel && !booking.hotelBooking?.confirmationNo}
               />
             )}
             <BookingActions bookingId={booking.id} status={booking.status} />
@@ -212,7 +216,30 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
         <TabsContent value="payments">
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-6 space-y-4">
+              {booking.flightBooking?.baseFare != null && (
+                <div className="rounded-lg border p-4 text-sm space-y-2">
+                  <p className="font-medium">
+                    Invoice: {booking.flightBooking.invoiceTaxType === "ITC" ? "ITC (B2B)" : "Non-ITC (B2C)"}
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <p><span className="text-muted-foreground">Base Fare:</span> {formatCurrency(Number(booking.flightBooking.baseFare))}</p>
+                    <p><span className="text-muted-foreground">Service Charge:</span> {formatCurrency(Number(booking.flightBooking.serviceCharge || 0))}</p>
+                    {Number(booking.flightBooking.cgstAmount) > 0 && (
+                      <p><span className="text-muted-foreground">CGST ({Number(booking.flightBooking.cgstRate)}%):</span> {formatCurrency(Number(booking.flightBooking.cgstAmount))}</p>
+                    )}
+                    {Number(booking.flightBooking.sgstAmount) > 0 && (
+                      <p><span className="text-muted-foreground">SGST ({Number(booking.flightBooking.sgstRate)}%):</span> {formatCurrency(Number(booking.flightBooking.sgstAmount))}</p>
+                    )}
+                    {Number(booking.flightBooking.igstAmount) > 0 && (
+                      <p><span className="text-muted-foreground">IGST ({Number(booking.flightBooking.igstRate)}%):</span> {formatCurrency(Number(booking.flightBooking.igstAmount))}</p>
+                    )}
+                    {booking.flightBooking.buyerGstin && (
+                      <p className="sm:col-span-2"><span className="text-muted-foreground">Buyer GSTIN:</span> {booking.flightBooking.buyerGstin}</p>
+                    )}
+                  </div>
+                </div>
+              )}
               {booking.payments.length === 0 ? (
                 <p className="text-muted-foreground">No payments recorded</p>
               ) : (

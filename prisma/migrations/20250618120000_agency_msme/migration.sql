@@ -1,0 +1,2 @@
+ALTER TABLE "AgencySettings" ADD COLUMN IF NOT EXISTS "msmeRegistered" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "AgencySettings" ADD COLUMN IF NOT EXISTS "msmeNumber" TEXT;
