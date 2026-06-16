@@ -22,7 +22,12 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
 
   useEffect(() => {
     fetch("/api/crm/settings")
-      .then((r) => r.json())
+      .then(async (r) => {
+        const type = r.headers.get("content-type") || "";
+        if (!r.ok || !type.includes("application/json")) return null;
+        const data = await r.json();
+        return data;
+      })
       .then((data) => setAgencyStateCode(getStateCodeFromGstin(data?.agency?.gstin)))
       .catch(() => setAgencyStateCode(null));
   }, []);

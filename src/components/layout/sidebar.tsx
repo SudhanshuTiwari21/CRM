@@ -51,12 +51,12 @@ export function Sidebar() {
 
   const NavContent = () => (
     <>
-      <div className="flex h-[4.5rem] items-center overflow-hidden px-4">
+      <div className="flex h-20 items-center overflow-hidden px-4">
         {/* SVG viewBox has large padding — scale up so the wordmark fills the sidebar */}
         <img
           src="/booktoroam-logo.svg"
           alt="Book to Roam"
-          className="h-11 w-auto origin-left scale-[2.35]"
+          className="h-12 w-auto origin-left scale-[3]"
           style={{ maxWidth: "none" }}
         />
       </div>

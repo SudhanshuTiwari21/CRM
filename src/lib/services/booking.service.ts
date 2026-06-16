@@ -47,8 +47,13 @@ async function upsertCustomer(customer: { name: string; email?: string; phone: s
 }
 
 async function getAgencyStateCode() {
-  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
-  return getStateCodeFromGstin(agency?.gstin);
+  try {
+    const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+    return getStateCodeFromGstin(agency?.gstin);
+  } catch {
+    // Do not block booking creation if agency settings query fails.
+    return null;
+  }
 }
 
 function validateFlightInvoice(input: OfflineFlightBookingInput) {
@@ -286,12 +291,16 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
     });
   }
 
-  await logActivity({
-    bookingId: booking.id,
-    userId,
-    action: "BOOKING_CREATED",
-    details: { channel: "OFFLINE", productType: input.productType },
-  });
+  try {
+    await logActivity({
+      bookingId: booking.id,
+      userId: userId && userId !== "bypass" ? userId : undefined,
+      action: "BOOKING_CREATED",
+      details: { channel: "OFFLINE", productType: input.productType },
+    });
+  } catch {
+    // Non-critical. Booking is already created.
+  }
 
   return booking;
 }
