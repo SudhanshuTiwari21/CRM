@@ -4,6 +4,7 @@ const styles = StyleSheet.create({
   logo: { width: 140, height: 40, objectFit: "contain" },
 });
 
-export function PdfLogo({ src }: { src: string }) {
+export function PdfLogo({ src }: { src?: string | null }) {
+  if (!src) return null;
   return <Image src={src} style={styles.logo} />;
 }

@@ -47,7 +47,7 @@ interface Props {
   booking: Booking;
   hotel: HotelBooking;
   guests: HotelGuest[];
-  logoSrc: string;
+  logoSrc?: string | null;
 }
 
 function countGuests(guests: HotelGuest[]) {
@@ -73,7 +73,7 @@ export function HotelVoucherPDF({ agency, booking, hotel, guests, logoSrc }: Pro
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.headerRow}>
-          <PdfLogo src={logoSrc} />
+          {logoSrc ? <PdfLogo src={logoSrc} /> : <Text style={styles.agencyName}>{agency.companyName}</Text>}
           <View style={styles.agencyBlock}>
             <Text style={styles.agencyName}>{agency.companyName}</Text>
             <Text style={styles.agencyLine}>{agency.address}</Text>
