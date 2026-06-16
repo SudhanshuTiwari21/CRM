@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HotelBookingFields } from "@/components/booking/hotel-booking-fields";
 import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields";
+import { parseApiResponse } from "@/lib/parse-api-response";
 
 const baseCustomer = {
   name: "",
@@ -28,13 +29,13 @@ const baseCustomer = {
 const wizardSchema = z.object({
   productType: z.enum(["FLIGHT", "HOTEL", "BUS"]),
   customer: z.object({
-    name: z.string().min(2),
-    email: z.string().optional(),
-    phone: z.string().min(10),
+    name: z.string().min(2, "Customer name is required"),
+    email: z.string().email("Invalid email").optional().or(z.literal("")),
+    phone: z.string().min(10, "Phone must be at least 10 digits"),
     gstin: z.string().optional(),
     address: z.string().optional(),
   }),
-  totalAmount: z.coerce.number().positive(),
+  totalAmount: z.coerce.number().min(0),
   paymentMethod: z.string().optional(),
   internalNotes: z.string().optional(),
   invoiceTaxType: z.enum(["ITC", "NON_ITC"]).optional(),
@@ -137,29 +138,52 @@ export function OfflineBookingWizard() {
   async function onSubmit(data: WizardForm) {
     setLoading(true);
     try {
+      if (productType === "FLIGHT" && (data.baseFare ?? 0) + (data.serviceCharge ?? 0) <= 0) {
+        throw new Error("Enter base fare and service charge for the flight invoice");
+      }
+      if (productType !== "FLIGHT" && data.totalAmount <= 0) {
+        throw new Error("Total amount must be greater than 0");
+      }
+      const customer = {
+        ...data.customer,
+        email: data.customer.email?.trim() || undefined,
+        gstin: data.customer.gstin?.trim() || undefined,
+      };
+
       let payload: Record<string, unknown>;
 
       if (productType === "FLIGHT") {
+        const airline = data.airline?.trim() || "IndiGo";
+        const segments = (data.segments || []).map((s) => ({
+          ...s,
+          airline: s.airline || airline,
+          flightNumber: s.flightNumber?.trim() || "",
+          fromAirport: s.fromAirport?.trim() || "",
+          fromCity: s.fromCity?.trim() || "",
+          toAirport: s.toAirport?.trim() || "",
+          toCity: s.toCity?.trim() || "",
+        }));
+
         payload = {
           productType: "FLIGHT",
           channel: "OFFLINE",
-          customer: data.customer,
+          customer,
           totalAmount: data.totalAmount,
           paymentMethod: data.paymentMethod,
           internalNotes: data.internalNotes,
           invoiceTaxType: data.invoiceTaxType || "NON_ITC",
-          buyerGstin: data.buyerGstin || data.customer.gstin,
+          buyerGstin: (data.buyerGstin || customer.gstin || "").trim() || undefined,
           baseFare: data.baseFare ?? 0,
           serviceCharge: data.serviceCharge ?? 0,
-          airline: data.airline,
-          segments: data.segments,
+          airline,
+          segments,
           passengers: data.passengers,
         };
       } else if (productType === "HOTEL") {
         payload = {
           productType: "HOTEL",
           channel: "OFFLINE",
-          customer: data.customer,
+          customer,
           totalAmount: data.totalAmount,
           paymentMethod: data.paymentMethod,
           internalNotes: data.internalNotes,
@@ -167,7 +191,7 @@ export function OfflineBookingWizard() {
           propertyAddress: data.propertyAddress,
           city: data.city,
           propertyPhone: data.propertyPhone,
-          propertyEmail: data.propertyEmail,
+          propertyEmail: data.propertyEmail?.trim() || undefined,
           checkIn: data.checkIn,
           checkOut: data.checkOut,
           checkInTime: data.checkInTime,
@@ -185,7 +209,7 @@ export function OfflineBookingWizard() {
         payload = {
           productType: "BUS",
           channel: "OFFLINE",
-          customer: data.customer,
+          customer,
           totalAmount: data.totalAmount,
           paymentMethod: data.paymentMethod,
           internalNotes: data.internalNotes,
@@ -206,20 +230,34 @@ export function OfflineBookingWizard() {
         body: JSON.stringify(payload),
       });
 
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error);
+      const { ok, data: result, error } = await parseApiResponse(res);
+      if (!ok) throw new Error(error);
 
       toast.success("Booking created successfully");
-      router.push(`/bookings/${result.id}`);
+      router.push(`/bookings/${result.id as string}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create booking");
+      if (error instanceof Error && error.message.includes("pattern")) {
+        toast.error("Please check all fields — invalid email or date format.");
+      } else {
+        toast.error(error instanceof Error ? error.message : "Failed to create booking");
+      }
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+    <form
+      onSubmit={form.handleSubmit(onSubmit, (errors) => {
+        const first = Object.values(errors)[0];
+        const msg =
+          (first as { message?: string })?.message ||
+          "Please fill all required fields correctly.";
+        toast.error(msg);
+      })}
+      noValidate
+      className="space-y-6"
+    >
       <Tabs value={productType} onValueChange={(v) => { setProductType(v as typeof productType); form.setValue("productType", v as typeof productType); }}>
         <TabsList>
           <TabsTrigger value="FLIGHT">Flight</TabsTrigger>
@@ -240,7 +278,7 @@ export function OfflineBookingWizard() {
             </div>
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input {...form.register("customer.email")} type="email" />
+              <Input {...form.register("customer.email")} type="text" inputMode="email" autoComplete="email" placeholder="optional" />
             </div>
             <div className="space-y-2">
               <Label>GSTIN</Label>
@@ -264,8 +302,8 @@ export function OfflineBookingWizard() {
                   <Input {...form.register(`segments.${i}.fromAirport`)} placeholder="From Airport (CCU)" />
                   <Input {...form.register(`segments.${i}.toCity`)} placeholder="To City" />
                   <Input {...form.register(`segments.${i}.toAirport`)} placeholder="To Airport (GAU)" />
-                  <Input {...form.register(`segments.${i}.departureAt`)} type="datetime-local" />
-                  <Input {...form.register(`segments.${i}.arrivalAt`)} type="datetime-local" />
+                  <Input {...form.register(`segments.${i}.departureAt`)} type="datetime-local" step="60" />
+                  <Input {...form.register(`segments.${i}.arrivalAt`)} type="datetime-local" step="60" />
                   <Input {...form.register(`segments.${i}.aircraft`)} placeholder="Aircraft (A320)" />
                 </div>
               ))}

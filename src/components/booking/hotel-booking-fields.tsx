@@ -94,7 +94,7 @@ export function HotelBookingFields({ form, guestFields, appendGuest }: HotelBook
       </div>
       <div className="space-y-2">
         <Label>Hotel Email</Label>
-        <Input {...form.register("propertyEmail")} type="email" placeholder="fo@hotel.com" />
+        <Input {...form.register("propertyEmail")} type="text" inputMode="email" placeholder="fo@hotel.com" />
       </div>
       <div className="space-y-2">
         <Label>Room Type *</Label>

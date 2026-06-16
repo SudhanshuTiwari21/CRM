@@ -17,7 +17,6 @@ import {
   Building2,
   Calculator,
 } from "lucide-react";
-import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { useState } from "react";
@@ -52,14 +51,13 @@ export function Sidebar() {
 
   const NavContent = () => (
     <>
-      <div className="flex h-24 items-center px-5">
-        <Image
+      <div className="flex h-[4.5rem] items-center overflow-hidden px-4">
+        {/* SVG viewBox has large padding — scale up so the wordmark fills the sidebar */}
+        <img
           src="/booktoroam-logo.svg"
           alt="Book to Roam"
-          width={220}
-          height={64}
-          className="h-16 w-auto max-w-[210px]"
-          priority
+          className="h-11 w-auto origin-left scale-[2.35]"
+          style={{ maxWidth: "none" }}
         />
       </div>
       <Separator className="bg-sidebar-border" />

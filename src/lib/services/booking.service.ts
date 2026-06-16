@@ -130,9 +130,18 @@ async function sendBookingEmails(bookingId: string, templateKey: "held_processin
   });
 }
 
-export async function createOfflineBooking(input: OfflineBookingInput, userId: string) {
+export async function createOfflineBooking(input: OfflineBookingInput, userId?: string) {
   const customer = await upsertCustomer(input.customer);
   const publicRef = await generatePublicRef();
+
+  let assignedAgentId: string | null = null;
+  if (userId && userId !== "bypass") {
+    const agent = await prisma.user.findFirst({
+      where: { id: userId, active: true },
+      select: { id: true },
+    });
+    assignedAgentId = agent?.id ?? null;
+  }
 
   const baseData = {
     publicRef,
@@ -142,7 +151,7 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId: s
     paymentStatus: (input.paymentMethod ? "PAID" : "PENDING") as PaymentStatus,
     totalAmount: input.totalAmount,
     customerId: customer.id,
-    assignedAgentId: userId,
+    assignedAgentId,
     internalNotes: input.internalNotes,
   };
 

@@ -11,11 +11,14 @@ export function jsonError(message: string, status = 400) {
 
 export function handleApiError(error: unknown) {
   if (error instanceof ZodError) {
-    return jsonError(error.errors.map((e) => e.message).join(", "), 400);
+    return jsonError(error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; "), 400);
   }
   if (error instanceof Error) {
     if (error.message === "Unauthorized") return jsonError("Unauthorized", 401);
     if (error.message === "Forbidden") return jsonError("Forbidden", 403);
+    if (error.message.includes("Foreign key constraint")) {
+      return jsonError("Invalid user session. Please sign in again.", 401);
+    }
     return jsonError(error.message, 400);
   }
   return jsonError("Internal server error", 500);

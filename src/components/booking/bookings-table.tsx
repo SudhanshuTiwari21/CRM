@@ -19,6 +19,7 @@ import { CHANNEL_LABELS, PRODUCT_LABELS } from "@/lib/constants";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import type { BookingStatus, BookingChannel, ProductType } from "@prisma/client";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { parseApiResponse } from "@/lib/parse-api-response";
 
 interface BookingRow {
   id: string;
@@ -91,9 +92,14 @@ export function BookingsTable() {
     if (productType !== "all") params.set("productType", productType);
 
     const res = await fetch(`/api/crm/bookings?${params}`);
-    const json = await res.json();
-    setData(json.bookings || []);
-    setTotal(json.total || 0);
+    const { ok, data: json } = await parseApiResponse(res);
+    if (ok) {
+      setData((json.bookings as BookingRow[]) || []);
+      setTotal((json.total as number) || 0);
+    } else {
+      setData([]);
+      setTotal(0);
+    }
     setLoading(false);
   }, [page, search, status, channel, productType]);
 
