@@ -7,7 +7,7 @@ import { PdfLogo } from "@/templates/pdf/pdf-logo";
 
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 9, fontFamily: "Helvetica", color: "#1f2937" },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16, paddingBottom: 12, borderBottom: "1px solid #e5e7eb" },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, paddingBottom: 12, borderBottom: "1px solid #e5e7eb" },
   agencyBlock: { textAlign: "right", maxWidth: 220 },
   agencyName: { fontSize: 11, fontWeight: "bold", color: "#111827" },
   agencyLine: { fontSize: 8, color: "#4b5563", marginTop: 2 },

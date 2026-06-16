@@ -1,10 +1,15 @@
-import { Image, StyleSheet } from "@react-pdf/renderer";
+import { Image, StyleSheet, View } from "@react-pdf/renderer";
 
 const styles = StyleSheet.create({
-  logo: { width: 140, height: 40, objectFit: "contain" },
+  logoWrap: { width: 200, minHeight: 48, justifyContent: "center" },
+  logo: { width: 200, height: 48, objectFit: "contain", objectPosition: "left" },
 });
 
 export function PdfLogo({ src }: { src?: string | null }) {
   if (!src) return null;
-  return <Image src={src} style={styles.logo} />;
+  return (
+    <View style={styles.logoWrap}>
+      <Image src={src} style={styles.logo} />
+    </View>
+  );
 }

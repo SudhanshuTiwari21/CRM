@@ -14,6 +14,7 @@
     "db:clear-demo": "tsx prisma/clear-demo-data.ts",
     "db:studio": "prisma studio",
     "demo:sync": "node scripts/sync-ngrok-env.mjs",
+    "generate:pdf-logo": "node scripts/generate-pdf-logo.cjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {
