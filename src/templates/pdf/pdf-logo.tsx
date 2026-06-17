@@ -1,11 +1,13 @@
 import { Image, StyleSheet, View } from "@react-pdf/renderer";
 
 const styles = StyleSheet.create({
-  logoWrap: { width: 200, minHeight: 48, justifyContent: "center" },
-  logo: { width: 200, height: 48, objectFit: "contain", objectPosition: "left" },
+  // Deliberately larger for voucher/invoice readability in printed PDFs.
+  // Keep natural aspect ratio from source PNG (~520x97) to avoid distortion.
+  logoWrap: { width: 150, minHeight: 28, justifyContent: "center" },
+  logo: { width: 150, height: 28, objectFit: "contain", objectPosition: "left" },
 });
 
-export function PdfLogo({ src }: { src?: string | null }) {
+export function PdfLogo({ src }: Readonly<{ src?: string | null }>) {
   if (!src) return null;
   return (
     <View style={styles.logoWrap}>
