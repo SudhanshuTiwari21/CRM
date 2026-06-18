@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { generatePublicRef } from "@/lib/booking-ref";
+import { allocatePublicRef } from "@/lib/booking-ref";
 import { logActivity } from "./activity.service";
 import { generateBookingDocuments, getBookingDocumentPaths } from "./document.service";
 import { sendTemplatedEmail, getEmailAttachments } from "@/lib/mailer";
@@ -7,6 +7,7 @@ import { getFlightProvider } from "./provider/flight-provider";
 import { upsertHotelProfile } from "./hotel.service";
 import { upsertAirlineProfile } from "./airline.service";
 import { getAirlineLogoUrl, resolveAirlineIata } from "@/lib/airline-logo";
+import { assertCreditAvailable, recordCreditTransaction } from "./credit.service";
 import type {
   BookingChannel,
   BookingStatus,
@@ -113,6 +114,7 @@ function buildFlightTaxData(input: OfflineFlightBookingInput, agencyStateCode: s
       cabinClass: input.cabinClass || "ECONOMY",
       secondaryPnr: input.secondaryPnr || null,
       showEticket: input.showEticket || false,
+      showPassengerName: input.showPassengerName !== false,
       baseFare: input.baseFare,
       serviceCharge: input.serviceCharge,
       discountAmount: discountAmount || null,
@@ -170,7 +172,22 @@ async function sendBookingEmails(bookingId: string, templateKey: "held_processin
 
 export async function createOfflineBooking(input: OfflineBookingInput, userId?: string) {
   const customer = await upsertCustomer(input.customer);
-  const publicRef = await generatePublicRef();
+  const isCredit = input.paymentMethod === "CREDIT";
+  let totalForCredit = input.totalAmount;
+
+  if (input.productType === "FLIGHT") {
+    const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+    const agencyHasGst = Boolean(agency?.gstin?.trim());
+    const flightInput = input as OfflineFlightBookingInput;
+    if (agencyHasGst) {
+      const agencyStateCode = getStateCodeFromGstin(agency?.gstin);
+      totalForCredit = buildFlightTaxData(flightInput, agencyStateCode).totalAmount;
+    }
+  }
+
+  if (isCredit) {
+    await assertCreditAvailable(customer.id, totalForCredit);
+  }
 
   let assignedAgentId: string | null = null;
   if (userId && userId !== "bypass") {
@@ -181,164 +198,207 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
     assignedAgentId = agent?.id ?? null;
   }
 
-  const baseData = {
-    publicRef,
-    channel: "OFFLINE" as BookingChannel,
-    productType: input.productType as ProductType,
-    status: "PROCESSING" as BookingStatus,
-    paymentStatus: (input.paymentMethod ? "PAID" : "PENDING") as PaymentStatus,
-    totalAmount: input.totalAmount,
-    customerId: customer.id,
-    assignedAgentId,
-    internalNotes: input.internalNotes,
-  };
+  const booking = await prisma.$transaction(async (tx) => {
+    const { publicRef, serialYear, serialNumber } = await allocatePublicRef(tx);
 
-  let booking;
+    const paymentStatus: PaymentStatus = isCredit
+      ? "ON_CREDIT"
+      : input.paymentMethod
+        ? "PAID"
+        : "PENDING";
 
-  if (input.productType === "FLIGHT") {
-    const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
-    const agencyStateCode = getStateCodeFromGstin(agency?.gstin);
-    const agencyHasGst = Boolean(agency?.gstin?.trim());
-    const flightInput = input as OfflineFlightBookingInput;
-    validateFlightInvoice(flightInput, agencyHasGst);
-
-    let totalAmount = flightInput.totalAmount;
-    let flightData: Record<string, unknown> = {
-      airline: flightInput.airline,
-      segments: flightInput.segments,
-      passengers: flightInput.passengers,
-      tripType: flightInput.tripType || "ONE_WAY",
-      cabinClass: flightInput.cabinClass || "ECONOMY",
-      secondaryPnr: flightInput.secondaryPnr || null,
-      showEticket: flightInput.showEticket || false,
-      airlineLogoUrl: getAirlineLogoUrl(flightInput.airline) || undefined,
-      invoiceNarration: flightInput.invoiceNarration || null,
-      msmeNumber: flightInput.msmeNumber || null,
-      invoiceTaxType: flightInput.invoiceTaxType,
+    const baseData = {
+      publicRef,
+      serialYear,
+      serialNumber,
+      channel: "OFFLINE" as BookingChannel,
+      productType: input.productType as ProductType,
+      status: "PROCESSING" as BookingStatus,
+      paymentStatus,
+      totalAmount: input.totalAmount,
+      customerId: customer.id,
+      assignedAgentId,
+      internalNotes: input.internalNotes,
     };
 
-    if (agencyHasGst) {
-      const built = buildFlightTaxData(flightInput, agencyStateCode);
-      totalAmount = built.totalAmount;
-      flightData = { ...flightData, ...built.flightData };
+    let created;
+
+    if (input.productType === "FLIGHT") {
+      const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+      const agencyStateCode = getStateCodeFromGstin(agency?.gstin);
+      const agencyHasGst = Boolean(agency?.gstin?.trim());
+      const flightInput = input as OfflineFlightBookingInput;
+      validateFlightInvoice(flightInput, agencyHasGst);
+
+      let totalAmount = flightInput.totalAmount;
+      let flightData: Record<string, unknown> = {
+        airline: flightInput.airline,
+        segments: flightInput.segments,
+        passengers: flightInput.passengers,
+        tripType: flightInput.tripType || "ONE_WAY",
+        cabinClass: flightInput.cabinClass || "ECONOMY",
+        secondaryPnr: flightInput.secondaryPnr || null,
+        showEticket: flightInput.showEticket || false,
+        showPassengerName: flightInput.showPassengerName !== false,
+        airlineLogoUrl: getAirlineLogoUrl(flightInput.airline) || undefined,
+        invoiceNarration: flightInput.invoiceNarration || null,
+        msmeNumber: flightInput.msmeNumber || null,
+        invoiceTaxType: flightInput.invoiceTaxType,
+      };
+
+      if (agencyHasGst) {
+        const built = buildFlightTaxData(flightInput, agencyStateCode);
+        totalAmount = built.totalAmount;
+        flightData = { ...flightData, ...built.flightData };
+      }
+
+      created = await tx.booking.create({
+        data: {
+          ...baseData,
+          totalAmount,
+          flightBooking: {
+            create: flightData as Prisma.FlightBookingUncheckedCreateWithoutBookingInput,
+          },
+          ...(input.paymentMethod
+            ? {
+                payments: {
+                  create: {
+                    amount: totalAmount,
+                    method: isCredit ? "Credit" : input.paymentMethod,
+                    status: isCredit ? "ON_CREDIT" : "PAID",
+                  },
+                },
+              }
+            : {}),
+        },
+        include: { customer: true, flightBooking: true },
+      });
+    } else if (input.productType === "HOTEL") {
+      const nights = differenceInDays(new Date(input.checkOut), new Date(input.checkIn));
+      const hotelProfile = await upsertHotelProfile({
+        name: input.propertyName,
+        address: input.propertyAddress,
+        city: input.city,
+        phone: input.propertyPhone,
+        email: input.propertyEmail,
+        checkInTime: input.checkInTime,
+        checkOutTime: input.checkOutTime,
+      });
+
+      created = await tx.booking.create({
+        data: {
+          ...baseData,
+          totalAmount: input.totalAmount,
+          hotelBooking: {
+            create: {
+              hotelProfileId: hotelProfile.id,
+              propertyName: input.propertyName,
+              propertyAddress: input.propertyAddress,
+              city: input.city,
+              propertyPhone: input.propertyPhone,
+              propertyEmail: input.propertyEmail || undefined,
+              checkIn: new Date(input.checkIn),
+              checkOut: new Date(input.checkOut),
+              checkInTime: input.checkInTime || "02:00 PM",
+              checkOutTime: input.checkOutTime || "12:00 PM",
+              nights: Math.max(nights, 1),
+              roomsCount: input.roomsCount || 1,
+              roomType: input.roomType,
+              mealPlan: input.mealPlan || "ROOM_ONLY",
+              roomAmenities: input.roomAmenities || [],
+              guests: input.guests,
+              inclusions: input.inclusions,
+              cancellationPolicy: input.cancellationPolicy,
+              includeCancellationPolicy: input.includeCancellationPolicy || false,
+              policies: input.policies,
+              agentRemarks: input.agentRemarks,
+            },
+          },
+          ...(input.paymentMethod
+            ? {
+                payments: {
+                  create: {
+                    amount: input.totalAmount,
+                    method: isCredit ? "Credit" : input.paymentMethod,
+                    status: isCredit ? "ON_CREDIT" : "PAID",
+                  },
+                },
+              }
+            : {}),
+        },
+        include: { customer: true, hotelBooking: true },
+      });
+    } else {
+      created = await tx.booking.create({
+        data: {
+          ...baseData,
+          totalAmount: input.totalAmount,
+          busBooking: {
+            create: {
+              operator: input.operator,
+              route: input.route,
+              boardingPoint: input.boardingPoint,
+              droppingPoint: input.droppingPoint,
+              departureAt: new Date(input.departureAt),
+              arrivalAt: new Date(input.arrivalAt),
+              seats: input.seats,
+              passengers: input.passengers,
+            },
+          },
+          ...(input.paymentMethod
+            ? {
+                payments: {
+                  create: {
+                    amount: input.totalAmount,
+                    method: isCredit ? "Credit" : input.paymentMethod,
+                    status: isCredit ? "ON_CREDIT" : "PAID",
+                  },
+                },
+              }
+            : {}),
+        },
+        include: { customer: true, busBooking: true },
+      });
     }
 
-    booking = await prisma.booking.create({
-      data: {
-        ...baseData,
-        totalAmount,
-        flightBooking: {
-          create: flightData as Prisma.FlightBookingUncheckedCreateWithoutBookingInput,
-        },
-        ...(input.paymentMethod
-          ? {
-              payments: {
-                create: {
-                  amount: totalAmount,
-                  method: input.paymentMethod,
-                  status: "PAID",
-                },
-              },
-            }
-          : {}),
-      },
-      include: { customer: true, flightBooking: true },
-    });
-  } else if (input.productType === "HOTEL") {
-    const nights = differenceInDays(new Date(input.checkOut), new Date(input.checkIn));
-    const hotelProfile = await upsertHotelProfile({
-      name: input.propertyName,
-      address: input.propertyAddress,
-      city: input.city,
-      phone: input.propertyPhone,
-      email: input.propertyEmail,
-      checkInTime: input.checkInTime,
-      checkOutTime: input.checkOutTime,
-    });
+    return created!;
+  });
 
-    booking = await prisma.booking.create({
-      data: {
-        ...baseData,
-        hotelBooking: {
-          create: {
-            hotelProfileId: hotelProfile.id,
-            propertyName: input.propertyName,
-            propertyAddress: input.propertyAddress,
-            city: input.city,
-            propertyPhone: input.propertyPhone,
-            propertyEmail: input.propertyEmail || undefined,
-            checkIn: new Date(input.checkIn),
-            checkOut: new Date(input.checkOut),
-            checkInTime: input.checkInTime || "02:00 PM",
-            checkOutTime: input.checkOutTime || "12:00 PM",
-            nights: Math.max(nights, 1),
-            roomsCount: input.roomsCount || 1,
-            roomType: input.roomType,
-            mealPlan: input.mealPlan || "ROOM_ONLY",
-            roomAmenities: input.roomAmenities || [],
-            guests: input.guests,
-            inclusions: input.inclusions,
-            cancellationPolicy: input.cancellationPolicy,
-            includeCancellationPolicy: input.includeCancellationPolicy || false,
-            policies: input.policies,
-            agentRemarks: input.agentRemarks,
-          },
-        },
-        ...(input.paymentMethod
-          ? {
-              payments: {
-                create: {
-                  amount: input.totalAmount,
-                  method: input.paymentMethod,
-                  status: "PAID",
-                },
-              },
-            }
-          : {}),
-      },
-      include: { customer: true, hotelBooking: true },
+  if (isCredit) {
+    await recordCreditTransaction({
+      customerId: customer.id,
+      bookingId: booking.id,
+      type: "DEBIT",
+      amount: Number(booking.totalAmount),
+      note: `Booking ${booking.publicRef}`,
+      createdById: userId && userId !== "bypass" ? userId : undefined,
     });
+  }
 
+  if (input.productType === "HOTEL") {
     await generateBookingDocuments(booking.id, userId);
     await sendBookingEmails(booking.id, "booking_confirmed");
     await prisma.booking.update({
       where: { id: booking.id },
       data: { status: "TICKET_SENT" },
     });
-    booking = await prisma.booking.findUniqueOrThrow({
+    const hotelBooking = await prisma.booking.findUniqueOrThrow({
       where: { id: booking.id },
       include: { customer: true, hotelBooking: true },
     });
-  } else {
-    booking = await prisma.booking.create({
-      data: {
-        ...baseData,
-        busBooking: {
-          create: {
-            operator: input.operator,
-            route: input.route,
-            boardingPoint: input.boardingPoint,
-            droppingPoint: input.droppingPoint,
-            departureAt: new Date(input.departureAt),
-            arrivalAt: new Date(input.arrivalAt),
-            seats: input.seats,
-            passengers: input.passengers,
-          },
-        },
-        ...(input.paymentMethod
-          ? {
-              payments: {
-                create: {
-                  amount: input.totalAmount,
-                  method: input.paymentMethod,
-                  status: "PAID",
-                },
-              },
-            }
-          : {}),
-      },
-      include: { customer: true, busBooking: true },
-    });
+
+    try {
+      await logActivity({
+        bookingId: hotelBooking.id,
+        userId: userId && userId !== "bypass" ? userId : undefined,
+        action: "BOOKING_CREATED",
+        details: { channel: "OFFLINE", productType: input.productType },
+      });
+    } catch {
+      // Non-critical.
+    }
+
+    return hotelBooking;
   }
 
   try {
@@ -357,12 +417,14 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
 
 export async function createHeldBooking(input: WebhookBookingInput) {
   const customer = await upsertCustomer(input.customer);
-  const publicRef = await generatePublicRef();
+  const { publicRef, serialYear, serialNumber } = await allocatePublicRef();
 
   const booking = await createBookingFromWebhook({
     input,
     customerId: customer.id,
     publicRef,
+    serialYear,
+    serialNumber,
     channel: "HELD",
     status: "PROCESSING",
   });
@@ -373,7 +435,7 @@ export async function createHeldBooking(input: WebhookBookingInput) {
 
 export async function createLiveBooking(input: WebhookBookingInput) {
   const customer = await upsertCustomer(input.customer);
-  const publicRef = await generatePublicRef();
+  const { publicRef, serialYear, serialNumber } = await allocatePublicRef();
 
   let pnr: string | undefined;
   let supplierRef: string | undefined;
@@ -399,6 +461,8 @@ export async function createLiveBooking(input: WebhookBookingInput) {
     input,
     customerId: customer.id,
     publicRef,
+    serialYear,
+    serialNumber,
     channel: "LIVE_API",
     status: "CONFIRMED",
     pnr,
@@ -426,16 +490,20 @@ async function createBookingFromWebhook(params: {
   input: WebhookBookingInput;
   customerId: string;
   publicRef: string;
+  serialYear: number;
+  serialNumber: number;
   channel: BookingChannel;
   status: BookingStatus;
   pnr?: string;
   supplierRef?: string;
   metadata?: Prisma.InputJsonValue;
 }) {
-  const { input, customerId, publicRef, channel, status, pnr, supplierRef, metadata } = params;
+  const { input, customerId, publicRef, serialYear, serialNumber, channel, status, pnr, supplierRef, metadata } = params;
 
   const base = {
     publicRef,
+    serialYear,
+    serialNumber,
     channel,
     productType: input.productType as ProductType,
     status,

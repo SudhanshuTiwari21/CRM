@@ -39,6 +39,14 @@ enum PaymentStatus {
   PAID
   REFUNDED
   FAILED
+  ON_CREDIT
+}
+
+enum CreditTransactionType {
+  DEBIT
+  CREDIT
+  ADJUSTMENT
+  REFUND
 }
 
 enum DocumentType {
@@ -94,6 +102,7 @@ model User {
 
   assignedBookings Booking[]    @relation("AssignedAgent")
   activityLogs     ActivityLog[]
+  creditTransactions CustomerCreditTransaction[] @relation("CreditCreatedBy")
   accounts         Account[]
   sessions         Session[]
 }
@@ -146,12 +155,17 @@ model Customer {
   state     String?
   pincode   String?
   tags      String[]     @default([])
+  creditEnabled    Boolean  @default(false)
+  creditLimit      Decimal? @db.Decimal(12, 2)
+  creditBalance    Decimal  @default(0) @db.Decimal(12, 2)
+  paymentTermsDays Int?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
   bookings Booking[]
   branches CustomerBranch[]
   contacts CustomerContact[]
+  creditTransactions CustomerCreditTransaction[]
 
   @@index([phone])
   @@index([email])
@@ -193,9 +207,35 @@ model CustomerContact {
   @@index([customerId])
 }
 
+model CustomerCreditTransaction {
+  id           String                @id @default(cuid())
+  customerId   String
+  bookingId    String?
+  type         CreditTransactionType
+  amount       Decimal               @db.Decimal(12, 2)
+  balanceAfter Decimal               @db.Decimal(12, 2)
+  note         String?
+  createdById  String?
+  createdAt    DateTime              @default(now())
+
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  createdBy User?    @relation("CreditCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([bookingId])
+}
+
+model BookingSerialCounter {
+  year       Int @id
+  lastNumber Int @default(0)
+}
+
 model Booking {
   id              String         @id @default(cuid())
   publicRef       String         @unique
+  serialYear      Int?
+  serialNumber    Int?
   channel         BookingChannel
   productType     ProductType
   status          BookingStatus  @default(DRAFT)
@@ -209,6 +249,8 @@ model Booking {
   metadata        Json?
   customerId      String
   assignedAgentId String?
+  lastEditedAt    DateTime?
+  lastEditedById  String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -221,7 +263,9 @@ model Booking {
   documents     Document[]
   emailLogs     EmailLog[]
   activityLogs  ActivityLog[]
+  creditTransactions CustomerCreditTransaction[]
 
+  @@unique([serialYear, serialNumber])
   @@index([status])
   @@index([channel])
   @@index([productType])
@@ -260,6 +304,7 @@ model FlightBooking {
   cabinClass       CabinClass      @default(ECONOMY)
   secondaryPnr     String?
   showEticket      Boolean         @default(false)
+  showPassengerName Boolean        @default(true)
   baseFare         Decimal?        @db.Decimal(12, 2)
   serviceCharge    Decimal?        @db.Decimal(12, 2)
   discountAmount   Decimal?        @db.Decimal(12, 2)

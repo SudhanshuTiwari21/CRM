@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import type { WizardForm } from "@/components/booking/offline-booking-wizard";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -192,6 +193,24 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
         <p className="text-xs text-amber-800 dark:text-amber-200">
           Charge breakup or notes — highlighted on the printed invoice.
         </p>
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border p-3">
+        <div>
+          <Label>Show passenger name on invoice</Label>
+          <p className="text-xs text-muted-foreground">Hide passenger name for privacy on B2B invoices</p>
+        </div>
+        <Button
+          type="button"
+          variant={form.watch("showPassengerName") !== false ? "default" : "outline"}
+          size="sm"
+          onClick={() => {
+            const show = form.watch("showPassengerName") !== false;
+            form.setValue("showPassengerName", !show);
+          }}
+        >
+          {form.watch("showPassengerName") !== false ? "Yes" : "No"}
+        </Button>
       </div>
 
       <input type="hidden" {...form.register("totalAmount")} />

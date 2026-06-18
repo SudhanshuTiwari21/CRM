@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/booking/status-badge";
 import { ConfirmPnrDialog } from "@/components/booking/confirm-pnr-dialog";
-import { BookingActions } from "@/components/booking/booking-actions";
+import { AdminBookingToolbar } from "@/components/booking/admin-booking-toolbar";
 import { SendItineraryDialog } from "@/components/booking/send-itinerary-dialog";
 import { BookingQuickActions } from "@/components/booking/booking-quick-actions";
 import { CHANNEL_LABELS, PRODUCT_LABELS } from "@/lib/constants";
@@ -83,7 +83,16 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             {isFlight && booking.status === "PROCESSING" && (
               <SendItineraryDialog bookingId={booking.id} isRoundTrip={isRoundTrip} />
             )}
-            <BookingActions bookingId={booking.id} status={booking.status} />
+            <AdminBookingToolbar
+              bookingId={booking.id}
+              publicRef={booking.publicRef}
+              productType={booking.productType}
+              status={booking.status}
+              pnr={booking.pnr}
+              internalNotes={booking.internalNotes}
+              totalAmount={Number(booking.totalAmount)}
+              flight={booking.flightBooking}
+            />
           </div>
         }
       />

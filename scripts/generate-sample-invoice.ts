@@ -72,6 +72,10 @@ async function renderSample(params: {
     state: params.buyerState || "West Bengal",
     pincode: "700001",
     tags: [],
+    creditEnabled: false,
+    creditLimit: null,
+    creditBalance: new Decimal(0),
+    paymentTermsDays: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -83,6 +87,8 @@ async function renderSample(params: {
   const booking = {
     id: "sample-booking",
     publicRef: "FB-2026-SAMPLE",
+    serialYear: 2026,
+    serialNumber: 1,
     channel: "OFFLINE" as const,
     productType: "FLIGHT" as const,
     status: "TICKET_SENT" as const,
@@ -96,6 +102,8 @@ async function renderSample(params: {
     metadata: null,
     customerId: customer.id,
     assignedAgentId: null,
+    lastEditedAt: null,
+    lastEditedById: null,
     createdAt: new Date("2026-04-12"),
     updatedAt: new Date(),
   };
@@ -111,6 +119,7 @@ async function renderSample(params: {
     cabinClass: "ECONOMY" as const,
     secondaryPnr: null,
     showEticket: true,
+    showPassengerName: true,
     baseFare: new Decimal(baseFare),
     serviceCharge: new Decimal(params.serviceCharge),
     discountAmount: params.discount ? new Decimal(params.discount) : null,

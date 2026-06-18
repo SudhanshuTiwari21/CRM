@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { Header } from "@/components/layout/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddCustomerDialog } from "@/components/customers/add-customer-dialog";
+import { CustomerCreditPanel } from "@/components/customers/customer-credit-panel";
 import { StatusBadge } from "@/components/booking/status-badge";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { PRODUCT_LABELS } from "@/lib/constants";
@@ -113,6 +114,16 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           </CardContent>
         </Card>
       </div>
+
+      <CustomerCreditPanel
+        customerId={customer.id}
+        initial={{
+          creditEnabled: customer.creditEnabled,
+          creditLimit: customer.creditLimit,
+          creditBalance: customer.creditBalance,
+          paymentTermsDays: customer.paymentTermsDays,
+        }}
+      />
 
       {customer.type === "BUSINESS" && customer.branches.length > 0 && (
         <Card className="mb-6">

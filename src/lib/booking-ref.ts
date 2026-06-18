@@ -1,20 +1,70 @@
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 
-export async function generatePublicRef(): Promise<string> {
+type DbClient = Prisma.TransactionClient | typeof prisma;
+
+export function formatPublicRef(year: number, serialNumber: number) {
+  return `FB-${year}-${String(serialNumber).padStart(6, "0")}`;
+}
+
+export function parsePublicRef(publicRef: string): { year: number; serialNumber: number } | null {
+  const match = /^FB-(\d{4})-(\d+)$/.exec(publicRef);
+  if (!match) return null;
+  return { year: Number(match[1]), serialNumber: Number(match[2]) };
+}
+
+/** Allocate next serial for the current year (transaction-safe). */
+export async function allocatePublicRef(tx: DbClient = prisma) {
   const year = new Date().getFullYear();
-  const prefix = `FB-${year}-`;
 
-  const lastBooking = await prisma.booking.findFirst({
-    where: { publicRef: { startsWith: prefix } },
-    orderBy: { publicRef: "desc" },
-    select: { publicRef: true },
+  const counter = await tx.bookingSerialCounter.upsert({
+    where: { year },
+    create: { year, lastNumber: 1 },
+    update: { lastNumber: { increment: 1 } },
   });
 
-  let nextNum = 1;
-  if (lastBooking) {
-    const lastNum = parseInt(lastBooking.publicRef.replace(prefix, ""), 10);
-    if (!isNaN(lastNum)) nextNum = lastNum + 1;
+  const serialNumber = counter.lastNumber;
+  return {
+    publicRef: formatPublicRef(year, serialNumber),
+    serialYear: year,
+    serialNumber,
+  };
+}
+
+/** Backfill serialYear/serialNumber from publicRef for legacy rows. */
+export async function backfillBookingSerials() {
+  const bookings = await prisma.booking.findMany({
+    where: { serialNumber: null },
+    select: { id: true, publicRef: true },
+  });
+
+  for (const b of bookings) {
+    const parsed = parsePublicRef(b.publicRef);
+    if (!parsed) continue;
+    await prisma.booking.update({
+      where: { id: b.id },
+      data: { serialYear: parsed.year, serialNumber: parsed.serialNumber },
+    });
   }
 
-  return `${prefix}${String(nextNum).padStart(6, "0")}`;
+  const byYear = await prisma.booking.groupBy({
+    by: ["serialYear"],
+    where: { serialYear: { not: null } },
+    _max: { serialNumber: true },
+  });
+
+  for (const row of byYear) {
+    if (row.serialYear == null) continue;
+    const maxNum = row._max.serialNumber ?? 0;
+    await prisma.bookingSerialCounter.upsert({
+      where: { year: row.serialYear },
+      create: { year: row.serialYear, lastNumber: maxNum },
+      update: { lastNumber: Math.max(maxNum, 0) },
+    });
+  }
+}
+
+export async function generatePublicRef(): Promise<string> {
+  const { publicRef } = await allocatePublicRef();
+  return publicRef;
 }

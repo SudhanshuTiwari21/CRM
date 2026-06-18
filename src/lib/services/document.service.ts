@@ -113,6 +113,14 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
   await fs.writeFile(invoicePath, invoiceBuffer);
   documents.push({ type: "INVOICE", fileName: invoiceFileName, storagePath: invoicePath });
 
+  const existingDocs = await prisma.document.findMany({ where: { bookingId } });
+  for (const doc of existingDocs) {
+    try {
+      await fs.unlink(doc.storagePath);
+    } catch {
+      // file may already be missing
+    }
+  }
   await prisma.document.deleteMany({ where: { bookingId } });
 
   for (const doc of documents) {

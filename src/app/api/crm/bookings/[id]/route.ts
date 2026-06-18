@@ -1,5 +1,7 @@
-import { auth } from "@/lib/auth";
+import { auth, requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { adminBookingUpdateSchema } from "@/lib/validators/booking-admin";
+import { updateBookingAsAdmin, deleteBookingWithRenumber } from "@/lib/services/booking-admin.service";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api-utils";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -29,6 +31,30 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     if (!booking) return jsonError("Booking not found", 404);
     return jsonOk(booking);
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await requireAdmin();
+    const { id } = await params;
+    const body = await request.json();
+    const data = adminBookingUpdateSchema.parse(body);
+    const booking = await updateBookingAsAdmin(id, data, session.user.id);
+    return jsonOk(booking);
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await requireAdmin();
+    const { id } = await params;
+    const result = await deleteBookingWithRenumber(id, session.user.id);
+    return jsonOk(result);
   } catch (error) {
     return handleApiError(error);
   }

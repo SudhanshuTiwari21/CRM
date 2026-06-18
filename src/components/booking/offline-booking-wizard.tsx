@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -52,6 +52,7 @@ const wizardSchema = z.object({
   cabinClass: z.enum(["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS"]).optional(),
   secondaryPnr: z.string().optional(),
   showEticket: z.boolean().optional(),
+  showPassengerName: z.boolean().optional(),
   // Flight
   airline: z.string().optional(),
   segments: z.array(z.object({
@@ -119,6 +120,7 @@ export function OfflineBookingWizard() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [productType, setProductType] = useState<"FLIGHT" | "HOTEL" | "BUS">("FLIGHT");
+  const [creditAvailable, setCreditAvailable] = useState(false);
 
   const form = useForm<WizardForm>({
     resolver: zodResolver(wizardSchema),
@@ -136,6 +138,7 @@ export function OfflineBookingWizard() {
       tripType: "ONE_WAY",
       cabinClass: "ECONOMY",
       showEticket: false,
+      showPassengerName: true,
       airline: "IndiGo",
       segments: [{
         flightNumber: "", airline: "IndiGo", fromAirport: "", fromCity: "",
@@ -158,6 +161,22 @@ export function OfflineBookingWizard() {
   const { fields: passengerFields, append: appendPassenger, remove: removePassenger } = useFieldArray({ control: form.control, name: "passengers" });
   const { fields: guestFields, append: appendGuest } = useFieldArray({ control: form.control, name: "guests" });
   const { fields: busPaxFields, append: appendBusPax } = useFieldArray({ control: form.control, name: "busPassengers" });
+  const customerPhone = form.watch("customer.phone");
+
+  useEffect(() => {
+    const phone = customerPhone?.trim();
+    if (!phone || phone.length < 10) {
+      setCreditAvailable(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetch(`/api/crm/customers/credit-lookup?phone=${encodeURIComponent(phone)}`)
+        .then((r) => r.json())
+        .then((data) => setCreditAvailable(Boolean(data.customer?.creditEnabled)))
+        .catch(() => setCreditAvailable(false));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [customerPhone]);
 
   async function onSubmit(data: WizardForm) {
     setLoading(true);
@@ -211,6 +230,7 @@ export function OfflineBookingWizard() {
           cabinClass: data.cabinClass || "ECONOMY",
           secondaryPnr: data.segments?.[1]?.pnr?.trim() || data.secondaryPnr?.trim() || undefined,
           showEticket: data.showEticket || false,
+          showPassengerName: data.showPassengerName !== false,
           airline,
           segments,
           passengers,
@@ -397,8 +417,12 @@ export function OfflineBookingWizard() {
                 <SelectItem value="Cash">Cash</SelectItem>
                 <SelectItem value="Card">Card</SelectItem>
                 <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                {creditAvailable && <SelectItem value="CREDIT">On Credit</SelectItem>}
               </SelectContent>
             </Select>
+            {creditAvailable && (
+              <p className="text-xs text-muted-foreground">Credit account enabled for this customer</p>
+            )}
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>Internal Notes</Label>

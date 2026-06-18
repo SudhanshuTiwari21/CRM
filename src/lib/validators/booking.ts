@@ -62,9 +62,10 @@ export const offlineFlightBookingSchema = z.object({
   cabinClass: z.enum(["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS"]).optional(),
   secondaryPnr: z.string().optional(),
   showEticket: z.boolean().optional(),
+  showPassengerName: z.boolean().optional(),
   segments: z.array(flightSegmentSchema).min(1),
   passengers: z.array(flightPassengerSchema).min(1),
-  paymentMethod: z.string().optional(),
+  paymentMethod: z.enum(["UPI", "Cash", "Card", "Bank Transfer", "CREDIT"]).optional(),
   internalNotes: z.string().optional(),
   invoiceTaxType: z.enum(["ITC", "NON_ITC"]),
   buyerGstin: z
@@ -103,7 +104,7 @@ export const offlineHotelBookingSchema = z.object({
   includeCancellationPolicy: z.boolean().optional(),
   policies: z.string().optional(),
   agentRemarks: z.string().optional(),
-  paymentMethod: z.string().optional(),
+  paymentMethod: z.enum(["UPI", "Cash", "Card", "Bank Transfer", "CREDIT"]).optional(),
   internalNotes: z.string().optional(),
 });
 
@@ -120,7 +121,7 @@ export const offlineBusBookingSchema = z.object({
   arrivalAt: z.string().min(1),
   seats: z.array(z.object({ seatNumber: z.string(), type: z.string().optional() })).min(1),
   passengers: z.array(busPassengerSchema).min(1),
-  paymentMethod: z.string().optional(),
+  paymentMethod: z.enum(["UPI", "Cash", "Card", "Bank Transfer", "CREDIT"]).optional(),
   internalNotes: z.string().optional(),
 });
 

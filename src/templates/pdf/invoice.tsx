@@ -159,9 +159,13 @@ export function InvoicePDF({
     ? `${flight.airline} Airlines (Fare Reimbursement) Domestic`
     : `${booking.productType} Booking`;
 
+  const showPassengerName = flight?.showPassengerName !== false;
+
   const detailLines = [
     pnrLine,
-    passenger ? `Pax: ${paxLabel(passenger)}${passengers.length > 1 ? ` +${passengers.length - 1}` : ""}` : null,
+    showPassengerName && passenger
+      ? `Pax: ${paxLabel(passenger)}${passengers.length > 1 ? ` +${passengers.length - 1}` : ""}`
+      : null,
     sector ? `Sector: ${sector}` : null,
     travelDate ? `Travel Date: ${travelDate}` : null,
     flight?.cabinClass ? `Class: ${cabinLabel(flight.cabinClass)}` : null,
