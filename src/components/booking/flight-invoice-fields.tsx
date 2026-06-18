@@ -5,6 +5,7 @@ import type { UseFormReturn } from "react-hook-form";
 import type { WizardForm } from "@/components/booking/offline-booking-wizard";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   calculateFlightGst,
@@ -18,24 +19,40 @@ interface FlightInvoiceFieldsProps {
 }
 
 export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
+  const [agencyGstin, setAgencyGstin] = useState<string | null>(null);
   const [agencyStateCode, setAgencyStateCode] = useState<string | null>(null);
+  const [msmes, setMsmes] = useState<{ label: string; number: string }[]>([]);
 
   useEffect(() => {
     fetch("/api/crm/settings")
       .then(async (r) => {
         const type = r.headers.get("content-type") || "";
         if (!r.ok || !type.includes("application/json")) return null;
-        const data = await r.json();
-        return data;
+        return r.json();
       })
-      .then((data) => setAgencyStateCode(getStateCodeFromGstin(data?.agency?.gstin)))
-      .catch(() => setAgencyStateCode(null));
+      .then((data) => {
+        const gstin = data?.agency?.gstin || null;
+        setAgencyGstin(gstin);
+        setAgencyStateCode(getStateCodeFromGstin(gstin));
+      })
+      .catch(() => {
+        setAgencyGstin(null);
+        setAgencyStateCode(null);
+      });
+
+    fetch("/api/crm/msme")
+      .then((r) => r.json())
+      .then((d) => setMsmes(d.msmes || []))
+      .catch(() => setMsmes([]));
   }, []);
+
+  const hasAgencyGst = Boolean(agencyGstin?.trim());
   const invoiceTaxType = form.watch("invoiceTaxType") as "ITC" | "NON_ITC" | undefined;
   const buyerGstin = form.watch("buyerGstin") as string | undefined;
   const customerGstin = form.watch("customer.gstin") as string | undefined;
   const baseFare = Number(form.watch("baseFare") || 0);
   const serviceCharge = Number(form.watch("serviceCharge") || 0);
+  const discountAmount = Number(form.watch("discountAmount") || 0);
 
   useEffect(() => {
     if (invoiceTaxType === "ITC" && customerGstin && !buyerGstin) {
@@ -49,14 +66,15 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
         serviceCharge,
         agencyStateCode,
         buyerGstin: buyerGstin || customerGstin,
+        buyerState: form.watch("customer.state") as string | undefined,
         invoiceTaxType: invoiceTaxType || "NON_ITC",
       }),
-    [serviceCharge, agencyStateCode, buyerGstin, customerGstin, invoiceTaxType]
+    [serviceCharge, agencyStateCode, buyerGstin, customerGstin, invoiceTaxType, form]
   );
 
   const totalAmount = useMemo(
-    () => calculateFlightInvoiceTotal(baseFare, serviceCharge, tax),
-    [baseFare, serviceCharge, tax]
+    () => calculateFlightInvoiceTotal(baseFare, serviceCharge, tax, discountAmount),
+    [baseFare, serviceCharge, tax, discountAmount]
   );
 
   useEffect(() => {
@@ -66,17 +84,18 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
   return (
     <div className="space-y-4 sm:col-span-2">
       <div className="space-y-2">
-        <Label>Invoice Type</Label>
+        <Label>Booking Category</Label>
         <Select
           value={invoiceTaxType || "NON_ITC"}
           onValueChange={(v) => form.setValue("invoiceTaxType", v as "ITC" | "NON_ITC")}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="ITC">ITC (B2B — with GSTIN)</SelectItem>
-            <SelectItem value="NON_ITC">Non-ITC (B2C)</SelectItem>
+            <SelectItem value="ITC">B2B (with GSTIN)</SelectItem>
+            <SelectItem value="NON_ITC">B2C (Retail)</SelectItem>
           </SelectContent>
         </Select>
+        <p className="text-xs text-muted-foreground">Not shown on invoice — controls layout and tax treatment.</p>
       </div>
 
       {invoiceTaxType === "ITC" && (
@@ -87,40 +106,92 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
             placeholder="19AAEFB7856M1ZT"
             onChange={(e) => form.setValue("buyerGstin", e.target.value.toUpperCase())}
           />
+        </div>
+      )}
+
+      {hasAgencyGst ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Base Fare — Airline (INR) *</Label>
+            <Input {...form.register("baseFare")} type="number" min={0} step="0.01" placeholder="10582.00" />
+            <p className="text-xs text-muted-foreground">Fare reimbursement — no GST</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Service Charge / Other Charges (INR) *</Label>
+            <Input {...form.register("serviceCharge")} type="number" min={0} step="0.01" placeholder="438.98" />
+            <p className="text-xs text-muted-foreground">Taxable @ 18% (HSN 998551)</p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Label>Total Amount (INR) *</Label>
+          <Input {...form.register("totalAmount")} type="number" min={0} step="0.01" />
           <p className="text-xs text-muted-foreground">
-            Required for ITC. Auto-filled from customer GSTIN when available.
+            Add agency GSTIN in Settings to enable fare breakup and tax invoice fields.
           </p>
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label>Base Fare — Airline (INR) *</Label>
-          <Input {...form.register("baseFare")} type="number" min={0} step="0.01" placeholder="10582.00" />
-          <p className="text-xs text-muted-foreground">Fare reimbursement — no GST</p>
-        </div>
-        <div className="space-y-2">
-          <Label>Service Charge (INR) *</Label>
-          <Input {...form.register("serviceCharge")} type="number" min={0} step="0.01" placeholder="438.98" />
-          <p className="text-xs text-muted-foreground">Taxable @ 18% (HSN 998551)</p>
-        </div>
-      </div>
+      {hasAgencyGst && (
+        <>
+          <div className="space-y-2">
+            <Label>Discount (INR)</Label>
+            <Input {...form.register("discountAmount")} type="number" min={0} step="0.01" placeholder="0.00" />
+          </div>
 
-      <div className="rounded-lg border bg-muted/40 p-4 text-sm space-y-2">
-        <p className="font-medium">Tax Breakdown (on service charge)</p>
-        <div className="grid gap-1 sm:grid-cols-2">
-          <p>Taxable Value: {formatInr(tax.taxableValue)}</p>
-          <p>Place of Supply: {tax.placeOfSupply || "Same state (CGST + SGST)"}</p>
-          {tax.isInterState ? (
-            <p>IGST @ {tax.igstRate}%: {formatInr(tax.igstAmount)}</p>
-          ) : (
-            <>
-              <p>CGST @ {tax.cgstRate}%: {formatInr(tax.cgstAmount)}</p>
-              <p>SGST @ {tax.sgstRate}%: {formatInr(tax.sgstAmount)}</p>
-            </>
+          {msmes.length > 0 && (
+            <div className="space-y-2">
+              <Label>MSME / Udyam (optional)</Label>
+              <Select
+                value={form.watch("msmeNumber") || "__none__"}
+                onValueChange={(v) => form.setValue("msmeNumber", v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Select MSME" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {msmes.map((m) => (
+                    <SelectItem key={m.number} value={m.number}>
+                      {m.label} — {m.number}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
-        </div>
-        <p className="pt-2 border-t font-semibold">Invoice Total: {formatInr(totalAmount)}</p>
+
+          <div className="rounded-lg border bg-muted/40 p-4 text-sm space-y-2">
+            <p className="font-medium">Tax Breakdown (on service charge)</p>
+            <div className="grid gap-1 sm:grid-cols-2">
+              <p>Taxable Value: {formatInr(tax.taxableValue)}</p>
+              <p>Place of Supply: {tax.placeOfSupply || "Same state (CGST + SGST)"}</p>
+              {tax.isInterState ? (
+                <p>IGST @ {tax.igstRate}%: {formatInr(tax.igstAmount)}</p>
+              ) : (
+                <>
+                  <p>CGST @ {tax.cgstRate}%: {formatInr(tax.cgstAmount)}</p>
+                  <p>SGST @ {tax.sgstRate}%: {formatInr(tax.sgstAmount)}</p>
+                </>
+              )}
+            </div>
+            {discountAmount > 0 && (
+              <p className="text-amber-700">Discount: −{formatInr(discountAmount)}</p>
+            )}
+            <p className="pt-2 border-t font-semibold">Invoice Total: {formatInr(totalAmount)}</p>
+          </div>
+        </>
+      )}
+
+      <div className="space-y-2 rounded-lg border-2 border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950/30">
+        <Label className="text-amber-900 dark:text-amber-100">Remarks / Narration (shown on invoice)</Label>
+        <Textarea
+          {...form.register("invoiceNarration")}
+          rows={3}
+          placeholder="e.g. Sector - MAA-CCU 11100/-"
+          className="border-amber-200 bg-white dark:bg-background"
+        />
+        <p className="text-xs text-amber-800 dark:text-amber-200">
+          Charge breakup or notes — highlighted on the printed invoice.
+        </p>
       </div>
 
       <input type="hidden" {...form.register("totalAmount")} />

@@ -105,6 +105,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
       passengers: booking.flightBooking
         ? (booking.flightBooking.passengers as unknown as FlightPassenger[])
         : undefined,
+      logoSrc,
     })
   );
   const invoiceFileName = `${booking.publicRef}-invoice.pdf`;

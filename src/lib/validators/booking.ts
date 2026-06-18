@@ -15,6 +15,8 @@ export const flightSegmentSchema = z.object({
   aircraft: z.string().optional(),
   duration: z.string().optional(),
   status: z.string().optional(),
+  direction: z.enum(["outbound", "return"]).optional(),
+  pnr: z.string().optional(),
 });
 
 export const flightPassengerSchema = z.object({
@@ -22,8 +24,10 @@ export const flightPassengerSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   gender: z.string().min(1),
+  paxType: z.enum(["adult", "child", "infant"]).optional(),
   ticketNumber: z.string().optional(),
   seat: z.string().optional(),
+  meal: z.enum(["veg", "nonveg", "none"]).optional(),
   handBaggage: z.string().optional(),
   checkInBaggage: z.string().optional(),
 });
@@ -45,6 +49,7 @@ export const customerSchema = z.object({
   phone: z.string().min(10),
   gstin: z.string().optional(),
   address: z.string().optional(),
+  state: z.string().optional(),
 });
 
 export const offlineFlightBookingSchema = z.object({
@@ -53,6 +58,10 @@ export const offlineFlightBookingSchema = z.object({
   customer: customerSchema,
   totalAmount: z.coerce.number().positive(),
   airline: z.string().min(1),
+  tripType: z.enum(["ONE_WAY", "ROUND_TRIP", "MULTI_CITY"]).optional(),
+  cabinClass: z.enum(["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS"]).optional(),
+  secondaryPnr: z.string().optional(),
+  showEticket: z.boolean().optional(),
   segments: z.array(flightSegmentSchema).min(1),
   passengers: z.array(flightPassengerSchema).min(1),
   paymentMethod: z.string().optional(),
@@ -65,6 +74,9 @@ export const offlineFlightBookingSchema = z.object({
     .refine((v) => !v || gstinRegex.test(v.toUpperCase()), "Invalid GSTIN format"),
   baseFare: z.coerce.number().min(0),
   serviceCharge: z.coerce.number().min(0),
+  discountAmount: z.coerce.number().min(0).optional(),
+  invoiceNarration: z.string().optional(),
+  msmeNumber: z.string().optional(),
 });
 
 export const offlineHotelBookingSchema = z.object({
@@ -120,7 +132,13 @@ export const offlineBookingSchema = z.discriminatedUnion("productType", [
 
 export const confirmPnrSchema = z.object({
   pnr: z.string().min(3, "PNR is required"),
+  secondaryPnr: z.string().optional(),
   supplierRef: z.string().optional(),
+});
+
+export const sendItinerarySchema = z.object({
+  pnr: z.string().min(3, "PNR is required"),
+  secondaryPnr: z.string().optional(),
 });
 
 export const webhookLiveBookingSchema = z.object({

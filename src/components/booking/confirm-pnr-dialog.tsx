@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 interface ConfirmPnrDialogProps {
   bookingId: string;
   existingPnr?: string | null;
+  isRoundTrip?: boolean;
   resume?: boolean;
   isHotel?: boolean;
   hotelPendingSupplier?: boolean;
@@ -28,6 +29,7 @@ interface ConfirmPnrDialogProps {
 export function ConfirmPnrDialog({
   bookingId,
   existingPnr,
+  isRoundTrip,
   resume,
   isHotel,
   hotelPendingSupplier,
@@ -37,6 +39,7 @@ export function ConfirmPnrDialog({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pnr, setPnr] = useState(existingPnr || "");
+  const [secondaryPnr, setSecondaryPnr] = useState("");
   const [supplierRef, setSupplierRef] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
@@ -47,7 +50,7 @@ export function ConfirmPnrDialog({
       const res = await fetch(`/api/crm/bookings/${bookingId}/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pnr, supplierRef: supplierRef || undefined }),
+        body: JSON.stringify({ pnr, secondaryPnr: secondaryPnr || undefined, supplierRef: supplierRef || undefined }),
       });
 
       const data = await res.json();
@@ -111,6 +114,17 @@ export function ConfirmPnrDialog({
               required
             />
           </div>
+          {isRoundTrip && (
+            <div className="space-y-2">
+              <Label htmlFor="secondaryPnr">Return PNR (optional)</Label>
+              <Input
+                id="secondaryPnr"
+                value={secondaryPnr}
+                onChange={(e) => setSecondaryPnr(e.target.value.toUpperCase())}
+                placeholder="Return leg PNR"
+              />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="supplierRef">Supplier Reference (optional)</Label>
             <Input

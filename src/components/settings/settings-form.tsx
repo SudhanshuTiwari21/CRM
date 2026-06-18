@@ -21,9 +21,15 @@ interface SettingsData {
     state?: string | null;
     pincode?: string | null;
     gstin?: string | null;
+    pan?: string | null;
+    tan?: string | null;
     phone?: string | null;
     email?: string | null;
     invoicePrefix: string;
+    bankName?: string | null;
+    bankAccount?: string | null;
+    bankIfsc?: string | null;
+    bankBranch?: string | null;
     msmeRegistered?: boolean;
     msmeNumber?: string | null;
     webhookApiKey?: string | null;
@@ -44,6 +50,8 @@ export function SettingsForm() {
   const [agency, setAgency] = useState<SettingsData["agency"] | null>(null);
   const [templates, setTemplates] = useState<SettingsData["templates"]>([]);
   const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: "AGENT" });
+  const [msmes, setMsmes] = useState<{ id: string; label: string; number: string }[]>([]);
+  const [newMsme, setNewMsme] = useState({ label: "", number: "" });
 
   useEffect(() => {
     fetch("/api/crm/settings")
@@ -53,6 +61,10 @@ export function SettingsForm() {
         setAgency(d.agency);
         setTemplates(d.templates);
       });
+    fetch("/api/crm/msme")
+      .then((r) => r.json())
+      .then((d) => setMsmes(d.msmes || []))
+      .catch(() => setMsmes([]));
   }, []);
 
   async function saveAgency() {
@@ -85,6 +97,27 @@ export function SettingsForm() {
       toast.success("Email templates saved");
     } catch {
       toast.error("Failed to save templates");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function addMsme() {
+    if (!newMsme.label.trim() || !newMsme.number.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/crm/msme", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newMsme),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setMsmes((prev) => [...prev, data.msme]);
+      setNewMsme({ label: "", number: "" });
+      toast.success("MSME added");
+    } catch {
+      toast.error("Failed to add MSME");
     } finally {
       setLoading(false);
     }
@@ -130,7 +163,7 @@ export function SettingsForm() {
             <CardDescription>Used on all PDF documents and emails</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            {(["companyName", "address", "city", "state", "pincode", "gstin", "phone", "email", "invoicePrefix"] as const).map((field) => (
+            {(["companyName", "address", "city", "state", "pincode", "gstin", "pan", "tan", "phone", "email", "invoicePrefix"] as const).map((field) => (
               <div key={field} className="space-y-2">
                 <Label className="capitalize">{field.replace(/([A-Z])/g, " $1")}</Label>
                 <Input
@@ -139,6 +172,20 @@ export function SettingsForm() {
                 />
               </div>
             ))}
+            <div className="sm:col-span-2">
+              <p className="mb-2 text-sm font-medium">Bank Details (shown on invoices)</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {(["bankName", "bankAccount", "bankBranch", "bankIfsc"] as const).map((field) => (
+                  <div key={field} className="space-y-2">
+                    <Label className="capitalize">{field.replace(/([A-Z])/g, " $1")}</Label>
+                    <Input
+                      value={agency[field] || ""}
+                      onChange={(e) => setAgency({ ...agency, [field]: e.target.value })}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="flex items-center justify-between rounded-lg border p-3 sm:col-span-2">
               <div>
                 <Label>MSME Registered</Label>
@@ -163,6 +210,29 @@ export function SettingsForm() {
                 />
               </div>
             )}
+            <div className="space-y-3 sm:col-span-2">
+              <Label>MSME Registry (per-booking selection)</Label>
+              {msmes.map((m) => (
+                <div key={m.id} className="rounded border px-3 py-2 text-sm">
+                  {m.label} — <span className="font-mono">{m.number}</span>
+                </div>
+              ))}
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  placeholder="Label"
+                  value={newMsme.label}
+                  onChange={(e) => setNewMsme({ ...newMsme, label: e.target.value })}
+                />
+                <Input
+                  placeholder="UDYAM number"
+                  value={newMsme.number}
+                  onChange={(e) => setNewMsme({ ...newMsme, number: e.target.value })}
+                />
+                <Button type="button" variant="outline" onClick={addMsme} disabled={loading}>
+                  Add MSME
+                </Button>
+              </div>
+            </div>
             <div className="sm:col-span-2">
               <Button onClick={saveAgency} disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -9,13 +9,14 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const type = (searchParams.get("type") || "ALL") as "ALL" | "ITC" | "NON_ITC";
+    const msmeNumber = searchParams.get("msme") || undefined;
     const fromStr = searchParams.get("from");
     const toStr = searchParams.get("to");
 
     const from = fromStr ? new Date(fromStr) : undefined;
     const to = toStr ? new Date(`${toStr}T23:59:59.999Z`) : undefined;
 
-    const data = await getAccountingBills({ type, from, to });
+    const data = await getAccountingBills({ type, msmeNumber, from, to });
     return jsonOk(data);
   } catch (error) {
     return handleApiError(error);

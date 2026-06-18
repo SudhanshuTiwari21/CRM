@@ -21,6 +21,7 @@ interface BillRow {
   customerGstin: string | null;
   buyerGstin: string | null;
   invoiceTaxType: "ITC" | "NON_ITC";
+  msmeNumber: string | null;
   segment: string;
   baseFare: number;
   serviceCharge: number;
@@ -88,6 +89,7 @@ function BillsTable({ rows }: { rows: BillRow[] }) {
             <TableHead>Customer</TableHead>
             <TableHead>GSTIN</TableHead>
             <TableHead>Type</TableHead>
+            <TableHead>MSME</TableHead>
             <TableHead className="text-right">Base Fare</TableHead>
             <TableHead className="text-right">Service</TableHead>
             <TableHead className="text-right">CGST</TableHead>
@@ -114,6 +116,7 @@ function BillsTable({ rows }: { rows: BillRow[] }) {
                   {r.invoiceTaxType === "ITC" ? "B2B ITC" : "B2C"}
                 </Badge>
               </TableCell>
+              <TableCell className="text-xs font-mono">{r.msmeNumber || "—"}</TableCell>
               <TableCell className="text-right">{formatCurrency(r.baseFare)}</TableCell>
               <TableCell className="text-right">{formatCurrency(r.serviceCharge)}</TableCell>
               <TableCell className="text-right">{r.cgst > 0 ? formatCurrency(r.cgst) : "—"}</TableCell>
@@ -139,12 +142,22 @@ export function AccountingDashboard() {
   });
   const [b2bCount, setB2bCount] = useState(0);
   const [b2cCount, setB2cCount] = useState(0);
+  const [msmeFilter, setMsmeFilter] = useState("");
+  const [msmeOptions, setMsmeOptions] = useState<{ label: string; number: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/crm/msme")
+      .then((r) => r.json())
+      .then((d) => setMsmeOptions(d.msmes || []))
+      .catch(() => setMsmeOptions([]));
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ type: tab });
     if (from) params.set("from", from);
     if (to) params.set("to", to);
+    if (msmeFilter) params.set("msme", msmeFilter);
     const res = await fetch(`/api/crm/accounting?${params}`);
     const data = await res.json();
     setRows(data.rows || []);
@@ -152,7 +165,7 @@ export function AccountingDashboard() {
     setB2bCount(data.b2bCount || 0);
     setB2cCount(data.b2cCount || 0);
     setLoading(false);
-  }, [tab, from, to]);
+  }, [tab, from, to, msmeFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -160,6 +173,7 @@ export function AccountingDashboard() {
     const params = new URLSearchParams({ type: tab, format });
     if (from) params.set("from", from);
     if (to) params.set("to", to);
+    if (msmeFilter) params.set("msme", msmeFilter);
     return `/api/crm/accounting/tally-export?${params}`;
   }
 
@@ -176,6 +190,23 @@ export function AccountingDashboard() {
               <Label>To</Label>
               <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
             </div>
+            {msmeOptions.length > 0 && (
+              <div className="space-y-2">
+                <Label>MSME</Label>
+                <select
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                  value={msmeFilter}
+                  onChange={(e) => setMsmeFilter(e.target.value)}
+                >
+                  <option value="">All MSME</option>
+                  {msmeOptions.map((m) => (
+                    <option key={m.number} value={m.number}>
+                      {m.label} — {m.number}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <Button variant="outline" onClick={fetchData}>Apply</Button>
             <div className="ml-auto flex flex-wrap gap-2">
               <Button variant="outline" size="sm" asChild>

@@ -6,7 +6,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HotelBookingFields } from "@/components/booking/hotel-booking-fields";
+import { FlightBookingFields } from "@/components/booking/flight-booking-fields";
 import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields";
 import { parseApiResponse } from "@/lib/parse-api-response";
 
@@ -24,6 +25,7 @@ const baseCustomer = {
   phone: "",
   gstin: "",
   address: "",
+  state: "",
 };
 
 const wizardSchema = z.object({
@@ -34,6 +36,7 @@ const wizardSchema = z.object({
     phone: z.string().min(10, "Phone must be at least 10 digits"),
     gstin: z.string().optional(),
     address: z.string().optional(),
+    state: z.string().optional(),
   }),
   totalAmount: z.coerce.number().min(0),
   paymentMethod: z.string().optional(),
@@ -42,6 +45,13 @@ const wizardSchema = z.object({
   buyerGstin: z.string().optional(),
   baseFare: z.coerce.number().optional(),
   serviceCharge: z.coerce.number().optional(),
+  discountAmount: z.coerce.number().optional(),
+  invoiceNarration: z.string().optional(),
+  msmeNumber: z.string().optional(),
+  tripType: z.enum(["ONE_WAY", "ROUND_TRIP", "MULTI_CITY"]).optional(),
+  cabinClass: z.enum(["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS"]).optional(),
+  secondaryPnr: z.string().optional(),
+  showEticket: z.boolean().optional(),
   // Flight
   airline: z.string().optional(),
   segments: z.array(z.object({
@@ -56,13 +66,21 @@ const wizardSchema = z.object({
     terminal: z.string().optional(),
     aircraft: z.string().optional(),
     duration: z.string().optional(),
+    direction: z.enum(["outbound", "return"]).optional(),
+    pnr: z.string().optional(),
   })).optional(),
   passengers: z.array(z.object({
     title: z.string(),
     firstName: z.string(),
     lastName: z.string(),
     gender: z.string(),
+    paxType: z.enum(["adult", "child", "infant"]).optional(),
+    ticketNumber: z.string().optional(),
     seat: z.string().optional(),
+    meal: z.enum(["veg", "nonveg", "none"]).optional(),
+    handBaggage: z.string().optional(),
+    checkInBaggage: z.string().optional(),
+    baggagePreset: z.string().optional(),
   })).optional(),
   // Hotel
   propertyName: z.string().optional(),
@@ -112,12 +130,18 @@ export function OfflineBookingWizard() {
       buyerGstin: "",
       baseFare: 0,
       serviceCharge: 0,
+      discountAmount: 0,
+      invoiceNarration: "",
+      msmeNumber: "",
+      tripType: "ONE_WAY",
+      cabinClass: "ECONOMY",
+      showEticket: false,
       airline: "IndiGo",
       segments: [{
         flightNumber: "", airline: "IndiGo", fromAirport: "", fromCity: "",
         toAirport: "", toCity: "", departureAt: "", arrivalAt: "",
       }],
-      passengers: [{ title: "Mr", firstName: "", lastName: "", gender: "Male" }],
+      passengers: [{ title: "Mr", firstName: "", lastName: "", gender: "Male", paxType: "adult" }],
       propertyName: "", propertyAddress: "", city: "", propertyPhone: "", propertyEmail: "",
       checkIn: "", checkOut: "", checkInTime: "02:00 PM", checkOutTime: "12:00 PM",
       roomType: "", roomsCount: 1, mealPlan: "ROOM_ONLY", roomAmenities: [],
@@ -130,7 +154,7 @@ export function OfflineBookingWizard() {
     },
   });
 
-  const { fields: segmentFields, append: appendSegment } = useFieldArray({ control: form.control, name: "segments" });
+  const { fields: segmentFields, append: appendSegment, remove: removeSegment } = useFieldArray({ control: form.control, name: "segments" });
   const { fields: passengerFields, append: appendPassenger, remove: removePassenger } = useFieldArray({ control: form.control, name: "passengers" });
   const { fields: guestFields, append: appendGuest } = useFieldArray({ control: form.control, name: "guests" });
   const { fields: busPaxFields, append: appendBusPax } = useFieldArray({ control: form.control, name: "busPassengers" });
@@ -164,6 +188,11 @@ export function OfflineBookingWizard() {
           toCity: s.toCity?.trim() || "",
         }));
 
+        const passengers = (data.passengers || []).map(({ baggagePreset, ...p }) => {
+          void baggagePreset;
+          return p;
+        });
+
         payload = {
           productType: "FLIGHT",
           channel: "OFFLINE",
@@ -175,9 +204,16 @@ export function OfflineBookingWizard() {
           buyerGstin: (data.buyerGstin || customer.gstin || "").trim() || undefined,
           baseFare: data.baseFare ?? 0,
           serviceCharge: data.serviceCharge ?? 0,
+          discountAmount: data.discountAmount ?? 0,
+          invoiceNarration: data.invoiceNarration?.trim() || undefined,
+          msmeNumber: data.msmeNumber?.trim() || undefined,
+          tripType: data.tripType || "ONE_WAY",
+          cabinClass: data.cabinClass || "ECONOMY",
+          secondaryPnr: data.segments?.[1]?.pnr?.trim() || data.secondaryPnr?.trim() || undefined,
+          showEticket: data.showEticket || false,
           airline,
           segments,
-          passengers: data.passengers,
+          passengers,
         };
       } else if (productType === "HOTEL") {
         payload = {
@@ -284,69 +320,26 @@ export function OfflineBookingWizard() {
               <Label>GSTIN</Label>
               <Input {...form.register("customer.gstin")} />
             </div>
+            <div className="space-y-2">
+              <Label>State</Label>
+              <Input {...form.register("customer.state")} placeholder="West Bengal" />
+            </div>
           </CardContent>
         </Card>
 
         <TabsContent value="FLIGHT">
           <Card>
             <CardHeader><CardTitle className="text-base">Flight Details</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Airline</Label>
-                <Input {...form.register("airline")} placeholder="IndiGo" />
-              </div>
-              {segmentFields.map((field, i) => (
-                <div key={field.id} className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
-                  <Input {...form.register(`segments.${i}.flightNumber`)} placeholder="Flight No (6E 212)" />
-                  <Input {...form.register(`segments.${i}.fromCity`)} placeholder="From City" />
-                  <Input {...form.register(`segments.${i}.fromAirport`)} placeholder="From Airport (CCU)" />
-                  <Input {...form.register(`segments.${i}.toCity`)} placeholder="To City" />
-                  <Input {...form.register(`segments.${i}.toAirport`)} placeholder="To Airport (GAU)" />
-                  <Input {...form.register(`segments.${i}.departureAt`)} type="datetime-local" step="60" />
-                  <Input {...form.register(`segments.${i}.arrivalAt`)} type="datetime-local" step="60" />
-                  <Input {...form.register(`segments.${i}.aircraft`)} placeholder="Aircraft (A320)" />
-                </div>
-              ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => appendSegment({
-                flightNumber: "", airline: form.getValues("airline") || "", fromAirport: "", fromCity: "",
-                toAirport: "", toCity: "", departureAt: "", arrivalAt: "",
-              })}>
-                <Plus className="mr-2 h-4 w-4" /> Add Segment
-              </Button>
-            </CardContent>
-          </Card>
-          <Card className="mt-4">
-            <CardHeader><CardTitle className="text-base">Passengers</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {passengerFields.map((field, i) => (
-                <div key={field.id} className="flex gap-2">
-                  <Select value={form.watch(`passengers.${i}.title`)} onValueChange={(v) => form.setValue(`passengers.${i}.title`, v)}>
-                    <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Mr">Mr</SelectItem>
-                      <SelectItem value="Mrs">Mrs</SelectItem>
-                      <SelectItem value="Ms">Ms</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input {...form.register(`passengers.${i}.firstName`)} placeholder="First Name" />
-                  <Input {...form.register(`passengers.${i}.lastName`)} placeholder="Last Name" />
-                  <Select value={form.watch(`passengers.${i}.gender`)} onValueChange={(v) => form.setValue(`passengers.${i}.gender`, v)}>
-                    <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Male">Male</SelectItem>
-                      <SelectItem value="Female">Female</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {passengerFields.length > 1 && (
-                    <Button type="button" variant="ghost" size="icon" onClick={() => removePassenger(i)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => appendPassenger({ title: "Mr", firstName: "", lastName: "", gender: "Male" })}>
-                <Plus className="mr-2 h-4 w-4" /> Add Passenger
-              </Button>
+            <CardContent>
+              <FlightBookingFields
+                form={form}
+                segmentFields={segmentFields}
+                appendSegment={appendSegment}
+                removeSegment={removeSegment}
+                passengerFields={passengerFields}
+                appendPassenger={appendPassenger}
+                removePassenger={removePassenger}
+              />
             </CardContent>
           </Card>
         </TabsContent>

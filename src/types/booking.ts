@@ -1,3 +1,5 @@
+export type TripDirection = "outbound" | "return";
+
 export interface FlightSegment {
   flightNumber: string;
   airline: string;
@@ -11,15 +13,22 @@ export interface FlightSegment {
   aircraft?: string;
   duration?: string;
   status?: string;
+  direction?: TripDirection;
+  pnr?: string;
 }
+
+export type PaxType = "adult" | "child" | "infant";
+export type MealPreference = "veg" | "nonveg" | "none";
 
 export interface FlightPassenger {
   title: string;
   firstName: string;
   lastName: string;
   gender: string;
+  paxType?: PaxType;
   ticketNumber?: string;
   seat?: string;
+  meal?: MealPreference;
   handBaggage?: string;
   checkInBaggage?: string;
 }

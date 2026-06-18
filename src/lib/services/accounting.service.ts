@@ -12,6 +12,7 @@ export interface AccountingBillRow {
   customerGstin: string | null;
   buyerGstin: string | null;
   invoiceTaxType: InvoiceTaxType;
+  msmeNumber: string | null;
   segment: string;
   baseFare: number;
   serviceCharge: number;
@@ -49,6 +50,7 @@ function sectorFromSegments(segments: unknown) {
 
 export async function getAccountingBills(params: {
   type?: "ALL" | "ITC" | "NON_ITC";
+  msmeNumber?: string;
   from?: Date;
   to?: Date;
 }) {
@@ -60,6 +62,7 @@ export async function getAccountingBills(params: {
         ...(params.type && params.type !== "ALL"
           ? { invoiceTaxType: params.type as InvoiceTaxType }
           : {}),
+        ...(params.msmeNumber ? { msmeNumber: params.msmeNumber } : {}),
       },
     },
     ...(params.from || params.to
@@ -97,6 +100,7 @@ export async function getAccountingBills(params: {
         customerGstin: b.customer.gstin,
         buyerGstin: f.buyerGstin,
         invoiceTaxType: f.invoiceTaxType,
+        msmeNumber: f.msmeNumber,
         segment: sectorFromSegments(f.segments),
         baseFare: num(f.baseFare),
         serviceCharge: num(f.serviceCharge),

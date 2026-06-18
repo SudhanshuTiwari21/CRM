@@ -1,17 +1,33 @@
+import React from "react";
 import { Image, StyleSheet, View } from "@react-pdf/renderer";
 
-const styles = StyleSheet.create({
-  // Deliberately larger for voucher/invoice readability in printed PDFs.
-  // Keep natural aspect ratio from source PNG (~520x97) to avoid distortion.
-  logoWrap: { width: 150, minHeight: 28, justifyContent: "center" },
-  logo: { width: 150, height: 28, objectFit: "contain", objectPosition: "left" },
+const LOGO_ASPECT = 520 / 97; // trimmed PNG width / height
+
+const variantStyles = StyleSheet.create({
+  voucher: {
+    wrap: { width: 150, marginBottom: 2, alignSelf: "flex-start" as const },
+    image: { width: 150, height: 28, objectFit: "contain" as const, objectPosition: "left" as const },
+  },
+  invoice: {
+    wrap: { width: 92, marginBottom: 4, alignSelf: "flex-start" as const },
+    image: { width: 92, height: 17, objectFit: "contain" as const, objectPosition: "left" as const },
+  },
 });
 
-export function PdfLogo({ src }: Readonly<{ src?: string | null }>) {
+export function PdfLogo({
+  src,
+  variant = "voucher",
+}: Readonly<{ src?: string | null; variant?: "voucher" | "invoice" }>) {
   if (!src) return null;
+  const s = variantStyles[variant];
   return (
-    <View style={styles.logoWrap}>
-      <Image src={src} style={styles.logo} />
+    <View style={s.wrap}>
+      <Image src={src} style={s.image} />
     </View>
   );
+}
+
+// exported for layout math if needed elsewhere
+export function invoiceLogoHeight(width = 92) {
+  return Math.round((width / LOGO_ASPECT) * 10) / 10;
 }

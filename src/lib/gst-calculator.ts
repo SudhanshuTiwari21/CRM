@@ -88,8 +88,14 @@ export function calculateFlightGst(params: {
   };
 }
 
-export function calculateFlightInvoiceTotal(baseFare: number, serviceCharge: number, tax: FlightGstBreakdown) {
-  return round2(baseFare + serviceCharge + tax.totalTax);
+export function calculateFlightInvoiceTotal(
+  baseFare: number,
+  serviceCharge: number,
+  tax: FlightGstBreakdown,
+  discountAmount = 0
+) {
+  const discount = round2(Math.max(discountAmount, 0));
+  return round2(baseFare + serviceCharge + tax.totalTax - discount);
 }
 
 export function formatInr(amount: number) {

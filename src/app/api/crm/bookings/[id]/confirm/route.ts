@@ -12,9 +12,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { id } = await params;
     const body = await request.json();
-    const { pnr, supplierRef } = confirmPnrSchema.parse(body);
+    const { pnr, supplierRef, secondaryPnr } = confirmPnrSchema.parse(body);
 
-    const booking = await confirmBookingPnr(id, pnr, supplierRef, session.user.id);
+    const booking = await confirmBookingPnr(id, pnr, supplierRef, session.user.id, secondaryPnr);
     return jsonOk(booking);
   } catch (error) {
     return handleApiError(error);

@@ -16,6 +16,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const format = searchParams.get("format") || "xml";
     const type = (searchParams.get("type") || "ALL") as "ALL" | "ITC" | "NON_ITC";
+    const msmeNumber = searchParams.get("msme") || undefined;
     const fromStr = searchParams.get("from");
     const toStr = searchParams.get("to");
 
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
     const to = toStr ? new Date(`${toStr}T23:59:59.999Z`) : undefined;
 
     const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
-    const { rows } = await getAccountingBills({ type, from, to });
+    const { rows } = await getAccountingBills({ type, msmeNumber, from, to });
 
     const companyName = agency?.companyName || "Book to Roam";
     const invoicePrefix = agency?.invoicePrefix || "INV";

@@ -5,6 +5,8 @@ import { generateBookingDocuments, getBookingDocumentPaths } from "./document.se
 import { sendTemplatedEmail, getEmailAttachments } from "@/lib/mailer";
 import { getFlightProvider } from "./provider/flight-provider";
 import { upsertHotelProfile } from "./hotel.service";
+import { upsertAirlineProfile } from "./airline.service";
+import { getAirlineLogoUrl, resolveAirlineIata } from "@/lib/airline-logo";
 import type {
   BookingChannel,
   BookingStatus,
@@ -26,7 +28,14 @@ type OfflineBookingInput = z.infer<typeof offlineBookingSchema>;
 type OfflineFlightBookingInput = z.infer<typeof offlineFlightBookingSchema>;
 type WebhookBookingInput = z.infer<typeof webhookLiveBookingSchema>;
 
-async function upsertCustomer(customer: { name: string; email?: string; phone: string; gstin?: string; address?: string }) {
+async function upsertCustomer(customer: {
+  name: string;
+  email?: string;
+  phone: string;
+  gstin?: string;
+  address?: string;
+  state?: string;
+}) {
   const existing = await prisma.customer.findFirst({
     where: { phone: customer.phone },
   });
@@ -39,6 +48,7 @@ async function upsertCustomer(customer: { name: string; email?: string; phone: s
         email: customer.email || existing.email,
         gstin: customer.gstin || existing.gstin,
         address: customer.address || existing.address,
+        state: customer.state || existing.state,
       },
     });
   }
@@ -56,12 +66,15 @@ async function getAgencyStateCode() {
   }
 }
 
-function validateFlightInvoice(input: OfflineFlightBookingInput) {
+function validateFlightInvoice(input: OfflineFlightBookingInput, agencyHasGst: boolean) {
   if (input.invoiceTaxType === "ITC" && !input.buyerGstin?.trim()) {
-    throw new Error("Buyer GSTIN is required for ITC invoices");
+    throw new Error("Buyer GSTIN is required for B2B invoices");
   }
-  if (input.baseFare + input.serviceCharge <= 0) {
+  if (agencyHasGst && input.baseFare + input.serviceCharge <= 0) {
     throw new Error("Enter base fare and/or service charge");
+  }
+  if (!agencyHasGst && input.totalAmount <= 0) {
+    throw new Error("Total amount must be greater than 0");
   }
 }
 
@@ -75,21 +88,41 @@ function buildFlightTaxData(input: OfflineFlightBookingInput, agencyStateCode: s
     serviceCharge: input.serviceCharge,
     agencyStateCode,
     buyerGstin,
+    buyerState: input.customer.state,
     invoiceTaxType: input.invoiceTaxType,
   });
 
-  const totalAmount = calculateFlightInvoiceTotal(input.baseFare, input.serviceCharge, tax);
+  const discountAmount = input.discountAmount || 0;
+  const totalAmount = calculateFlightInvoiceTotal(
+    input.baseFare,
+    input.serviceCharge,
+    tax,
+    discountAmount
+  );
+
+  const airlineLogoUrl = getAirlineLogoUrl(input.airline) || undefined;
 
   return {
     totalAmount,
     flightData: {
+      airline: input.airline,
+      airlineLogoUrl,
+      segments: input.segments,
+      passengers: input.passengers,
+      tripType: input.tripType || "ONE_WAY",
+      cabinClass: input.cabinClass || "ECONOMY",
+      secondaryPnr: input.secondaryPnr || null,
+      showEticket: input.showEticket || false,
       baseFare: input.baseFare,
       serviceCharge: input.serviceCharge,
+      discountAmount: discountAmount || null,
       invoiceTaxType: input.invoiceTaxType,
       buyerGstin,
       buyerState: tax.buyerState,
       buyerStateCode: tax.buyerStateCode,
       placeOfSupply: tax.placeOfSupply,
+      invoiceNarration: input.invoiceNarration || null,
+      msmeNumber: input.msmeNumber || null,
       hsnSac: FLIGHT_SERVICE_HSN,
       cgstRate: tax.cgstRate,
       sgstRate: tax.sgstRate,
@@ -163,22 +196,39 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
   let booking;
 
   if (input.productType === "FLIGHT") {
-    const agencyStateCode = await getAgencyStateCode();
+    const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+    const agencyStateCode = getStateCodeFromGstin(agency?.gstin);
+    const agencyHasGst = Boolean(agency?.gstin?.trim());
     const flightInput = input as OfflineFlightBookingInput;
-    validateFlightInvoice(flightInput);
-    const { totalAmount, flightData } = buildFlightTaxData(flightInput, agencyStateCode);
+    validateFlightInvoice(flightInput, agencyHasGst);
+
+    let totalAmount = flightInput.totalAmount;
+    let flightData: Record<string, unknown> = {
+      airline: flightInput.airline,
+      segments: flightInput.segments,
+      passengers: flightInput.passengers,
+      tripType: flightInput.tripType || "ONE_WAY",
+      cabinClass: flightInput.cabinClass || "ECONOMY",
+      secondaryPnr: flightInput.secondaryPnr || null,
+      showEticket: flightInput.showEticket || false,
+      airlineLogoUrl: getAirlineLogoUrl(flightInput.airline) || undefined,
+      invoiceNarration: flightInput.invoiceNarration || null,
+      msmeNumber: flightInput.msmeNumber || null,
+      invoiceTaxType: flightInput.invoiceTaxType,
+    };
+
+    if (agencyHasGst) {
+      const built = buildFlightTaxData(flightInput, agencyStateCode);
+      totalAmount = built.totalAmount;
+      flightData = { ...flightData, ...built.flightData };
+    }
 
     booking = await prisma.booking.create({
       data: {
         ...baseData,
         totalAmount,
         flightBooking: {
-          create: {
-            airline: input.airline,
-            segments: input.segments,
-            passengers: input.passengers,
-            ...flightData,
-          },
+          create: flightData as Prisma.FlightBookingUncheckedCreateWithoutBookingInput,
         },
         ...(input.paymentMethod
           ? {
@@ -467,10 +517,16 @@ async function createBookingFromWebhook(params: {
   throw new Error("Invalid booking payload for product type");
 }
 
-export async function confirmBookingPnr(bookingId: string, pnr: string, supplierRef: string | undefined, userId: string) {
+export async function confirmBookingPnr(
+  bookingId: string,
+  pnr: string,
+  supplierRef: string | undefined,
+  userId: string,
+  secondaryPnr?: string
+) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    include: { documents: true, hotelBooking: true },
+    include: { documents: true, hotelBooking: true, flightBooking: true },
   });
   if (!booking) throw new Error("Booking not found");
 
@@ -503,7 +559,7 @@ export async function confirmBookingPnr(bookingId: string, pnr: string, supplier
         status: booking.productType === "HOTEL" ? "TICKET_SENT" : "CONFIRMED",
         confirmedAt: new Date(),
       },
-      include: { customer: true, documents: true, hotelBooking: true },
+      include: { customer: true, documents: true, hotelBooking: true, flightBooking: true },
     });
 
     if (booking.productType === "HOTEL") {
@@ -511,6 +567,20 @@ export async function confirmBookingPnr(bookingId: string, pnr: string, supplier
         where: { bookingId },
         data: { confirmationNo: pnr },
       });
+    }
+
+    if (booking.productType === "FLIGHT" && booking.flightBooking) {
+      await upsertAirlineProfile({
+        name: booking.flightBooking.airline,
+        iataCode: resolveAirlineIata(booking.flightBooking.airline) || undefined,
+        logoUrl: booking.flightBooking.airlineLogoUrl || undefined,
+      });
+      if (secondaryPnr) {
+        await prisma.flightBooking.update({
+          where: { bookingId },
+          data: { secondaryPnr },
+        });
+      }
     }
 
     await logActivity({
@@ -531,6 +601,55 @@ export async function confirmBookingPnr(bookingId: string, pnr: string, supplier
   return prisma.booking.findUnique({
     where: { id: bookingId },
     include: { customer: true },
+  });
+}
+
+export async function sendItineraryWithPnr(
+  bookingId: string,
+  pnr: string,
+  userId: string,
+  secondaryPnr?: string
+) {
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { flightBooking: true },
+  });
+  if (!booking) throw new Error("Booking not found");
+  if (booking.productType !== "FLIGHT") {
+    throw new Error("Itinerary send is only available for flight bookings");
+  }
+
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: { pnr, supplierRef: booking.supplierRef },
+  });
+
+  if (secondaryPnr && booking.flightBooking) {
+    await prisma.flightBooking.update({
+      where: { bookingId },
+      data: { secondaryPnr },
+    });
+  }
+
+  if (booking.flightBooking) {
+    await upsertAirlineProfile({
+      name: booking.flightBooking.airline,
+      iataCode: resolveAirlineIata(booking.flightBooking.airline) || undefined,
+    });
+  }
+
+  await generateBookingDocuments(bookingId, userId);
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: { status: "TICKET_SENT", confirmedAt: new Date() },
+  });
+  await sendBookingEmails(bookingId, "booking_confirmed");
+
+  await logActivity({
+    bookingId,
+    userId,
+    action: "ITINERARY_SENT",
+    details: { pnr, secondaryPnr },
   });
 }
 
