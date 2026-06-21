@@ -17,6 +17,13 @@ export const flightSegmentSchema = z.object({
   status: z.string().optional(),
   direction: z.enum(["outbound", "return"]).optional(),
   pnr: z.string().optional(),
+  layoverDuration: z.string().optional(),
+  layoverAirport: z.string().optional(),
+  layoverCity: z.string().optional(),
+  layoverTerminal: z.string().optional(),
+  layoverType: z.enum(["connection", "plane_change", "technical"]).optional(),
+  layoverNote: z.string().optional(),
+  departureTerminal: z.string().optional(),
 });
 
 export const flightPassengerSchema = z.object({

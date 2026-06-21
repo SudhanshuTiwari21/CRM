@@ -28,7 +28,7 @@ export function BookingActions({ bookingId, status }: BookingActionsProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      toast.success(action === "resend" ? "Email resent" : "Documents regenerated");
+      toast.success(action === "resend" ? "Email & WhatsApp resent" : "Documents regenerated");
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Action failed");
@@ -48,7 +48,7 @@ export function BookingActions({ bookingId, status }: BookingActionsProps) {
         onClick={() => handleAction("resend")}
       >
         {loading === "resend" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
-        Resend Email
+        Resend Email & WhatsApp & WhatsApp
       </Button>
       {["CONFIRMED", "TICKET_SENT"].includes(status) && (
         <Button

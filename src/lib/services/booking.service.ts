@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/db";
 import { allocatePublicRef } from "@/lib/booking-ref";
 import { logActivity } from "./activity.service";
-import { generateBookingDocuments, getBookingDocumentPaths } from "./document.service";
-import { sendTemplatedEmail, getEmailAttachments } from "@/lib/mailer";
+import { generateBookingDocuments } from "./document.service";
+import { sendBookingNotifications } from "./notification.service";
 import { getFlightProvider } from "./provider/flight-provider";
 import { upsertHotelProfile } from "./hotel.service";
 import { upsertAirlineProfile } from "./airline.service";
@@ -134,40 +134,6 @@ function buildFlightTaxData(input: OfflineFlightBookingInput, agencyStateCode: s
       igstAmount: tax.igstAmount,
     },
   };
-}
-
-async function sendBookingEmails(bookingId: string, templateKey: "held_processing" | "booking_confirmed") {
-  const booking = await prisma.booking.findUnique({
-    where: { id: bookingId },
-    include: { customer: true },
-  });
-  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
-
-  if (!booking?.customer.email) return;
-
-  const vars = {
-    customerName: booking.customer.name,
-    publicRef: booking.publicRef,
-    productType: booking.productType,
-    amount: `₹${Number(booking.totalAmount).toLocaleString("en-IN")}`,
-    pnr: booking.pnr || "Pending",
-    companyName: agency?.companyName || "Book to Roam",
-    companyPhone: agency?.phone || "",
-  };
-
-  let attachments;
-  if (templateKey === "booking_confirmed") {
-    const paths = await getBookingDocumentPaths(bookingId);
-    attachments = await getEmailAttachments(paths);
-  }
-
-  await sendTemplatedEmail({
-    templateKey,
-    to: booking.customer.email,
-    vars,
-    bookingId,
-    attachments,
-  });
 }
 
 export async function createOfflineBooking(input: OfflineBookingInput, userId?: string) {
@@ -377,7 +343,7 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
 
   if (input.productType === "HOTEL") {
     await generateBookingDocuments(booking.id, userId);
-    await sendBookingEmails(booking.id, "booking_confirmed");
+    await sendBookingNotifications(booking.id, "booking_confirmed");
     await prisma.booking.update({
       where: { id: booking.id },
       data: { status: "TICKET_SENT" },
@@ -429,7 +395,7 @@ export async function createHeldBooking(input: WebhookBookingInput) {
     status: "PROCESSING",
   });
 
-  await sendBookingEmails(booking.id, "held_processing");
+  await sendBookingNotifications(booking.id, "held_processing");
   return booking;
 }
 
@@ -475,7 +441,7 @@ export async function createLiveBooking(input: WebhookBookingInput) {
     where: { id: booking.id },
     data: { status: "TICKET_SENT" },
   });
-  await sendBookingEmails(booking.id, "booking_confirmed");
+  await sendBookingNotifications(booking.id, "booking_confirmed");
 
   await logActivity({
     bookingId: booking.id,
@@ -664,7 +630,7 @@ export async function confirmBookingPnr(
     where: { id: bookingId },
     data: { status: "TICKET_SENT" },
   });
-  await sendBookingEmails(bookingId, "booking_confirmed");
+  await sendBookingNotifications(bookingId, "booking_confirmed");
 
   return prisma.booking.findUnique({
     where: { id: bookingId },
@@ -711,7 +677,7 @@ export async function sendItineraryWithPnr(
     where: { id: bookingId },
     data: { status: "TICKET_SENT", confirmedAt: new Date() },
   });
-  await sendBookingEmails(bookingId, "booking_confirmed");
+  await sendBookingNotifications(bookingId, "booking_confirmed");
 
   await logActivity({
     bookingId,
@@ -729,13 +695,13 @@ export async function resendBookingEmail(bookingId: string, userId: string) {
     ? "booking_confirmed"
     : "held_processing";
 
-  await sendBookingEmails(bookingId, templateKey);
+  await sendBookingNotifications(bookingId, templateKey);
 
   await logActivity({
     bookingId,
     userId,
-    action: "EMAIL_RESENT",
-    details: { template: templateKey },
+    action: "NOTIFICATIONS_RESENT",
+    details: { template: templateKey, channels: ["email", "whatsapp"] },
   });
 }
 

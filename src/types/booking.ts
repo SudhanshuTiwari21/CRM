@@ -15,6 +15,14 @@ export interface FlightSegment {
   status?: string;
   direction?: TripDirection;
   pnr?: string;
+  /** Layover after this segment (before the next flight) */
+  layoverDuration?: string;
+  layoverAirport?: string;
+  layoverCity?: string;
+  layoverTerminal?: string;
+  layoverType?: "connection" | "plane_change" | "technical";
+  layoverNote?: string;
+  departureTerminal?: string;
 }
 
 export type PaxType = "adult" | "child" | "infant";

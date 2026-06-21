@@ -13,6 +13,7 @@ import { BookingQuickActions } from "@/components/booking/booking-quick-actions"
 import { CHANNEL_LABELS, PRODUCT_LABELS } from "@/lib/constants";
 import { formatCurrency, formatDateTime, formatDate } from "@/lib/utils";
 import type { FlightSegment, FlightPassenger, HotelGuest, BusPassenger } from "@/types/booking";
+import { buildSectorSummary, connectionGapText, connectionGapTitle, itineraryBadgeLabel } from "@/lib/flight-layover";
 import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -30,6 +31,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
       payments: true,
       documents: true,
       emailLogs: { orderBy: { createdAt: "desc" } },
+      whatsappLogs: { orderBy: { createdAt: "desc" } },
       activityLogs: {
         include: { user: { select: { name: true } } },
         orderBy: { createdAt: "desc" },
@@ -145,18 +147,53 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
         <TabsContent value="itinerary">
           {booking.flightBooking && (
             <Card>
-              <CardHeader><CardTitle className="text-base">Flight — {booking.flightBooking.airline}</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Flight — {booking.flightBooking.airline}
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {buildSectorSummary(
+                    booking.flightBooking.segments as unknown as FlightSegment[],
+                    booking.flightBooking.tripType
+                  )}{" "}
+                  • {itineraryBadgeLabel(
+                    booking.flightBooking.tripType,
+                    booking.flightBooking.segments as unknown as FlightSegment[]
+                  )}
+                </p>
+              </CardHeader>
               <CardContent className="space-y-4">
-                {(booking.flightBooking.segments as unknown as FlightSegment[]).map((seg, i) => (
-                  <div key={i} className="rounded-lg border p-4">
-                    <p className="font-medium">{seg.flightNumber} • {seg.aircraft}</p>
-                    <p className="mt-2 text-sm">
-                      {seg.fromCity} ({seg.fromAirport}) → {seg.toCity} ({seg.toAirport})
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatDateTime(seg.departureAt)} — {formatDateTime(seg.arrivalAt)}
-                      {seg.terminal && ` • ${seg.terminal}`}
-                    </p>
+                {(booking.flightBooking.segments as unknown as FlightSegment[]).map((seg, i, arr) => (
+                  <div key={i} className="space-y-3">
+                    <div className="rounded-lg border p-4">
+                      <p className="font-medium">
+                        {seg.flightNumber}
+                        {seg.aircraft ? ` • ${seg.aircraft}` : ""}
+                      </p>
+                      <p className="mt-2 text-sm">
+                        {seg.fromCity} ({seg.fromAirport}) → {seg.toCity} ({seg.toAirport})
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDateTime(seg.departureAt)} — {formatDateTime(seg.arrivalAt)}
+                      </p>
+                      {(seg.departureTerminal || seg.terminal) && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {seg.departureTerminal && `Dep: ${seg.departureTerminal}`}
+                          {seg.departureTerminal && seg.terminal && " • "}
+                          {seg.terminal && `Arr: ${seg.terminal}`}
+                        </p>
+                      )}
+                    </div>
+                    {i < arr.length - 1 && (
+                      <div className="ml-6 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-4 py-3 text-sm dark:border-amber-700 dark:bg-amber-950/20">
+                        <p className="font-medium text-amber-900 dark:text-amber-100">
+                          {connectionGapTitle(booking.flightBooking!.tripType, i)}
+                        </p>
+                        <p className="text-muted-foreground">
+                          {connectionGapText(seg, arr[i + 1], booking.flightBooking!.tripType, i)}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </CardContent>
@@ -320,6 +357,17 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                       <p className="text-xs text-muted-foreground">
                         To: {email.to} • {email.status} • {email.sentAt ? formatDateTime(email.sentAt) : "Pending"}
                       </p>
+                    </div>
+                  </div>
+                ))}
+                {booking.whatsappLogs.map((wa) => (
+                  <div key={wa.id} className="flex gap-3 border-l-2 border-green-400 pl-4">
+                    <div>
+                      <p className="font-medium text-sm">WhatsApp: {wa.template}</p>
+                      <p className="text-xs text-muted-foreground">
+                        To: {wa.to} • {wa.status} • {wa.sentAt ? formatDateTime(wa.sentAt) : "Pending"}
+                      </p>
+                      {wa.error && <p className="text-xs text-destructive">{wa.error}</p>}
                     </div>
                   </div>
                 ))}

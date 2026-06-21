@@ -8,6 +8,7 @@ import { getStateCodeFromGstin } from "@/lib/gst-calculator";
 import { amountInWordsInr } from "@/lib/number-to-words";
 import { CABIN_CLASS_OPTIONS } from "@/lib/constants/flight";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
+import { buildFullRoute, buildSectorLegs, buildSectorSummary } from "@/lib/flight-layover";
 
 const styles = StyleSheet.create({
   page: { padding: 28, fontSize: 8, fontFamily: "Helvetica", color: "#000" },
@@ -85,15 +86,6 @@ function paxLabel(p?: FlightPassenger) {
   return `${p.title} ${p.firstName} ${p.lastName}`.trim();
 }
 
-function buildSector(segments: FlightSegment[]) {
-  if (!segments.length) return "";
-  if (segments.length === 1) {
-    const s = segments[0];
-    return `${s.fromAirport}-${s.toAirport}`;
-  }
-  return segments.map((s) => `${s.fromAirport}-${s.toAirport}`).join(" / ");
-}
-
 function buildTravelDates(segments: FlightSegment[]) {
   return segments
     .map((s) => (s.departureAt ? format(new Date(s.departureAt), "dd/MM/yyyy") : ""))
@@ -140,7 +132,8 @@ export function InvoicePDF({
   const grandTotal = hasGstInvoice ? baseFare + otherCharges - discount : Number(booking.totalAmount);
 
   const passenger = passengers[0];
-  const sector = buildSector(segments);
+  const sector = buildSectorSummary(segments, flight?.tripType);
+  const sectorLegs = buildSectorLegs(segments, flight?.tripType);
   const travelDate = buildTravelDates(segments) || format(booking.createdAt, "dd/MM/yyyy");
   const pnrLine = [
     booking.pnr ? `PNR: ${booking.pnr}` : null,
@@ -167,6 +160,10 @@ export function InvoicePDF({
       ? `Pax: ${paxLabel(passenger)}${passengers.length > 1 ? ` +${passengers.length - 1}` : ""}`
       : null,
     sector ? `Sector: ${sector}` : null,
+    ...sectorLegs.map((leg) => `${leg.label}: ${leg.sector} (${leg.date || "—"})`),
+    segments.length > 1 && flight?.tripType !== "ROUND_TRIP"
+      ? `Route: ${buildFullRoute(segments)}`
+      : null,
     travelDate ? `Travel Date: ${travelDate}` : null,
     flight?.cabinClass ? `Class: ${cabinLabel(flight.cabinClass)}` : null,
     passenger?.ticketNumber ? `E-Ticket: ${passenger.ticketNumber}` : null,

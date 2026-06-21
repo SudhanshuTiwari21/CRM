@@ -32,6 +32,29 @@ export const MEAL_OPTIONS = [
   { value: "none", label: "No Meal" },
 ] as const;
 
+export const CUSTOMER_TITLE_OPTIONS = [
+  { value: "Mr", label: "Mr" },
+  { value: "Mrs", label: "Mrs" },
+  { value: "Ms", label: "Ms" },
+  { value: "Mstr", label: "Mstr" },
+  { value: "Miss", label: "Miss" },
+  { value: "Dr", label: "Dr" },
+  { value: "Prof", label: "Prof" },
+] as const;
+
+export const LAYOVER_TYPE_OPTIONS = [
+  { value: "connection", label: "Connection / Layover" },
+  { value: "plane_change", label: "Change of Aircraft" },
+  { value: "technical", label: "Technical Stop" },
+] as const;
+
+export const STOP_COUNT_OPTIONS = [
+  { value: 0, label: "Non-stop" },
+  { value: 1, label: "1 Stop" },
+  { value: 2, label: "2 Stops" },
+  { value: 3, label: "3 Stops" },
+] as const;
+
 export const COMMON_AIRLINES = [
   { name: "IndiGo", iata: "6E" },
   { name: "SpiceJet", iata: "SG" },

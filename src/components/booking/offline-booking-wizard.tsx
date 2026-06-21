@@ -18,8 +18,11 @@ import { HotelBookingFields } from "@/components/booking/hotel-booking-fields";
 import { FlightBookingFields } from "@/components/booking/flight-booking-fields";
 import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields";
 import { parseApiResponse } from "@/lib/parse-api-response";
+import { formatCustomerName } from "@/lib/utils";
+import { CUSTOMER_TITLE_OPTIONS } from "@/lib/constants/flight";
 
 const baseCustomer = {
+  title: "Mr",
   name: "",
   email: "",
   phone: "",
@@ -31,6 +34,7 @@ const baseCustomer = {
 const wizardSchema = z.object({
   productType: z.enum(["FLIGHT", "HOTEL", "BUS"]),
   customer: z.object({
+    title: z.string().optional(),
     name: z.string().min(2, "Customer name is required"),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     phone: z.string().min(10, "Phone must be at least 10 digits"),
@@ -53,6 +57,7 @@ const wizardSchema = z.object({
   secondaryPnr: z.string().optional(),
   showEticket: z.boolean().optional(),
   showPassengerName: z.boolean().optional(),
+  stopCount: z.coerce.number().min(0).max(3).optional(),
   // Flight
   airline: z.string().optional(),
   segments: z.array(z.object({
@@ -65,10 +70,17 @@ const wizardSchema = z.object({
     departureAt: z.string(),
     arrivalAt: z.string(),
     terminal: z.string().optional(),
+    departureTerminal: z.string().optional(),
     aircraft: z.string().optional(),
     duration: z.string().optional(),
     direction: z.enum(["outbound", "return"]).optional(),
     pnr: z.string().optional(),
+    layoverDuration: z.string().optional(),
+    layoverAirport: z.string().optional(),
+    layoverCity: z.string().optional(),
+    layoverTerminal: z.string().optional(),
+    layoverType: z.enum(["connection", "plane_change", "technical"]).optional(),
+    layoverNote: z.string().optional(),
   })).optional(),
   passengers: z.array(z.object({
     title: z.string(),
@@ -137,6 +149,7 @@ export function OfflineBookingWizard() {
       msmeNumber: "",
       tripType: "ONE_WAY",
       cabinClass: "ECONOMY",
+      stopCount: 0,
       showEticket: false,
       showPassengerName: true,
       airline: "IndiGo",
@@ -187,8 +200,10 @@ export function OfflineBookingWizard() {
       if (productType !== "FLIGHT" && data.totalAmount <= 0) {
         throw new Error("Total amount must be greater than 0");
       }
+      const { title: _title, ...customerRest } = data.customer;
       const customer = {
-        ...data.customer,
+        ...customerRest,
+        name: formatCustomerName(data.customer.title, data.customer.name),
         email: data.customer.email?.trim() || undefined,
         gstin: data.customer.gstin?.trim() || undefined,
       };
@@ -324,9 +339,26 @@ export function OfflineBookingWizard() {
         <Card className="mt-4">
           <CardHeader><CardTitle className="text-base">Customer Details</CardTitle></CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-2">
               <Label>Name *</Label>
-              <Input {...form.register("customer.name")} />
+              <div className="flex gap-2">
+                <Select
+                  value={form.watch("customer.title") || "Mr"}
+                  onValueChange={(v) => form.setValue("customer.title", v)}
+                >
+                  <SelectTrigger className="w-[100px] shrink-0"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CUSTOMER_TITLE_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  {...form.register("customer.name")}
+                  placeholder="Full name (without title)"
+                  className="flex-1"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Phone *</Label>

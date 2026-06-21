@@ -262,6 +262,7 @@ model Booking {
   payments      Payment[]
   documents     Document[]
   emailLogs     EmailLog[]
+  whatsappLogs  WhatsAppLog[]
   activityLogs  ActivityLog[]
   creditTransactions CustomerCreditTransaction[]
 
@@ -432,6 +433,22 @@ model EmailLog {
   @@index([bookingId])
 }
 
+model WhatsAppLog {
+  id        String      @id @default(cuid())
+  bookingId String?
+  to        String
+  template  String
+  body      String      @db.Text
+  status    EmailStatus @default(PENDING)
+  error     String?
+  sentAt    DateTime?
+  createdAt DateTime    @default(now())
+
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([bookingId])
+}
+
 model ActivityLog {
   id        String   @id @default(cuid())
   bookingId String?
@@ -473,6 +490,9 @@ model AgencySettings {
   smtpPort         Int?
   smtpUser         String?
   smtpFrom         String?
+  whatsappEnabled       Boolean @default(false)
+  whatsappPhoneNumberId String?
+  whatsappApiVersion    String  @default("v21.0")
   updatedAt        DateTime @updatedAt
 }
 

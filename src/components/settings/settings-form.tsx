@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { SmtpSettings } from "@/components/settings/smtp-settings";
+import { WhatsAppSettings } from "@/components/settings/whatsapp-settings";
 
 interface SettingsData {
   agency: {
@@ -38,6 +39,9 @@ interface SettingsData {
     smtpPort?: number | null;
     smtpUser?: string | null;
     smtpFrom?: string | null;
+    whatsappEnabled?: boolean;
+    whatsappPhoneNumberId?: string | null;
+    whatsappApiVersion?: string | null;
   };
   templates: { key: string; subject: string; body: string }[];
   users: { id: string; name: string; email: string; role: string; active: boolean }[];
@@ -151,6 +155,7 @@ export function SettingsForm() {
       <TabsList>
         <TabsTrigger value="agency">Agency</TabsTrigger>
         <TabsTrigger value="smtp">Gmail SMTP</TabsTrigger>
+        <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
         <TabsTrigger value="email">Email Templates</TabsTrigger>
         <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
         {session?.user?.role === "ADMIN" && <TabsTrigger value="users">Users</TabsTrigger>}
@@ -262,6 +267,31 @@ export function SettingsForm() {
               toast.success("SMTP settings saved");
             } catch {
               toast.error("Failed to save SMTP settings");
+            } finally {
+              setLoading(false);
+            }
+          }}
+        />
+      </TabsContent>
+
+      <TabsContent value="whatsapp">
+        <WhatsAppSettings
+          whatsappEnabled={agency.whatsappEnabled}
+          whatsappPhoneNumberId={agency.whatsappPhoneNumberId}
+          whatsappApiVersion={agency.whatsappApiVersion}
+          onSave={async (wa) => {
+            setLoading(true);
+            try {
+              const res = await fetch("/api/crm/settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ agency: { ...agency, ...wa } }),
+              });
+              if (!res.ok) throw new Error("Failed");
+              setAgency({ ...agency, ...wa });
+              toast.success("WhatsApp settings saved");
+            } catch {
+              toast.error("Failed to save WhatsApp settings");
             } finally {
               setLoading(false);
             }

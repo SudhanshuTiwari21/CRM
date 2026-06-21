@@ -39,3 +39,16 @@ export function formatDateTime(date: Date | string) {
     hour12: false,
   }).format(d);
 }
+
+/** Combine optional title with customer name for storage/display. */
+export function formatCustomerName(title: string | undefined, name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return trimmed;
+  const t = title?.trim();
+  if (!t) return trimmed;
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith(`${t.toLowerCase()} `) || lower.startsWith(`${t.toLowerCase()}.`)) {
+    return trimmed;
+  }
+  return `${t} ${trimmed}`;
+}

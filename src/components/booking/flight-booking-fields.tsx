@@ -12,10 +12,13 @@ import {
   BAGGAGE_PRESETS,
   CABIN_CLASS_OPTIONS,
   COMMON_AIRLINES,
+  LAYOVER_TYPE_OPTIONS,
   MEAL_OPTIONS,
   PAX_TYPE_OPTIONS,
+  STOP_COUNT_OPTIONS,
   TRIP_TYPE_OPTIONS,
 } from "@/lib/constants/flight";
+import { computeLayoverDuration } from "@/lib/flight-layover";
 
 interface FlightBookingFieldsProps {
   form: UseFormReturn<WizardForm>;
@@ -25,6 +28,20 @@ interface FlightBookingFieldsProps {
   passengerFields: UseFieldArrayReturn<WizardForm, "passengers">["fields"];
   appendPassenger: UseFieldArrayReturn<WizardForm, "passengers">["append"];
   removePassenger: UseFieldArrayReturn<WizardForm, "passengers">["remove"];
+}
+
+function emptySegment(airline: string, from?: { airport: string; city: string }) {
+  return {
+    flightNumber: "",
+    airline,
+    fromAirport: from?.airport || "",
+    fromCity: from?.city || "",
+    toAirport: "",
+    toCity: "",
+    departureAt: "",
+    arrivalAt: "",
+    layoverType: "connection" as const,
+  };
 }
 
 export function FlightBookingFields({
@@ -41,6 +58,8 @@ export function FlightBookingFields({
   const tripType = form.watch("tripType") || "ONE_WAY";
   const showEticket = form.watch("showEticket");
   const airline = form.watch("airline");
+  const segments = form.watch("segments") || [];
+  const stopCount = form.watch("stopCount") ?? Math.max(0, segmentFields.length - 1);
 
   useEffect(() => {
     fetch("/api/crm/airlines")
@@ -63,23 +82,75 @@ export function FlightBookingFields({
     return () => clearTimeout(timer);
   }, [airline]);
 
+  // Auto-calculate layover duration between connected segments
+  useEffect(() => {
+    for (let i = 0; i < segments.length - 1; i++) {
+      const seg = segments[i];
+      const next = segments[i + 1];
+      if (!seg?.arrivalAt || !next?.departureAt) continue;
+      const computed = computeLayoverDuration(seg.arrivalAt, next.departureAt);
+      if (computed && !form.getValues(`segments.${i}.layoverDuration`)) {
+        form.setValue(`segments.${i}.layoverDuration`, computed);
+      }
+      if (seg.toCity && !form.getValues(`segments.${i}.layoverCity`)) {
+        form.setValue(`segments.${i}.layoverCity`, seg.toCity);
+      }
+      if (seg.toAirport && !form.getValues(`segments.${i}.layoverAirport`)) {
+        form.setValue(`segments.${i}.layoverAirport`, seg.toAirport);
+      }
+    }
+  }, [segments, form]);
+
   function handleTripTypeChange(value: string) {
     form.setValue("tripType", value as WizardForm["tripType"]);
-    if (value === "ROUND_TRIP" && segmentFields.length < 2) {
-      const first = form.getValues("segments.0");
-      appendSegment({
-        flightNumber: "",
-        airline: form.getValues("airline") || "",
-        fromAirport: first?.toAirport || "",
-        fromCity: first?.toCity || "",
-        toAirport: first?.fromAirport || "",
-        toCity: first?.fromCity || "",
-        departureAt: "",
-        arrivalAt: "",
-        direction: "return",
-      });
-      form.setValue("segments.0.direction", "outbound");
+    if (value === "ROUND_TRIP") {
+      form.setValue("stopCount", 0);
+      if (segmentFields.length < 2) {
+        const first = form.getValues("segments.0");
+        appendSegment(
+          emptySegment(form.getValues("airline") || "", {
+            airport: first?.toAirport || "",
+            city: first?.toCity || "",
+          })
+        );
+        form.setValue("segments.0.direction", "outbound");
+        form.setValue("segments.1.direction", "return");
+      }
+    } else if (value === "ONE_WAY") {
+      const target = (form.getValues("stopCount") ?? 0) + 1;
+      resizeSegments(target);
     }
+  }
+
+  function resizeSegments(targetCount: number) {
+    const current = form.getValues("segments") || [];
+    const al = form.getValues("airline") || "";
+
+    if (current.length < targetCount) {
+      for (let i = current.length; i < targetCount; i++) {
+        const prev = current[i - 1];
+        appendSegment(
+          emptySegment(al, prev ? { airport: prev.toAirport, city: prev.toCity } : undefined)
+        );
+      }
+    } else if (current.length > targetCount) {
+      for (let i = current.length - 1; i >= targetCount; i--) {
+        removeSegment(i);
+      }
+    }
+  }
+
+  function handleStopCountChange(stops: number) {
+    form.setValue("stopCount", stops);
+    resizeSegments(stops + 1);
+  }
+
+  function segmentLabel(i: number) {
+    if (tripType === "ROUND_TRIP") {
+      return i === 0 ? "Outbound Flight" : "Return Flight";
+    }
+    if (segmentFields.length === 1) return "Flight";
+    return `Flight ${i + 1} of ${segmentFields.length}`;
   }
 
   return (
@@ -111,6 +182,28 @@ export function FlightBookingFields({
           </Select>
         </div>
       </div>
+
+      {tripType === "ONE_WAY" && (
+        <div className="space-y-2">
+          <Label>Stops / Layovers</Label>
+          <Select
+            value={String(stopCount)}
+            onValueChange={(v) => handleStopCountChange(Number(v))}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {STOP_COUNT_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {stopCount === 0
+              ? "Direct non-stop flight"
+              : `${stopCount} connection(s) — fill each flight leg and layover details below`}
+          </p>
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label>Airline</Label>
@@ -147,59 +240,90 @@ export function FlightBookingFields({
       </div>
 
       {segmentFields.map((field, i) => (
-        <div key={field.id} className="space-y-3 rounded-lg border p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">
-              {tripType === "ROUND_TRIP"
-                ? i === 0
-                  ? "Outbound"
-                  : "Return"
-                : `Segment ${i + 1}`}
-            </p>
-            {segmentFields.length > 1 && (
-              <Button type="button" variant="ghost" size="icon" onClick={() => removeSegment(i)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
+        <div key={field.id} className="space-y-3">
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">{segmentLabel(i)}</p>
+              {tripType === "MULTI_CITY" && segmentFields.length > 1 && (
+                <Button type="button" variant="ghost" size="icon" onClick={() => removeSegment(i)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input {...form.register(`segments.${i}.flightNumber`)} placeholder="Flight No (6E 212)" />
+              <Input {...form.register(`segments.${i}.aircraft`)} placeholder="Aircraft (A320)" />
+              <Input {...form.register(`segments.${i}.fromCity`)} placeholder="From City" />
+              <Input {...form.register(`segments.${i}.fromAirport`)} placeholder="From Airport (CCU)" />
+              <Input {...form.register(`segments.${i}.departureTerminal`)} placeholder="Dep Terminal (optional)" />
+              <Input {...form.register(`segments.${i}.departureAt`)} type="datetime-local" step="60" />
+              <Input {...form.register(`segments.${i}.toCity`)} placeholder="To City" />
+              <Input {...form.register(`segments.${i}.toAirport`)} placeholder="To Airport (DEL)" />
+              <Input {...form.register(`segments.${i}.terminal`)} placeholder="Arr Terminal (optional)" />
+              <Input {...form.register(`segments.${i}.arrivalAt`)} type="datetime-local" step="60" />
+              <Input {...form.register(`segments.${i}.duration`)} placeholder="Duration (e.g. 2h 15m)" />
+              {tripType === "ROUND_TRIP" && (
+                <Input
+                  {...form.register(`segments.${i}.pnr`)}
+                  placeholder={i === 0 ? "Outbound PNR (optional)" : "Return PNR (optional)"}
+                />
+              )}
+            </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input {...form.register(`segments.${i}.flightNumber`)} placeholder="Flight No (6E 212)" />
-            <Input {...form.register(`segments.${i}.fromCity`)} placeholder="From City" />
-            <Input {...form.register(`segments.${i}.fromAirport`)} placeholder="From Airport (CCU)" />
-            <Input {...form.register(`segments.${i}.toCity`)} placeholder="To City" />
-            <Input {...form.register(`segments.${i}.toAirport`)} placeholder="To Airport (GAU)" />
-            <Input {...form.register(`segments.${i}.departureAt`)} type="datetime-local" step="60" />
-            <Input {...form.register(`segments.${i}.arrivalAt`)} type="datetime-local" step="60" />
-            <Input {...form.register(`segments.${i}.aircraft`)} placeholder="Aircraft (A320)" />
-            {tripType === "ROUND_TRIP" && (
-              <Input
-                {...form.register(`segments.${i}.pnr`)}
-                placeholder={i === 0 ? "Outbound PNR (optional)" : "Return PNR (optional)"}
-              />
-            )}
-          </div>
+
+          {i < segmentFields.length - 1 && (
+            <div className="ml-4 space-y-3 rounded-lg border-2 border-dashed border-amber-300 bg-amber-50/50 p-4 dark:border-amber-700 dark:bg-amber-950/20">
+              <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                Layover after {segments[i]?.toCity || "this flight"}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-xs">Layover Type</Label>
+                  <Select
+                    value={form.watch(`segments.${i}.layoverType`) || "connection"}
+                    onValueChange={(v) =>
+                      form.setValue(`segments.${i}.layoverType`, v as "connection" | "plane_change" | "technical")
+                    }
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {LAYOVER_TYPE_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Layover Duration</Label>
+                  <Input
+                    {...form.register(`segments.${i}.layoverDuration`)}
+                    placeholder="Auto from times or e.g. 2h 35m"
+                  />
+                </div>
+                <Input {...form.register(`segments.${i}.layoverCity`)} placeholder="Layover City" />
+                <Input {...form.register(`segments.${i}.layoverAirport`)} placeholder="Layover Airport (DEL)" />
+                <Input {...form.register(`segments.${i}.layoverTerminal`)} placeholder="Connection Terminal" />
+                <Input {...form.register(`segments.${i}.layoverNote`)} placeholder="Note (e.g. Change of gates)" />
+              </div>
+            </div>
+          )}
         </div>
       ))}
 
-      {tripType !== "ROUND_TRIP" && (
+      {tripType === "MULTI_CITY" && (
         <Button
           type="button"
           variant="outline"
           size="sm"
-          onClick={() =>
-            appendSegment({
-              flightNumber: "",
-              airline: form.getValues("airline") || "",
-              fromAirport: "",
-              fromCity: "",
-              toAirport: "",
-              toCity: "",
-              departureAt: "",
-              arrivalAt: "",
-            })
-          }
+          onClick={() => {
+            const last = segments[segments.length - 1];
+            appendSegment(
+              emptySegment(form.getValues("airline") || "", last ? { airport: last.toAirport, city: last.toCity } : undefined)
+            );
+            form.setValue("stopCount", segmentFields.length);
+          }}
         >
-          <Plus className="mr-2 h-4 w-4" /> Add Segment
+          <Plus className="mr-2 h-4 w-4" /> Add Flight Leg
         </Button>
       )}
 
