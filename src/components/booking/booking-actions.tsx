@@ -48,7 +48,7 @@ export function BookingActions({ bookingId, status }: BookingActionsProps) {
         onClick={() => handleAction("resend")}
       >
         {loading === "resend" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
-        Resend Email & WhatsApp & WhatsApp
+        Resend Email & WhatsApp
       </Button>
       {["CONFIRMED", "TICKET_SENT"].includes(status) && (
         <Button
