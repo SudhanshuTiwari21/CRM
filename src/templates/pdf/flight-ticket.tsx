@@ -1,82 +1,186 @@
 import React from "react";
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { AgencySettings, Booking, FlightBooking } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
-import { format } from "date-fns";
-import { CABIN_CLASS_OPTIONS } from "@/lib/constants/flight";
-import {
-  buildFullRoute,
-  buildSectorLegs,
-  buildSectorSummary,
-  connectionGapText,
-  connectionGapTitle,
-  formatFlightDateTime,
-  formatSegmentDuration,
-  itineraryBadgeLabel,
-} from "@/lib/flight-layover";
+import { subMinutes } from "date-fns";
+import { getAirportDisplay } from "@/lib/airport-names";
+import { resolveAirlineIata } from "@/lib/airline-logo";
+import { formatSegmentDuration } from "@/lib/flight-layover";
+
+const INDIGO_BLUE = "#0B3D91";
 
 const styles = StyleSheet.create({
-  page: { padding: 36, fontSize: 9, fontFamily: "Helvetica", color: "#111" },
-  header: { marginBottom: 16, borderBottom: "2px solid #1e3a8a", paddingBottom: 12 },
-  title: { fontSize: 18, fontWeight: "bold", color: "#1e3a8a" },
-  subtitle: { fontSize: 8.5, color: "#444", marginTop: 3, lineHeight: 1.35 },
-  badgeRow: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
-  badge: { backgroundColor: "#eff6ff", padding: "4 8", borderRadius: 3, fontSize: 8, color: "#1e40af" },
-  pnrBox: { backgroundColor: "#f8fafc", border: "1px solid #cbd5e1", padding: 12, marginTop: 12, borderRadius: 4 },
-  row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  section: { marginTop: 14 },
-  sectionTitle: { fontSize: 10, fontWeight: "bold", marginBottom: 8, color: "#1e3a8a", textTransform: "uppercase" },
-  routeBannerAlt: {
-    backgroundColor: "#1e3a8a",
+  page: {
+    paddingTop: 28,
+    paddingBottom: 36,
+    paddingHorizontal: 32,
+    fontSize: 9,
+    fontFamily: "Helvetica",
+    color: "#000",
+    backgroundColor: "#fff",
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  airlineLogo: { width: 88, height: 36, objectFit: "contain" as const, objectPosition: "left" as const },
+  agencyName: { fontSize: 16, fontFamily: "Times-Bold", color: INDIGO_BLUE },
+  bookingDate: { fontSize: 8, color: "#333", textAlign: "right", maxWidth: 180, lineHeight: 1.35 },
+  rule: { borderBottomWidth: 1, borderBottomColor: "#ccc", marginBottom: 12 },
+  ruleThick: { borderBottomWidth: 2, borderBottomColor: "#000", marginBottom: 14 },
+  pnrRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+  },
+  pnrBlock: { flexDirection: "row", alignItems: "center", gap: 8 },
+  pnrLabel: { fontSize: 9, color: "#333" },
+  pnrValue: { fontSize: 14, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 },
+  confirmedBadge: {
+    backgroundColor: "#1a8a34",
     color: "#fff",
-    padding: 8,
-    borderRadius: 4,
-    marginBottom: 4,
-    fontSize: 10,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  sectorRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    padding: "4 8",
-    borderBottom: "1px solid #e2e8f0",
     fontSize: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    fontFamily: "Helvetica-Bold",
   },
-  flightCard: { border: "1px solid #e2e8f0", borderRadius: 4, marginBottom: 6, overflow: "hidden" },
-  flightHeader: {
+  paymentBlock: { alignItems: "flex-end" },
+  paymentLabel: { fontSize: 9, color: "#333", marginBottom: 2 },
+  paymentValue: { fontSize: 11, fontFamily: "Helvetica-Bold" },
+  sectionTitle: {
+    fontSize: 13,
+    fontFamily: "Times-Bold",
+    marginBottom: 10,
+    color: "#000",
+  },
+  box: {
+    borderWidth: 1,
+    borderColor: "#000",
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 14,
+  },
+  paxNameLine: {
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e5e5",
+  },
+  gridHeader: { flexDirection: "row", marginBottom: 4 },
+  gridRow: { flexDirection: "row" },
+  gridCol: { flex: 1 },
+  gridLabel: { fontSize: 8, color: "#444", marginBottom: 3 },
+  gridValue: { fontSize: 10, fontFamily: "Helvetica-Bold" },
+  flightMeta: {
+    textAlign: "center",
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    marginBottom: 10,
+    lineHeight: 1.5,
+  },
+  barcodeWrap: { alignItems: "center", marginVertical: 10 },
+  barcode: { width: 340, height: 72, objectFit: "contain" as const },
+  routeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    backgroundColor: "#f1f5f9",
-    padding: "6 10",
-    borderBottom: "1px solid #e2e8f0",
+    alignItems: "flex-start",
+    marginTop: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#e5e5e5",
   },
-  flightBody: { flexDirection: "row", padding: 10 },
-  legCol: { flex: 1 },
-  legTime: { fontSize: 12, fontWeight: "bold", marginBottom: 2 },
-  legCity: { fontSize: 9, color: "#334155" },
-  legMeta: { fontSize: 7.5, color: "#64748b", marginTop: 2 },
-  arrowCol: { width: 40, alignItems: "center", justifyContent: "center" },
-  arrow: { fontSize: 14, color: "#64748b" },
-  layoverBox: {
-    backgroundColor: "#fffbeb",
-    border: "1px dashed #f59e0b",
-    padding: "8 12",
-    marginBottom: 6,
-    borderRadius: 4,
+  routeCol: { width: "38%" },
+  routeCenter: { width: "24%", alignItems: "center", paddingTop: 8 },
+  cityName: { fontSize: 16, fontFamily: "Times-Bold", marginBottom: 4 },
+  airportLine: { fontSize: 7.5, color: "#333", lineHeight: 1.35, marginBottom: 6 },
+  timeLine: { fontSize: 9, fontFamily: "Helvetica-Bold" },
+  travelLabel: { fontSize: 7.5, color: "#555", marginBottom: 4, textAlign: "center" },
+  travelTime: { fontSize: 9, fontFamily: "Helvetica-Bold", textAlign: "center" },
+  travelLine: { borderTopWidth: 1, borderTopColor: "#999", width: "100%", marginBottom: 4 },
+  footerNote: {
+    position: "absolute",
+    bottom: 20,
+    left: 32,
+    right: 32,
+    fontSize: 7,
+    color: "#555",
+    lineHeight: 1.35,
   },
-  layoverTitle: { fontSize: 8, fontWeight: "bold", color: "#b45309", marginBottom: 2 },
-  layoverText: { fontSize: 8, color: "#78350f", lineHeight: 1.4 },
-  table: { border: "1px solid #e2e8f0" },
-  tableHeader: { flexDirection: "row", backgroundColor: "#f1f5f9", borderBottom: "1px solid #e2e8f0" },
-  tableRow: { flexDirection: "row", borderBottom: "1px solid #f1f5f9" },
-  cell: { flex: 1, padding: 6, fontSize: 8 },
-  cellBold: { flex: 1, padding: 6, fontSize: 8, fontWeight: "bold" },
-  footer: { position: "absolute", bottom: 28, left: 36, right: 36, fontSize: 7, color: "#64748b", lineHeight: 1.4 },
 });
 
-function cabinLabel(value?: string | null) {
-  return CABIN_CLASS_OPTIONS.find((c) => c.value === value)?.label || value || "Economy";
+const FLIGHT_TZ = "Asia/Kolkata";
+
+function formatHrs(date: Date | string) {
+  const d = new Date(date);
+  const parts = new Intl.DateTimeFormat("en-IN", {
+    timeZone: FLIGHT_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const hour = parts.find((p) => p.type === "hour")?.value ?? "00";
+  const minute = parts.find((p) => p.type === "minute")?.value ?? "00";
+  return `${hour}:${minute} hrs`;
+}
+
+function formatTravelDate(date: Date | string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: FLIGHT_TZ,
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(date));
+}
+
+function formatBookingDate(date: Date | string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: FLIGHT_TZ,
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(date));
+}
+
+function paxTypeLabel(type?: string) {
+  if (type === "child") return "Child";
+  if (type === "infant") return "Infant";
+  return "Adult";
+}
+
+function paymentLabel(status: string) {
+  if (status === "PAID") return "Complete";
+  if (status === "ON_CREDIT") return "On Credit";
+  if (status === "PENDING") return "Pending";
+  return status;
+}
+
+function addonsLabel(pax: FlightPassenger) {
+  if (pax.meal && pax.meal !== "none") {
+    return pax.meal === "veg" ? "Veg Meal" : "Non-Veg Meal";
+  }
+  if (pax.checkInBaggage) return pax.checkInBaggage;
+  return "-";
+}
+
+function formatGender(gender: string) {
+  if (!gender) return "";
+  return gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase();
+}
+
+function sectorForSegment(seg: FlightSegment) {
+  return `${seg.fromAirport}-${seg.toAirport}`;
 }
 
 interface Props {
@@ -85,180 +189,151 @@ interface Props {
   flight: FlightBooking;
   segments: FlightSegment[];
   passengers: FlightPassenger[];
+  airlineLogoSrc?: string | null;
+  /** barcodes[passengerIndex][segmentIndex] */
+  barcodes: string[][];
 }
 
-export function FlightTicketPDF({ agency, booking, flight, segments, passengers }: Props) {
-  const route = buildFullRoute(segments);
-  const sectorSummary = buildSectorSummary(segments, flight.tripType);
-  const sectorLegs = buildSectorLegs(segments, flight.tripType);
-  const tripBadge = itineraryBadgeLabel(flight.tripType, segments);
+function FlightLegCard({ seg, barcode }: { seg: FlightSegment; barcode?: string }) {
+  const from = getAirportDisplay(seg.fromAirport, seg.fromCity);
+  const to = getAirportDisplay(seg.toAirport, seg.toCity);
+  const travelTime = formatSegmentDuration(seg);
+  const checkInClose = seg.departureAt
+    ? formatHrs(subMinutes(new Date(seg.departureAt), 60))
+    : "—";
+  const terminalSuffix = seg.terminal ? ` (${seg.terminal})` : "";
+
+  return (
+    <View style={styles.box}>
+      <Text style={styles.flightMeta}>
+        • {seg.flightNumber || "—"}
+        {seg.aircraft ? ` (${seg.aircraft})` : ""} • {formatTravelDate(seg.departureAt)} • Check-in/Bag
+        Drop Closes: {checkInClose}
+      </Text>
+
+      {barcode ? (
+        <View style={styles.barcodeWrap}>
+          <Image src={barcode} style={styles.barcode} alt="" />
+        </View>
+      ) : null}
+
+      <View style={styles.routeRow}>
+        <View style={styles.routeCol}>
+          <Text style={styles.cityName}>{from.city}</Text>
+          <Text style={styles.airportLine}>{from.airportLine}</Text>
+          <Text style={styles.timeLine}>
+            {formatHrs(seg.departureAt)}, {formatTravelDate(seg.departureAt)}
+          </Text>
+        </View>
+
+        <View style={styles.routeCenter}>
+          <Text style={styles.travelLabel}>Travel Time</Text>
+          <View style={styles.travelLine} />
+          <Text style={styles.travelTime}>{travelTime}</Text>
+        </View>
+
+        <View style={[styles.routeCol, { alignItems: "flex-end" }]}>
+          <Text style={[styles.cityName, { textAlign: "right" }]}>{to.city}</Text>
+          <Text style={[styles.airportLine, { textAlign: "right" }]}>
+            {to.airportLine}
+            {terminalSuffix}
+          </Text>
+          <Text style={[styles.timeLine, { textAlign: "right" }]}>
+            {formatHrs(seg.arrivalAt)}, {formatTravelDate(seg.arrivalAt)}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function FlightTicketPDF({
+  booking,
+  flight,
+  segments,
+  passengers,
+  airlineLogoSrc,
+  barcodes,
+}: Props) {
+  const airlineIata = resolveAirlineIata(flight.airline) || "6E";
+  const bookingDate = formatBookingDate(booking.createdAt);
+  const pnr = booking.pnr || "PENDING";
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{agency.companyName}</Text>
-          <Text style={styles.subtitle}>
-            {[agency.address, agency.city, agency.state, agency.pincode].filter(Boolean).join(", ")}
-          </Text>
-          <Text style={styles.subtitle}>
-            {[agency.gstin && `GSTIN: ${agency.gstin}`, agency.phone && `Tel: ${agency.phone}`, agency.email]
-              .filter(Boolean)
-              .join(" | ")}
-          </Text>
-        </View>
-
-        <Text style={{ fontSize: 13, fontWeight: "bold", marginBottom: 4 }}>E-TICKET / BOOKING CONFIRMATION</Text>
-
-        <View style={styles.pnrBox}>
-          <View style={styles.row}>
-            <Text>
-              PNR: <Text style={{ fontWeight: "bold" }}>{booking.pnr || "PENDING"}</Text>
-            </Text>
-            <Text>Status: CONFIRMED</Text>
+      {passengers.map((pax, pIdx) => (
+        <Page key={pIdx} size="A4" style={styles.page}>
+          <View style={styles.headerRow}>
+            {airlineLogoSrc ? (
+              <Image src={airlineLogoSrc} style={styles.airlineLogo} alt="" />
+            ) : (
+              <Text style={styles.agencyName}>{flight.airline}</Text>
+            )}
+            <Text style={styles.bookingDate}>*Date of booking {bookingDate}</Text>
           </View>
-          <View style={styles.row}>
-            <Text>Booking ID: {booking.publicRef}</Text>
-            <Text>Airline: {flight.airline}</Text>
-          </View>
-          {flight.secondaryPnr && (
-            <View style={styles.row}>
-              <Text>Return PNR: {flight.secondaryPnr}</Text>
-            </View>
-          )}
-          <View style={styles.row}>
-            <Text>Issued: {format(booking.confirmedAt || booking.createdAt, "dd MMM yyyy HH:mm")}</Text>
-            <Text>Class: {cabinLabel(flight.cabinClass)}</Text>
-          </View>
-        </View>
 
-        <View style={styles.badgeRow}>
-          <Text style={styles.badge}>{tripBadge}</Text>
-          <Text style={styles.badge}>{sectorSummary}</Text>
-          <Text style={styles.badge}>{passengers.length} Passenger(s)</Text>
-        </View>
+          <View style={styles.rule} />
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Itinerary</Text>
-
-          {flight.tripType === "ROUND_TRIP" && segments.length >= 2 ? (
-            <View style={{ marginBottom: 8 }}>
-              {sectorLegs.map((leg, i) => (
-                <Text key={i} style={styles.routeBannerAlt}>
-                  {leg.label}: {leg.cities} ({leg.sector}){leg.date ? ` • ${leg.date}` : ""}
-                </Text>
-              ))}
-            </View>
-          ) : route ? (
-            <Text style={styles.routeBannerAlt}>{route}</Text>
-          ) : null}
-
-          <View style={[styles.table, { marginBottom: 8 }]}>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.cellBold, { flex: 0.8 }]}>Leg</Text>
-              <Text style={styles.cellBold}>Sector</Text>
-              <Text style={styles.cellBold}>Flight</Text>
-              <Text style={styles.cellBold}>Date</Text>
-            </View>
-            {sectorLegs.map((leg, i) => (
-              <View key={i} style={styles.sectorRow}>
-                <Text style={{ flex: 0.8, fontWeight: "bold" }}>{leg.label}</Text>
-                <Text style={{ flex: 1 }}>{leg.sector}</Text>
-                <Text style={{ flex: 1 }}>{leg.flight || "—"}</Text>
-                <Text style={{ flex: 1 }}>{leg.date || "—"}</Text>
+          <View style={styles.pnrRow}>
+            <View style={styles.pnrBlock}>
+              <View>
+                <Text style={styles.pnrLabel}>PNR/Booking Reference</Text>
+                <Text style={styles.pnrValue}>{pnr}</Text>
               </View>
-            ))}
+              <Text style={styles.confirmedBadge}>Confirmed</Text>
+            </View>
+            <View style={styles.paymentBlock}>
+              <Text style={styles.paymentLabel}>Payment Status</Text>
+              <Text style={styles.paymentValue}>{paymentLabel(booking.paymentStatus)}</Text>
+            </View>
           </View>
 
-          {segments.map((seg, i) => (
-            <React.Fragment key={i}>
-              <View style={styles.flightCard}>
-                <View style={styles.flightHeader}>
-                  <Text style={{ fontWeight: "bold", fontSize: 9 }}>
-                    {seg.direction === "return"
-                      ? "Return"
-                      : seg.direction === "outbound"
-                        ? "Outbound"
-                        : `Flight ${i + 1}`}{" "}
-                    — {seg.flightNumber || "—"}
-                  </Text>
-                  <Text style={{ fontSize: 8, color: "#64748b" }}>
-                    Duration: {formatSegmentDuration(seg)}
-                    {seg.aircraft ? ` • ${seg.aircraft}` : ""}
-                  </Text>
-                </View>
-                <View style={styles.flightBody}>
-                  <View style={styles.legCol}>
-                    <Text style={styles.legTime}>{formatFlightDateTime(seg.departureAt).split(",")[0]}</Text>
-                    <Text style={styles.legCity}>
-                      {seg.fromCity} ({seg.fromAirport})
-                    </Text>
-                    <Text style={styles.legMeta}>
-                      {formatFlightDateTime(seg.departureAt)}
-                      {seg.departureTerminal ? `\nDep Terminal: ${seg.departureTerminal}` : ""}
-                    </Text>
-                  </View>
-                  <View style={styles.arrowCol}>
-                    <Text style={styles.arrow}>→</Text>
-                  </View>
-                  <View style={styles.legCol}>
-                    <Text style={styles.legTime}>{formatFlightDateTime(seg.arrivalAt).split(",")[0]}</Text>
-                    <Text style={styles.legCity}>
-                      {seg.toCity} ({seg.toAirport})
-                    </Text>
-                    <Text style={styles.legMeta}>
-                      {formatFlightDateTime(seg.arrivalAt)}
-                      {seg.terminal ? `\nArr Terminal: ${seg.terminal}` : ""}
-                    </Text>
-                  </View>
-                </View>
-              </View>
+          <View style={styles.ruleThick} />
 
-              {i < segments.length - 1 && (
-                <View style={styles.layoverBox}>
-                  <Text style={styles.layoverTitle}>
-                    {connectionGapTitle(flight.tripType, i)}
-                  </Text>
-                  <Text style={styles.layoverText}>
-                    {connectionGapText(seg, segments[i + 1], flight.tripType, i)}
-                  </Text>
-                </View>
-              )}
-            </React.Fragment>
-          ))}
-        </View>
-
-        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Passenger Information</Text>
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={styles.cellBold}>Passenger</Text>
-              <Text style={styles.cellBold}>Type</Text>
-              <Text style={styles.cellBold}>Seat</Text>
-              <Text style={styles.cellBold}>Baggage</Text>
+
+          <View style={styles.box}>
+            <Text style={styles.paxNameLine}>
+              {pax.title} {pax.firstName} {pax.lastName} {paxTypeLabel(pax.paxType)} | {formatGender(pax.gender)} |
+            </Text>
+            <View style={styles.gridHeader}>
+              <View style={styles.gridCol}>
+                <Text style={styles.gridLabel}>Sector</Text>
+              </View>
+              <View style={styles.gridCol}>
+                <Text style={styles.gridLabel}>Seat</Text>
+              </View>
+              <View style={styles.gridCol}>
+                <Text style={styles.gridLabel}>{airlineIata} Add-ons</Text>
+              </View>
             </View>
-            {passengers.map((pax, i) => (
-              <View key={i} style={styles.tableRow}>
-                <Text style={styles.cell}>
-                  {pax.title} {pax.firstName} {pax.lastName}
-                  {pax.ticketNumber ? `\nE-Ticket: ${pax.ticketNumber}` : ""}
-                </Text>
-                <Text style={styles.cell}>{pax.paxType || "adult"}</Text>
-                <Text style={styles.cell}>{pax.seat || "—"}</Text>
-                <Text style={styles.cell}>
-                  Hand: {pax.handBaggage || "7 KG"} | Check-in: {pax.checkInBaggage || "15 KG"}
+            <View style={styles.gridRow}>
+              <View style={styles.gridCol}>
+                <Text style={styles.gridValue}>
+                  {segments.length === 1
+                    ? sectorForSegment(segments[0])
+                    : segments.map(sectorForSegment).join(" / ")}
                 </Text>
               </View>
-            ))}
+              <View style={styles.gridCol}>
+                <Text style={styles.gridValue}>{pax.seat || "-"}</Text>
+              </View>
+              <View style={styles.gridCol}>
+                <Text style={styles.gridValue}>{addonsLabel(pax)}</Text>
+              </View>
+            </View>
           </View>
-        </View>
 
-        <Text style={styles.footer}>
-          This is an electronically generated ticket. Please carry valid photo ID. Check-in closes 60 minutes before
-          departure. All timings are local airport times. For multi-stop itineraries, allow sufficient layover time
-          between connections. {agency.companyName} — {agency.phone || agency.email || ""}
-        </Text>
-      </Page>
+          {segments.map((seg, sIdx) => (
+            <FlightLegCard key={sIdx} seg={seg} barcode={barcodes[pIdx]?.[sIdx]} />
+          ))}
+
+          <Text style={styles.footerNote}>
+            *Booking date reflects in UTC (Coordinated Universal Time), all other timings mentioned are as per
+            local TIME.
+          </Text>
+        </Page>
+      ))}
     </Document>
   );
 }
