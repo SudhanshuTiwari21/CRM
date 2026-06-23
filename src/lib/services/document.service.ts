@@ -62,7 +62,6 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
 
     const ticketBuffer = await renderToBuffer(
       FlightTicketPDF({
-        agency,
         booking,
         flight: booking.flightBooking,
         segments,

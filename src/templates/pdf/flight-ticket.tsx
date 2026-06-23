@@ -1,6 +1,6 @@
 import React from "react";
 import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import type { AgencySettings, Booking, FlightBooking } from "@prisma/client";
+import type { Booking, FlightBooking } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { subMinutes } from "date-fns";
 import { getAirportDisplay } from "@/lib/airport-names";
@@ -184,7 +184,6 @@ function sectorForSegment(seg: FlightSegment) {
 }
 
 interface Props {
-  agency: AgencySettings;
   booking: Booking;
   flight: FlightBooking;
   segments: FlightSegment[];
@@ -213,7 +212,7 @@ function FlightLegCard({ seg, barcode }: { seg: FlightSegment; barcode?: string 
 
       {barcode ? (
         <View style={styles.barcodeWrap}>
-          <Image src={barcode} style={styles.barcode} alt="" />
+          <Image src={barcode} style={styles.barcode} />
         </View>
       ) : null}
 
@@ -265,7 +264,7 @@ export function FlightTicketPDF({
         <Page key={pIdx} size="A4" style={styles.page}>
           <View style={styles.headerRow}>
             {airlineLogoSrc ? (
-              <Image src={airlineLogoSrc} style={styles.airlineLogo} alt="" />
+              <Image src={airlineLogoSrc} style={styles.airlineLogo} />
             ) : (
               <Text style={styles.agencyName}>{flight.airline}</Text>
             )}

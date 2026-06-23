@@ -133,7 +133,6 @@ async function main() {
 
   const buffer = await renderToBuffer(
     FlightTicketPDF({
-      agency,
       booking,
       flight,
       segments,
