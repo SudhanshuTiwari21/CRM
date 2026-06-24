@@ -28,7 +28,22 @@ export function BookingActions({ bookingId, status }: BookingActionsProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      toast.success(action === "resend" ? "Email & WhatsApp resent" : "Documents regenerated");
+      if (action === "resend") {
+        const wa = data.whatsapp as { success?: boolean; skipped?: boolean; error?: string; reason?: string } | undefined;
+        if (wa?.success) {
+          toast.success("Email & WhatsApp sent");
+        } else if (wa?.skipped && wa.reason) {
+          toast.success("Email sent");
+          toast.message("WhatsApp skipped", { description: wa.reason });
+        } else if (wa?.error) {
+          toast.success("Email sent");
+          toast.error("WhatsApp failed", { description: wa.error });
+        } else {
+          toast.success("Email & WhatsApp resent");
+        }
+      } else {
+        toast.success("Documents regenerated");
+      }
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Action failed");
@@ -39,6 +54,9 @@ export function BookingActions({ bookingId, status }: BookingActionsProps) {
 
   if (!["CONFIRMED", "TICKET_SENT", "PROCESSING"].includes(status)) return null;
 
+  const resendLabel =
+    status === "PROCESSING" ? "Resend Email" : "Resend Email & WhatsApp";
+
   return (
     <div className="flex gap-2">
       <Button
@@ -48,7 +66,7 @@ export function BookingActions({ bookingId, status }: BookingActionsProps) {
         onClick={() => handleAction("resend")}
       >
         {loading === "resend" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
-        Resend Email & WhatsApp
+        {resendLabel}
       </Button>
       {["CONFIRMED", "TICKET_SENT"].includes(status) && (
         <Button

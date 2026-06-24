@@ -7,8 +7,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const session = await requireAdmin();
 
     const { id } = await params;
-    await resendBookingEmail(id, session.user.id);
-    return jsonOk({ success: true });
+    const results = await resendBookingEmail(id, session.user.id);
+    return jsonOk({ success: true, ...results });
   } catch (error) {
     return handleApiError(error);
   }

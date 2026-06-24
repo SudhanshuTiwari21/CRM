@@ -31,7 +31,11 @@ export async function sendWhatsAppText(params: {
   });
 
   if (!config.configured) {
-    const message = "WhatsApp not configured. Set WHATSAPP_ACCESS_TOKEN and enable in Settings.";
+    const parts: string[] = [];
+    if (!config.enabled) parts.push("enable WhatsApp in Settings");
+    if (!config.accessToken) parts.push("set WHATSAPP_ACCESS_TOKEN in env");
+    if (!config.phoneNumberId) parts.push("set Phone Number ID in Settings or env");
+    const message = `WhatsApp not configured (${parts.join(", ") || "missing settings"}).`;
     await prisma.whatsAppLog.update({
       where: { id: log.id },
       data: { status: "FAILED" as EmailStatus, error: message },
@@ -56,10 +60,13 @@ export async function sendWhatsAppText(params: {
       }),
     });
 
-    const data = (await res.json()) as { error?: { message?: string }; messages?: { id: string }[] };
+    const data = (await res.json()) as {
+      error?: { message?: string; code?: number; error_subcode?: number };
+      messages?: { id: string }[];
+    };
 
     if (!res.ok) {
-      const errMsg = data.error?.message || `WhatsApp API error (${res.status})`;
+      const errMsg = formatWhatsAppApiError(data.error?.message, data.error?.code, to);
       await prisma.whatsAppLog.update({
         where: { id: log.id },
         data: { status: "FAILED", error: errMsg },
@@ -81,6 +88,20 @@ export async function sendWhatsAppText(params: {
     });
     return { success: false, whatsappLogId: log.id, error: message };
   }
+}
+
+function formatWhatsAppApiError(message?: string, code?: number, to?: string) {
+  const base = message || `WhatsApp API error (${code ?? "unknown"})`;
+  if (base.includes("not in allowed list") || code === 131030) {
+    return `${base} — In Meta test mode, add ${to} under developers.facebook.com → WhatsApp → API Setup → "To" recipients (max 5 numbers).`;
+  }
+  if (base.includes("Re-engagement") || code === 131047) {
+    return `${base} — Meta requires an approved message template for outbound messages. Use test mode or submit a template in Meta Business Manager.`;
+  }
+  if (base.includes("expired") || base.includes("Session has expired") || code === 190) {
+    return `${base} — Regenerate your access token in Meta API Setup and update WHATSAPP_ACCESS_TOKEN.`;
+  }
+  return base;
 }
 
 export async function sendTestWhatsApp(to: string) {

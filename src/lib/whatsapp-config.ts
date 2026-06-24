@@ -14,7 +14,10 @@ export async function getWhatsAppConfig(): Promise<WhatsAppConfig> {
   const phoneNumberId = agency?.whatsappPhoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || "";
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || "";
   const apiVersion = agency?.whatsappApiVersion || process.env.WHATSAPP_API_VERSION || "v21.0";
-  const enabled = agency?.whatsappEnabled ?? process.env.WHATSAPP_ENABLED === "true";
+  const enabled =
+    process.env.WHATSAPP_DISABLED === "true"
+      ? false
+      : Boolean(agency?.whatsappEnabled) || process.env.WHATSAPP_ENABLED === "true";
 
   return {
     enabled,

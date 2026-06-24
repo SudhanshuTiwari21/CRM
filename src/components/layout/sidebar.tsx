@@ -16,6 +16,7 @@ import {
   X,
   Building2,
   Calculator,
+  Clock,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
@@ -28,6 +29,7 @@ import { Separator } from "@/components/ui/separator";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/bookings", label: "Bookings", icon: Plane },
+  { href: "/bookings/upcoming-48h", label: "Within 48 hrs", icon: Clock },
   { href: "/hotels", label: "Hotels", icon: Building2 },
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/documents", label: "Documents", icon: FileText },
@@ -64,7 +66,10 @@ export function Sidebar() {
       <nav className="flex-1 space-y-1 px-3 py-4">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active =
+            item.href === "/bookings"
+              ? pathname === "/bookings" || /^\/bookings\/[^/]+$/.test(pathname)
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}

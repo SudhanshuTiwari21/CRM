@@ -105,6 +105,28 @@ Regards,
     },
   });
 
+  await prisma.emailTemplate.upsert({
+    where: { key: "checkin_assistance_reminder" },
+    update: {},
+    create: {
+      key: "checkin_assistance_reminder",
+      subject: "Check-in Assistance — {{publicRef}} departs in ~{{hoursLeft}}h",
+      body: `Check-in booking assistance required.
+
+Booking: {{publicRef}}
+Customer: {{customerName}} ({{customerPhone}})
+PNR: {{pnr}}
+Airline: {{airline}}
+Sector: {{sector}}
+Departure: {{departureAt}}
+Time until departure: ~{{hoursLeft}} hours
+
+Please follow up with the customer for check-in assistance.
+
+{{companyName}}`,
+    },
+  });
+
   console.log("Seed completed:", { admin: admin.email, agent: agent.email });
 }
 

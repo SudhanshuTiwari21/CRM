@@ -57,6 +57,7 @@ export function FlightBookingFields({
   const [savedAirlines, setSavedAirlines] = useState<{ name: string; logoUrl?: string | null }[]>([]);
   const tripType = form.watch("tripType") || "ONE_WAY";
   const showEticket = form.watch("showEticket");
+  const checkInAssistance = form.watch("checkInAssistance");
   const airline = form.watch("airline");
   const segments = form.watch("segments") || [];
   const stopCount = form.watch("stopCount") ?? Math.max(0, segmentFields.length - 1);
@@ -222,6 +223,23 @@ export function FlightBookingFields({
             ))}
           </datalist>
         </div>
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border p-3">
+        <div>
+          <Label>Check-in Booking Assistance</Label>
+          <p className="text-xs text-muted-foreground">
+            Admin gets email & WhatsApp alert 48 hours before departure
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant={checkInAssistance ? "default" : "outline"}
+          size="sm"
+          onClick={() => form.setValue("checkInAssistance", !checkInAssistance)}
+        >
+          {checkInAssistance ? "Yes" : "No"}
+        </Button>
       </div>
 
       <div className="flex items-center justify-between rounded-lg border p-3">

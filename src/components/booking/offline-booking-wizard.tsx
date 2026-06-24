@@ -57,6 +57,7 @@ const wizardSchema = z.object({
   secondaryPnr: z.string().optional(),
   showEticket: z.boolean().optional(),
   showPassengerName: z.boolean().optional(),
+  checkInAssistance: z.boolean().optional(),
   stopCount: z.coerce.number().min(0).max(3).optional(),
   // Flight
   airline: z.string().optional(),
@@ -152,6 +153,7 @@ export function OfflineBookingWizard() {
       stopCount: 0,
       showEticket: false,
       showPassengerName: true,
+      checkInAssistance: false,
       airline: "IndiGo",
       segments: [{
         flightNumber: "", airline: "IndiGo", fromAirport: "", fromCity: "",
@@ -246,6 +248,7 @@ export function OfflineBookingWizard() {
           secondaryPnr: data.segments?.[1]?.pnr?.trim() || data.secondaryPnr?.trim() || undefined,
           showEticket: data.showEticket || false,
           showPassengerName: data.showPassengerName !== false,
+          checkInAssistance: data.checkInAssistance || false,
           airline,
           segments,
           passengers,

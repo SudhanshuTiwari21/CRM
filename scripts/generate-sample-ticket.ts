@@ -1,5 +1,5 @@
 /**
- * Generate a sample IndiGo-style flight ticket PDF locally.
+ * Generate a sample Wingie-style flight voucher PDF (2 pages).
  * Run: npx tsx scripts/generate-sample-ticket.ts
  */
 import React from "react";
@@ -8,38 +8,49 @@ import fs from "fs/promises";
 import path from "path";
 import { Decimal } from "@prisma/client/runtime/library";
 import { FlightTicketPDF } from "../src/templates/pdf/flight-ticket";
-import { generateSegmentBarcodes } from "../src/lib/flight-barcode";
 import { getAirlineLogoDataUri } from "../src/lib/airline-logo-pdf";
-import { resolveAirlineIata } from "../src/lib/airline-logo";
+import { getPdfLogoDataUri } from "../src/lib/pdf-logo";
 import type { FlightPassenger, FlightSegment } from "../src/types/booking";
 
 const outDir = path.join(process.cwd(), "storage", "documents");
 
 const segments: FlightSegment[] = [
   {
-    flightNumber: "6E 212",
-    airline: "IndiGo",
-    fromAirport: "CCU",
-    fromCity: "Kolkata",
-    toAirport: "GAU",
-    toCity: "Guwahati",
-    departureAt: "2026-05-28T03:30:00.000Z",
-    arrivalAt: "2026-05-28T04:45:00.000Z",
-    aircraft: "A320",
-    terminal: "Terminal 1",
-    direction: "outbound",
+    flightNumber: "AI1996",
+    airline: "Air India",
+    fromAirport: "DXB",
+    fromCity: "Dubai",
+    toAirport: "DEL",
+    toCity: "Delhi",
+    departureAt: "2026-08-28T18:45:00.000Z",
+    arrivalAt: "2026-08-28T23:25:00.000Z",
+    departureTerminal: "Terminal 1",
+    terminal: "Terminal 3",
+    layoverDuration: "3h 5min",
+  },
+  {
+    flightNumber: "AI1749",
+    airline: "Air India",
+    fromAirport: "DEL",
+    fromCity: "Delhi",
+    toAirport: "PAT",
+    toCity: "Patna",
+    departureAt: "2026-08-29T02:30:00.000Z",
+    arrivalAt: "2026-08-29T04:10:00.000Z",
+    departureTerminal: "Terminal 2",
   },
 ];
 
 const passengers: FlightPassenger[] = [
   {
     title: "Mr",
-    firstName: "Robert",
-    lastName: "Handique",
+    firstName: "Shamshad",
+    lastName: "Ali",
     gender: "Male",
     paxType: "adult",
-    seat: undefined,
-    meal: "none",
+    ticketNumber: "0984872349846",
+    handBaggage: "1 piece X 7 kg cabin baggage",
+    checkInBaggage: "1 piece X 25 kg checked baggage",
   },
 ];
 
@@ -49,21 +60,32 @@ async function main() {
   const agency = {
     id: "default",
     companyName: "Book to Roam",
-    address: "Sample Agency Address",
+    address: "12 Park Street",
     city: "Kolkata",
     state: "West Bengal",
     pincode: "700001",
-    phone: "9876543210",
-    email: "agency@example.com",
+    phone: "+91 9876543210",
+    email: "info@booktoroam.com",
     gstin: "19AAAAA0000A1Z5",
     pan: "AAAAA0000A",
+    tan: null,
     logoUrl: null,
+    invoicePrefix: "INV",
     bankName: null,
     bankAccount: null,
     bankIfsc: null,
-    termsAndConditions: null,
-    invoiceFooter: null,
-    createdAt: new Date(),
+    bankBranch: null,
+    msmeRegistered: false,
+    msmeNumber: null,
+    webhookApiKey: null,
+    holdModeEnabled: false,
+    smtpHost: null,
+    smtpPort: null,
+    smtpUser: null,
+    smtpFrom: null,
+    whatsappEnabled: false,
+    whatsappPhoneNumberId: null,
+    whatsappApiVersion: "v21.0",
     updatedAt: new Date(),
   };
 
@@ -76,25 +98,25 @@ async function main() {
     productType: "FLIGHT" as const,
     status: "TICKET_SENT" as const,
     paymentStatus: "PAID" as const,
-    totalAmount: new Decimal(5500),
+    totalAmount: new Decimal(15227.84),
     currency: "INR",
-    pnr: "UC6MWT",
+    pnr: "9MFIS5",
     supplierRef: null,
-    confirmedAt: new Date("2026-05-21T12:50:00.000Z"),
+    confirmedAt: new Date(),
     internalNotes: null,
     metadata: null,
     customerId: "c1",
     assignedAgentId: null,
     lastEditedAt: null,
     lastEditedById: null,
-    createdAt: new Date("2026-05-21T12:50:00.000Z"),
+    createdAt: new Date(),
     updatedAt: new Date(),
   };
 
   const flight = {
     id: "f1",
     bookingId: booking.id,
-    airline: "IndiGo",
+    airline: "Air India",
     airlineLogoUrl: null,
     segments,
     passengers,
@@ -103,9 +125,12 @@ async function main() {
     secondaryPnr: null,
     showEticket: true,
     showPassengerName: true,
-    baseFare: new Decimal(5000),
-    serviceCharge: new Decimal(500),
-    discountAmount: null,
+    checkInAssistance: false,
+    checkInAssistanceNotifiedAt: null,
+    earliestDepartureAt: new Date(segments[0].departureAt),
+    baseFare: new Decimal(7887.2),
+    serviceCharge: new Decimal(0),
+    discountAmount: new Decimal(1443.73),
     invoiceTaxType: "NON_ITC" as const,
     buyerGstin: null,
     buyerState: null,
@@ -116,35 +141,32 @@ async function main() {
     hsnSac: "998551",
     cgstRate: new Decimal(0),
     sgstRate: new Decimal(0),
-    igstRate: new Decimal(0),
+    igstRate: new Decimal(18),
     cgstAmount: new Decimal(0),
     sgstAmount: new Decimal(0),
-    igstAmount: new Decimal(0),
+    igstAmount: new Decimal(8784.37),
   };
 
-  const airlineLogoSrc = await getAirlineLogoDataUri("IndiGo");
-  const barcodes = await generateSegmentBarcodes({
-    pnr: booking.pnr,
-    bookingRef: booking.publicRef,
-    passengers,
-    segments,
-    airlineCode: resolveAirlineIata("IndiGo"),
-  });
+  const [logoSrc, airlineLogoSrc] = await Promise.all([
+    getPdfLogoDataUri(),
+    getAirlineLogoDataUri("Air India"),
+  ]);
 
   const buffer = await renderToBuffer(
     FlightTicketPDF({
+      agency,
       booking,
       flight,
       segments,
       passengers,
+      logoSrc,
       airlineLogoSrc,
-      barcodes,
     })
   );
 
-  const outPath = path.join(outDir, "sample-flight-ticket-indigo.pdf");
+  const outPath = path.join(outDir, "sample-flight-voucher-wingie.pdf");
   await fs.writeFile(outPath, buffer);
-  console.log("Sample ticket:", outPath);
+  console.log("Sample voucher:", outPath);
 }
 
 main().catch((e) => {

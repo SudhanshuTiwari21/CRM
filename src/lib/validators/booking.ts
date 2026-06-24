@@ -70,6 +70,7 @@ export const offlineFlightBookingSchema = z.object({
   secondaryPnr: z.string().optional(),
   showEticket: z.boolean().optional(),
   showPassengerName: z.boolean().optional(),
+  checkInAssistance: z.boolean().optional(),
   segments: z.array(flightSegmentSchema).min(1),
   passengers: z.array(flightPassengerSchema).min(1),
   paymentMethod: z.enum(["UPI", "Cash", "Card", "Bank Transfer", "CREDIT"]).optional(),

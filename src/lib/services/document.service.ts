@@ -10,9 +10,7 @@ import type { DocumentType } from "@prisma/client";
 import type { FlightPassenger, FlightSegment, HotelGuest, BusPassenger } from "@/types/booking";
 import { logActivity } from "./activity.service";
 import { getPdfLogoDataUri } from "@/lib/pdf-logo";
-import { generateSegmentBarcodes } from "@/lib/flight-barcode";
 import { getAirlineLogoDataUri } from "@/lib/airline-logo-pdf";
-import { resolveAirlineIata } from "@/lib/airline-logo";
 
 function getStorageDir() {
   // Vercel serverless only allows writes to /tmp
@@ -52,22 +50,16 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
     const segments = booking.flightBooking.segments as unknown as FlightSegment[];
     const passengers = booking.flightBooking.passengers as unknown as FlightPassenger[];
     const airlineLogoSrc = await getAirlineLogoDataUri(booking.flightBooking.airline);
-    const barcodes = await generateSegmentBarcodes({
-      pnr: booking.pnr || booking.publicRef,
-      bookingRef: booking.publicRef,
-      passengers,
-      segments,
-      airlineCode: resolveAirlineIata(booking.flightBooking.airline),
-    });
 
     const ticketBuffer = await renderToBuffer(
       FlightTicketPDF({
+        agency,
         booking,
         flight: booking.flightBooking,
         segments,
         passengers,
+        logoSrc,
         airlineLogoSrc,
-        barcodes,
       })
     );
     const ticketFileName = `${booking.publicRef}-ticket.pdf`;

@@ -58,8 +58,16 @@ async function sendBookingWhatsApp(bookingId: string) {
   });
   const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
 
-  if (!booking?.customer.phone?.trim() || !agency) {
-    return { skipped: true as const };
+  if (!booking) {
+    return { success: false, skipped: true, error: "Booking not found" };
+  }
+
+  if (!booking.customer.phone?.trim()) {
+    return { success: false, skipped: true, error: "Customer has no phone number — add it on the customer profile." };
+  }
+
+  if (!agency) {
+    return { success: false, skipped: true, error: "Agency settings not found" };
   }
 
   let body: string;
@@ -105,12 +113,18 @@ export async function sendBookingNotifications(
   bookingId: string,
   templateKey: "held_processing" | "booking_confirmed"
 ) {
-  const tasks: Promise<unknown>[] = [sendBookingEmail(bookingId, templateKey)];
+  const emailResult = await sendBookingEmail(bookingId, templateKey);
+
+  let whatsappResult:
+    | { success: boolean; skipped?: boolean; error?: string }
+    | { skipped: true; reason: string }
+    | undefined;
 
   if (templateKey === "booking_confirmed") {
-    tasks.push(sendBookingWhatsApp(bookingId));
+    whatsappResult = await sendBookingWhatsApp(bookingId);
+  } else {
+    whatsappResult = { skipped: true, reason: "WhatsApp is only sent for confirmed bookings (with PNR)." };
   }
 
-  const results = await Promise.allSettled(tasks);
-  return results;
+  return { email: emailResult, whatsapp: whatsappResult };
 }

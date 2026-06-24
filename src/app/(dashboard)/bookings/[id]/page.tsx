@@ -160,6 +160,11 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                     booking.flightBooking.tripType,
                     booking.flightBooking.segments as unknown as FlightSegment[]
                   )}
+                  {booking.flightBooking.checkInAssistance && (
+                    <span className="ml-2 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">
+                      Check-in assistance
+                    </span>
+                  )}
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">

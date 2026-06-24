@@ -1,5 +1,6 @@
 /** Common Indian airport full names for e-ticket display. */
 const AIRPORT_NAMES: Record<string, { name: string; city: string }> = {
+  DXB: { city: "Dubai", name: "Dubai Intl. Airport" },
   CCU: { city: "Kolkata", name: "Netaji Subhash Chandra Bose International Airport" },
   DEL: { city: "New Delhi", name: "Indira Gandhi International Airport" },
   BOM: { city: "Mumbai", name: "Chhatrapati Shivaji Maharaj International Airport" },

@@ -3,6 +3,7 @@ import { allocatePublicRef } from "@/lib/booking-ref";
 import { logActivity } from "./activity.service";
 import { generateBookingDocuments } from "./document.service";
 import { sendBookingNotifications } from "./notification.service";
+import { flightFieldsWithDeparture, maybeSendImmediateCheckInAssistanceAlert } from "./checkin-assistance.service";
 import { getFlightProvider } from "./provider/flight-provider";
 import { upsertHotelProfile } from "./hotel.service";
 import { upsertAirlineProfile } from "./airline.service";
@@ -105,7 +106,7 @@ function buildFlightTaxData(input: OfflineFlightBookingInput, agencyStateCode: s
 
   return {
     totalAmount,
-    flightData: {
+    flightData: flightFieldsWithDeparture({
       airline: input.airline,
       airlineLogoUrl,
       segments: input.segments,
@@ -115,6 +116,7 @@ function buildFlightTaxData(input: OfflineFlightBookingInput, agencyStateCode: s
       secondaryPnr: input.secondaryPnr || null,
       showEticket: input.showEticket || false,
       showPassengerName: input.showPassengerName !== false,
+      checkInAssistance: input.checkInAssistance || false,
       baseFare: input.baseFare,
       serviceCharge: input.serviceCharge,
       discountAmount: discountAmount || null,
@@ -132,7 +134,7 @@ function buildFlightTaxData(input: OfflineFlightBookingInput, agencyStateCode: s
       cgstAmount: tax.cgstAmount,
       sgstAmount: tax.sgstAmount,
       igstAmount: tax.igstAmount,
-    },
+    }),
   };
 }
 
@@ -197,7 +199,7 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
       validateFlightInvoice(flightInput, agencyHasGst);
 
       let totalAmount = flightInput.totalAmount;
-      let flightData: Record<string, unknown> = {
+      let flightData: Record<string, unknown> = flightFieldsWithDeparture({
         airline: flightInput.airline,
         segments: flightInput.segments,
         passengers: flightInput.passengers,
@@ -206,11 +208,12 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
         secondaryPnr: flightInput.secondaryPnr || null,
         showEticket: flightInput.showEticket || false,
         showPassengerName: flightInput.showPassengerName !== false,
+        checkInAssistance: flightInput.checkInAssistance || false,
         airlineLogoUrl: getAirlineLogoUrl(flightInput.airline) || undefined,
         invoiceNarration: flightInput.invoiceNarration || null,
         msmeNumber: flightInput.msmeNumber || null,
         invoiceTaxType: flightInput.invoiceTaxType,
-      };
+      });
 
       if (agencyHasGst) {
         const built = buildFlightTaxData(flightInput, agencyStateCode);
@@ -378,6 +381,17 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
     // Non-critical. Booking is already created.
   }
 
+  if (input.productType === "FLIGHT") {
+    const flightInput = input as OfflineFlightBookingInput;
+    if (flightInput.checkInAssistance) {
+      try {
+        await maybeSendImmediateCheckInAssistanceAlert(booking.id);
+      } catch {
+        // Non-critical — cron will retry.
+      }
+    }
+  }
+
   return booking;
 }
 
@@ -495,11 +509,12 @@ async function createBookingFromWebhook(params: {
       data: {
         ...base,
         flightBooking: {
-          create: {
+          create: flightFieldsWithDeparture({
             airline: input.flight.airline,
             segments: input.flight.segments,
             passengers: input.flight.passengers,
-          },
+            checkInAssistance: false,
+          }),
         },
       },
       include: { customer: true, flightBooking: true },
@@ -695,7 +710,7 @@ export async function resendBookingEmail(bookingId: string, userId: string) {
     ? "booking_confirmed"
     : "held_processing";
 
-  await sendBookingNotifications(bookingId, templateKey);
+  const results = await sendBookingNotifications(bookingId, templateKey);
 
   await logActivity({
     bookingId,
@@ -703,6 +718,8 @@ export async function resendBookingEmail(bookingId: string, userId: string) {
     action: "NOTIFICATIONS_RESENT",
     details: { template: templateKey, channels: ["email", "whatsapp"] },
   });
+
+  return results;
 }
 
 export async function getDashboardStats() {
