@@ -84,6 +84,17 @@ export function FlightBookingFields({
     return () => clearTimeout(timer);
   }, [airline]);
 
+  useEffect(() => {
+    const al = airline?.trim();
+    if (!al) return;
+    const segs = form.getValues("segments") || [];
+    segs.forEach((_, i) => {
+      if (form.getValues(`segments.${i}.airline`) !== al) {
+        form.setValue(`segments.${i}.airline`, al, { shouldDirty: true });
+      }
+    });
+  }, [airline, form]);
+
   // Auto-calculate layover duration between connected segments
   useEffect(() => {
     for (let i = 0; i < segments.length - 1; i++) {

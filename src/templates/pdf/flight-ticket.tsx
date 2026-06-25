@@ -4,6 +4,7 @@ import type { AgencySettings, Booking, FlightBooking } from "@prisma/client";
 import type { CabinClass } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { getAirportDisplay } from "@/lib/airport-names";
+import { resolveSegmentAirline } from "@/lib/airline-logo";
 import { computeLayoverDuration } from "@/lib/flight-layover";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
 import { getVoucherTermsContent } from "@/templates/pdf/voucher-terms";
@@ -203,6 +204,7 @@ interface Props {
   passengers: FlightPassenger[];
   logoSrc?: string | null;
   airlineLogoSrc?: string | null;
+  segmentAirlineLogoSrcs?: (string | null)[];
 }
 
 function FlightSegmentBlock({
@@ -216,7 +218,7 @@ function FlightSegmentBlock({
   flightAirline: string;
   cabinClass: CabinClass;
 }) {
-  const airline = seg.airline || flightAirline;
+  const airline = resolveSegmentAirline(seg, flightAirline);
   return (
     <View style={styles.legBlock}>
       <View style={styles.flightRow}>
@@ -248,7 +250,16 @@ function FlightSegmentBlock({
   );
 }
 
-export function FlightTicketPDF({ agency, booking, flight, segments, passengers, logoSrc, airlineLogoSrc }: Props) {
+export function FlightTicketPDF({
+  agency,
+  booking,
+  flight,
+  segments,
+  passengers,
+  logoSrc,
+  airlineLogoSrc,
+  segmentAirlineLogoSrcs,
+}: Props) {
   const pnr = booking.pnr || "—";
   const baseFare = Number(flight.baseFare || 0);
   const taxes = Number(flight.cgstAmount || 0) + Number(flight.sgstAmount || 0) + Number(flight.igstAmount || 0);
@@ -290,11 +301,15 @@ export function FlightTicketPDF({ agency, booking, flight, segments, passengers,
             {segmentGroups.map((group, gIdx) => (
               <View key={`grp-${gIdx}`} style={{ marginBottom: 8 }}>
                 <Text style={styles.departureHeading}>{group.label}</Text>
-                {group.segments.map((seg, sIdx) => (
+                {group.segments.map((seg, sIdx) => {
+                  const flatIdx = segments.indexOf(seg);
+                  const segLogo =
+                    segmentAirlineLogoSrcs?.[flatIdx >= 0 ? flatIdx : sIdx] ?? airlineLogoSrc;
+                  return (
                   <React.Fragment key={`seg-${sIdx}`}>
                     <FlightSegmentBlock
                       seg={seg}
-                      airlineLogoSrc={airlineLogoSrc}
+                      airlineLogoSrc={segLogo}
                       flightAirline={flight.airline}
                       cabinClass={flight.cabinClass}
                     />
@@ -306,7 +321,8 @@ export function FlightTicketPDF({ agency, booking, flight, segments, passengers,
                       </View>
                     ) : null}
                   </React.Fragment>
-                ))}
+                  );
+                })}
               </View>
             ))}
             <Text style={styles.sectionTitle}>Baggage Details</Text>

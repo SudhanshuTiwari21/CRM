@@ -10,6 +10,7 @@ import type { DocumentType } from "@prisma/client";
 import type { FlightPassenger, FlightSegment, HotelGuest, BusPassenger } from "@/types/booking";
 import { logActivity } from "./activity.service";
 import { getPdfLogoDataUri } from "@/lib/pdf-logo";
+import { resolveSegmentAirline } from "@/lib/airline-logo";
 import { getAirlineLogoDataUri } from "@/lib/airline-logo-pdf";
 
 function getStorageDir() {
@@ -50,6 +51,11 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
     const segments = booking.flightBooking.segments as unknown as FlightSegment[];
     const passengers = booking.flightBooking.passengers as unknown as FlightPassenger[];
     const airlineLogoSrc = await getAirlineLogoDataUri(booking.flightBooking.airline);
+    const segmentAirlineLogoSrcs = await Promise.all(
+      segments.map((seg) =>
+        getAirlineLogoDataUri(resolveSegmentAirline(seg, booking.flightBooking!.airline))
+      )
+    );
 
     const ticketBuffer = await renderToBuffer(
       FlightTicketPDF({
@@ -60,6 +66,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
         passengers,
         logoSrc,
         airlineLogoSrc,
+        segmentAirlineLogoSrcs,
       })
     );
     const ticketFileName = `${booking.publicRef}-ticket.pdf`;

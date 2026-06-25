@@ -2,20 +2,23 @@ import fs from "fs/promises";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { formatPublicRef, parsePublicRef } from "@/lib/booking-ref";
+import { getAirlineLogoUrl } from "@/lib/airline-logo";
+import {
+  calculateFlightGst,
+  calculateFlightInvoiceTotal,
+  FLIGHT_SERVICE_HSN,
+  getStateCodeFromGstin,
+} from "@/lib/gst-calculator";
+import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { logActivity } from "./activity.service";
 import { generateBookingDocuments } from "./document.service";
+import { flightFieldsWithDeparture, maybeSendImmediateCheckInAssistanceAlert } from "./checkin-assistance.service";
+import type { z } from "zod";
+import type { adminBookingUpdateSchema } from "@/lib/validators/booking-admin";
 
-export interface AdminBookingUpdateInput {
-  pnr?: string;
-  internalNotes?: string;
-  totalAmount?: number;
-  invoiceNarration?: string;
-  showPassengerName?: boolean;
-  baseFare?: number;
-  serviceCharge?: number;
-  discountAmount?: number;
-  regenerateDocuments?: boolean;
-}
+type AdminBookingUpdateInput = z.infer<typeof adminBookingUpdateSchema>;
+
+export type { AdminBookingUpdateInput };
 
 export async function updateBookingAsAdmin(
   bookingId: string,
@@ -24,7 +27,7 @@ export async function updateBookingAsAdmin(
 ) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    include: { flightBooking: true, hotelBooking: true },
+    include: { flightBooking: true, hotelBooking: true, customer: true },
   });
   if (!booking) throw new Error("Booking not found");
 
@@ -34,15 +37,95 @@ export async function updateBookingAsAdmin(
   };
   if (input.pnr !== undefined) bookingData.pnr = input.pnr || null;
   if (input.internalNotes !== undefined) bookingData.internalNotes = input.internalNotes;
-  if (input.totalAmount !== undefined) bookingData.totalAmount = input.totalAmount;
 
   const flightData: Record<string, unknown> = {};
+  const hasFlightItineraryUpdate =
+    input.airline !== undefined ||
+    input.segments !== undefined ||
+    input.passengers !== undefined ||
+    input.tripType !== undefined ||
+    input.cabinClass !== undefined;
+
   if (booking.flightBooking) {
+    const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+    const agencyHasGst = Boolean(agency?.gstin?.trim());
+    const agencyStateCode = getStateCodeFromGstin(agency?.gstin);
+
+    const airline = input.airline ?? booking.flightBooking.airline;
+    const segments = (input.segments ?? booking.flightBooking.segments) as unknown as FlightSegment[];
+    const passengers = (input.passengers ?? booking.flightBooking.passengers) as unknown as FlightPassenger[];
+    const tripType = input.tripType ?? booking.flightBooking.tripType;
+    const cabinClass = input.cabinClass ?? booking.flightBooking.cabinClass;
+    const invoiceTaxType = input.invoiceTaxType ?? booking.flightBooking.invoiceTaxType;
+    const buyerGstin =
+      input.buyerGstin !== undefined
+        ? input.buyerGstin?.toUpperCase() || null
+        : booking.flightBooking.buyerGstin;
+    const baseFare = input.baseFare ?? Number(booking.flightBooking.baseFare || 0);
+    const serviceCharge = input.serviceCharge ?? Number(booking.flightBooking.serviceCharge || 0);
+    const discountAmount = input.discountAmount ?? Number(booking.flightBooking.discountAmount || 0);
+
+    let totalAmount = input.totalAmount;
+    if (agencyHasGst && (input.baseFare !== undefined || input.serviceCharge !== undefined || input.discountAmount !== undefined || input.invoiceTaxType !== undefined || input.buyerGstin !== undefined)) {
+      const tax = calculateFlightGst({
+        serviceCharge,
+        agencyStateCode,
+        buyerGstin,
+        buyerState: booking.flightBooking.buyerState ?? booking.customer.state,
+        invoiceTaxType,
+      });
+      totalAmount = calculateFlightInvoiceTotal(baseFare, serviceCharge, tax, discountAmount);
+      flightData.cgstRate = tax.cgstRate;
+      flightData.sgstRate = tax.sgstRate;
+      flightData.igstRate = tax.igstRate;
+      flightData.cgstAmount = tax.cgstAmount;
+      flightData.sgstAmount = tax.sgstAmount;
+      flightData.igstAmount = tax.igstAmount;
+      flightData.buyerState = tax.buyerState;
+      flightData.buyerStateCode = tax.buyerStateCode;
+      flightData.placeOfSupply = tax.placeOfSupply;
+      flightData.buyerGstin = buyerGstin;
+      flightData.baseFare = baseFare;
+      flightData.serviceCharge = serviceCharge;
+      flightData.discountAmount = discountAmount || null;
+      flightData.invoiceTaxType = invoiceTaxType;
+      flightData.hsnSac = FLIGHT_SERVICE_HSN;
+    } else {
+      if (input.baseFare !== undefined) flightData.baseFare = input.baseFare;
+      if (input.serviceCharge !== undefined) flightData.serviceCharge = input.serviceCharge;
+      if (input.discountAmount !== undefined) flightData.discountAmount = input.discountAmount;
+      if (input.invoiceTaxType !== undefined) flightData.invoiceTaxType = input.invoiceTaxType;
+      if (input.buyerGstin !== undefined) flightData.buyerGstin = input.buyerGstin?.toUpperCase() || null;
+    }
+
+    if (totalAmount !== undefined) bookingData.totalAmount = totalAmount;
+
     if (input.invoiceNarration !== undefined) flightData.invoiceNarration = input.invoiceNarration;
     if (input.showPassengerName !== undefined) flightData.showPassengerName = input.showPassengerName;
-    if (input.baseFare !== undefined) flightData.baseFare = input.baseFare;
-    if (input.serviceCharge !== undefined) flightData.serviceCharge = input.serviceCharge;
-    if (input.discountAmount !== undefined) flightData.discountAmount = input.discountAmount;
+    if (input.msmeNumber !== undefined) flightData.msmeNumber = input.msmeNumber || null;
+    if (input.showEticket !== undefined) flightData.showEticket = input.showEticket;
+    if (input.checkInAssistance !== undefined) flightData.checkInAssistance = input.checkInAssistance;
+    if (input.secondaryPnr !== undefined) flightData.secondaryPnr = input.secondaryPnr || null;
+
+    if (hasFlightItineraryUpdate) {
+      const normalizedSegments = segments.map((s) => ({ ...s, airline }));
+      const airlineLogoUrl = getAirlineLogoUrl(airline) || undefined;
+      Object.assign(
+        flightData,
+        flightFieldsWithDeparture({
+          airline,
+          airlineLogoUrl,
+          segments: normalizedSegments,
+          passengers,
+          tripType,
+          cabinClass,
+          secondaryPnr: input.secondaryPnr ?? booking.flightBooking.secondaryPnr,
+          showEticket: input.showEticket ?? booking.flightBooking.showEticket,
+          showPassengerName: input.showPassengerName ?? booking.flightBooking.showPassengerName,
+          checkInAssistance: input.checkInAssistance ?? booking.flightBooking.checkInAssistance,
+        })
+      );
+    }
   }
 
   if (booking.hotelBooking && input.invoiceNarration !== undefined) {
@@ -73,6 +156,10 @@ export async function updateBookingAsAdmin(
 
   if (input.regenerateDocuments !== false) {
     await generateBookingDocuments(bookingId, userId);
+  }
+
+  if (booking.flightBooking && input.checkInAssistance) {
+    await maybeSendImmediateCheckInAssistanceAlert(bookingId);
   }
 
   return prisma.booking.findUnique({

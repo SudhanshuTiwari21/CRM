@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import type { Customer, FlightBooking } from "@prisma/client";
 import { BookingActions } from "@/components/booking/booking-actions";
 import { EditBookingDialog } from "@/components/booking/edit-booking-dialog";
 import { DeleteBookingDialog } from "@/components/booking/delete-booking-dialog";
@@ -14,13 +15,8 @@ interface AdminBookingToolbarProps {
   pnr?: string | null;
   internalNotes?: string | null;
   totalAmount: number;
-  flight?: {
-    invoiceNarration?: string | null;
-    showPassengerName?: boolean;
-    baseFare?: unknown;
-    serviceCharge?: unknown;
-    discountAmount?: unknown;
-  } | null;
+  customer?: Pick<Customer, "gstin" | "state">;
+  flight?: FlightBooking | null;
 }
 
 export function AdminBookingToolbar(props: AdminBookingToolbarProps) {
@@ -37,6 +33,7 @@ export function AdminBookingToolbar(props: AdminBookingToolbarProps) {
             pnr={props.pnr}
             internalNotes={props.internalNotes}
             totalAmount={props.totalAmount}
+            customer={props.customer}
             flight={props.flight}
           />
           <DeleteBookingDialog bookingId={props.bookingId} publicRef={props.publicRef} />

@@ -93,6 +93,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               pnr={booking.pnr}
               internalNotes={booking.internalNotes}
               totalAmount={Number(booking.totalAmount)}
+              customer={{ gstin: booking.customer.gstin, state: booking.customer.state }}
               flight={booking.flightBooking}
             />
           </div>

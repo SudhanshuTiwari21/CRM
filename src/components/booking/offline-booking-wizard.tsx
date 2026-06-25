@@ -217,7 +217,7 @@ export function OfflineBookingWizard() {
         const airline = data.airline?.trim() || "IndiGo";
         const segments = (data.segments || []).map((s) => ({
           ...s,
-          airline: s.airline || airline,
+          airline,
           flightNumber: s.flightNumber?.trim() || "",
           fromAirport: s.fromAirport?.trim() || "",
           fromCity: s.fromCity?.trim() || "",
