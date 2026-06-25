@@ -20,6 +20,8 @@ export const BAGGAGE_PRESETS = [
   "Custom",
 ] as const;
 
+export const CABIN_BAGGAGE_PRESETS = ["7 KG", "10 KG", "Custom"] as const;
+
 export const PAX_TYPE_OPTIONS = [
   { value: "adult", label: "Adult (12+)" },
   { value: "child", label: "Child (2–12 yrs)" },

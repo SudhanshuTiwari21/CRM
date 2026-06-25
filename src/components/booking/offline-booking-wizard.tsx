@@ -95,6 +95,7 @@ const wizardSchema = z.object({
     handBaggage: z.string().optional(),
     checkInBaggage: z.string().optional(),
     baggagePreset: z.string().optional(),
+    cabinBaggagePreset: z.string().optional(),
   })).optional(),
   // Hotel
   propertyName: z.string().optional(),
@@ -159,7 +160,7 @@ export function OfflineBookingWizard() {
         flightNumber: "", airline: "IndiGo", fromAirport: "", fromCity: "",
         toAirport: "", toCity: "", departureAt: "", arrivalAt: "",
       }],
-      passengers: [{ title: "Mr", firstName: "", lastName: "", gender: "Male", paxType: "adult" }],
+      passengers: [{ title: "Mr", firstName: "", lastName: "", gender: "Male", paxType: "adult", handBaggage: "7 KG", cabinBaggagePreset: "7 KG" }],
       propertyName: "", propertyAddress: "", city: "", propertyPhone: "", propertyEmail: "",
       checkIn: "", checkOut: "", checkInTime: "02:00 PM", checkOutTime: "12:00 PM",
       roomType: "", roomsCount: 1, mealPlan: "ROOM_ONLY", roomAmenities: [],
@@ -224,8 +225,9 @@ export function OfflineBookingWizard() {
           toCity: s.toCity?.trim() || "",
         }));
 
-        const passengers = (data.passengers || []).map(({ baggagePreset, ...p }) => {
+        const passengers = (data.passengers || []).map(({ baggagePreset, cabinBaggagePreset, ...p }) => {
           void baggagePreset;
+          void cabinBaggagePreset;
           return p;
         });
 

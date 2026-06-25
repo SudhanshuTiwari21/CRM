@@ -136,10 +136,19 @@ function layoverLabel(seg: FlightSegment, next: FlightSegment) {
   return `Stop : ${raw} Layover`;
 }
 
+function formatCabinBaggageLine(handBaggage?: string) {
+  if (!handBaggage?.trim()) return null;
+  const preset = handBaggage.trim().match(/^(\d+)\s*KG$/i);
+  if (preset) return `1 piece X ${preset[1]} kg cabin baggage`;
+  return handBaggage.trim();
+}
+
 function baggageLines(pax: FlightPassenger) {
   const lines: string[] = [];
-  lines.push(pax.handBaggage || "1 piece X 7 kg cabin baggage");
-  lines.push(pax.checkInBaggage || "1 piece X 15 kg checked baggage");
+  const cabin = formatCabinBaggageLine(pax.handBaggage);
+  if (cabin) lines.push(cabin);
+  if (pax.checkInBaggage) lines.push(pax.checkInBaggage);
+  else lines.push("1 piece X 15 kg checked baggage");
   return lines;
 }
 

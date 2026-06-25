@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   BAGGAGE_PRESETS,
+  CABIN_BAGGAGE_PRESETS,
   CABIN_CLASS_OPTIONS,
   COMMON_AIRLINES,
   LAYOVER_TYPE_OPTIONS,
@@ -350,6 +351,7 @@ export function FlightBookingFields({
         {passengerFields.map((field, i) => {
           const paxType = form.watch(`passengers.${i}.paxType`) || "adult";
           const baggagePreset = form.watch(`passengers.${i}.baggagePreset`) || "";
+          const cabinBaggagePreset = form.watch(`passengers.${i}.cabinBaggagePreset`) || "7 KG";
           const seat = form.watch(`passengers.${i}.seat`);
           return (
             <div key={field.id} className="space-y-3 rounded-lg border p-4">
@@ -419,6 +421,29 @@ export function FlightBookingFields({
                   </div>
                 )}
                 <div className="space-y-2">
+                  <Label className="text-xs">Cabin Baggage</Label>
+                  <Select
+                    value={cabinBaggagePreset}
+                    onValueChange={(v) => {
+                      form.setValue(`passengers.${i}.cabinBaggagePreset`, v);
+                      if (v !== "Custom") form.setValue(`passengers.${i}.handBaggage`, v);
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select cabin baggage" /></SelectTrigger>
+                    <SelectContent>
+                      {CABIN_BAGGAGE_PRESETS.map((b) => (
+                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {cabinBaggagePreset === "Custom" && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Custom Cabin Baggage</Label>
+                    <Input {...form.register(`passengers.${i}.handBaggage`)} placeholder="e.g. 1 piece X 8 kg" />
+                  </div>
+                )}
+                <div className="space-y-2">
                   <Label className="text-xs">Check-in Baggage</Label>
                   <Select
                     value={baggagePreset}
@@ -462,6 +487,8 @@ export function FlightBookingFields({
               lastName: "",
               gender: "Male",
               paxType: "adult",
+              handBaggage: "7 KG",
+              cabinBaggagePreset: "7 KG",
             })
           }
         >
