@@ -13,6 +13,7 @@ import {
   CABIN_BAGGAGE_PRESETS,
   CABIN_CLASS_OPTIONS,
   COMMON_AIRLINES,
+  ADDON_TYPE_OPTIONS,
   LAYOVER_TYPE_OPTIONS,
   MEAL_OPTIONS,
   PAX_TYPE_OPTIONS,
@@ -57,6 +58,8 @@ export function FlightBookingFields({
   const [airlineLogo, setAirlineLogo] = useState<string | null>(null);
   const [savedAirlines, setSavedAirlines] = useState<{ name: string; logoUrl?: string | null }[]>([]);
   const tripType = form.watch("tripType") || "ONE_WAY";
+  const isAddonTrip = tripType === "ADDON_SERVICES";
+  const addonType = form.watch("addonType") || "seat";
   const showEticket = form.watch("showEticket");
   const checkInAssistance = form.watch("checkInAssistance");
   const airline = form.watch("airline");
@@ -116,6 +119,12 @@ export function FlightBookingFields({
 
   function handleTripTypeChange(value: string) {
     form.setValue("tripType", value as WizardForm["tripType"]);
+    if (value === "ADDON_SERVICES") {
+      form.setValue("addonType", form.getValues("addonType") || "seat");
+      form.setValue("checkInAssistance", false);
+      form.setValue("stopCount", 0);
+      return;
+    }
     if (value === "ROUND_TRIP") {
       form.setValue("stopCount", 0);
       if (segmentFields.length < 2) {
@@ -180,6 +189,7 @@ export function FlightBookingFields({
             </SelectContent>
           </Select>
         </div>
+        {!isAddonTrip && (
         <div className="space-y-2">
           <Label>Cabin Class</Label>
           <Select
@@ -194,9 +204,96 @@ export function FlightBookingFields({
             </SelectContent>
           </Select>
         </div>
+        )}
       </div>
 
-      {tripType === "ONE_WAY" && (
+      {isAddonTrip ? (
+        <div className="space-y-4 rounded-lg border-2 border-violet-200 bg-violet-50/40 p-4 dark:border-violet-800 dark:bg-violet-950/20">
+          <div className="space-y-2">
+            <Label>Airline</Label>
+            <div className="flex items-center gap-3">
+              {airlineLogo && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={airlineLogo} alt="" className="h-10 w-10 rounded border object-contain bg-white p-1" />
+              )}
+              <Input {...form.register("airline")} placeholder="IndiGo" list="airline-suggestions-addon" className="flex-1" />
+              <datalist id="airline-suggestions-addon">
+                {COMMON_AIRLINES.map((a) => (
+                  <option key={a.iata} value={a.name} />
+                ))}
+                {savedAirlines.map((a) => (
+                  <option key={a.name} value={a.name} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-base">Add-on Service Type</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Book seat selection, meal, or other services for an existing ticket. Use the invoice section below for base fare and service charge (same as regular bookings).
+            </p>
+            <Select
+              value={addonType}
+              onValueChange={(v) => form.setValue("addonType", v as WizardForm["addonType"])}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {ADDON_TYPE_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {addonType === "custom" && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Custom Service Label</Label>
+                <Input {...form.register("addonCustomLabel")} placeholder="e.g. Extra Baggage" />
+              </div>
+              <div className="space-y-2">
+                <Label>Custom Service Details</Label>
+                <Input {...form.register("addonCustomValue")} placeholder="e.g. 15 KG extra baggage" />
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Reference Flight No (optional)</Label>
+              <Input {...form.register("addonFlightNumber")} placeholder="6E 212" />
+            </div>
+            <div className="space-y-2">
+              <Label>Travel Date (optional)</Label>
+              <Input {...form.register("addonTravelDate")} type="datetime-local" step="60" />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {!isAddonTrip && (
+      <div className="space-y-2">
+        <Label>Airline</Label>
+        <div className="flex items-center gap-3">
+          {airlineLogo && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={airlineLogo} alt="" className="h-10 w-10 rounded border object-contain bg-white p-1" />
+          )}
+          <Input {...form.register("airline")} placeholder="IndiGo" list="airline-suggestions" className="flex-1" />
+          <datalist id="airline-suggestions">
+            {COMMON_AIRLINES.map((a) => (
+              <option key={a.iata} value={a.name} />
+            ))}
+            {savedAirlines.map((a) => (
+              <option key={a.name} value={a.name} />
+            ))}
+          </datalist>
+        </div>
+      </div>
+      )}
+
+      {!isAddonTrip && tripType === "ONE_WAY" && (
         <div className="space-y-2">
           <Label>Stops / Layovers</Label>
           <Select
@@ -218,25 +315,7 @@ export function FlightBookingFields({
         </div>
       )}
 
-      <div className="space-y-2">
-        <Label>Airline</Label>
-        <div className="flex items-center gap-3">
-          {airlineLogo && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={airlineLogo} alt="" className="h-10 w-10 rounded border object-contain bg-white p-1" />
-          )}
-          <Input {...form.register("airline")} placeholder="IndiGo" list="airline-suggestions" className="flex-1" />
-          <datalist id="airline-suggestions">
-            {COMMON_AIRLINES.map((a) => (
-              <option key={a.iata} value={a.name} />
-            ))}
-            {savedAirlines.map((a) => (
-              <option key={a.name} value={a.name} />
-            ))}
-          </datalist>
-        </div>
-      </div>
-
+      {!isAddonTrip && (
       <div className="flex items-center justify-between rounded-lg border p-3">
         <div>
           <Label>Check-in Booking Assistance</Label>
@@ -253,7 +332,9 @@ export function FlightBookingFields({
           {checkInAssistance ? "Yes" : "No"}
         </Button>
       </div>
+      )}
 
+      {!isAddonTrip && (
       <div className="flex items-center justify-between rounded-lg border p-3">
         <div>
           <Label>E-Ticket Number (International)</Label>
@@ -268,8 +349,9 @@ export function FlightBookingFields({
           {showEticket ? "Yes" : "No"}
         </Button>
       </div>
+      )}
 
-      {segmentFields.map((field, i) => (
+      {!isAddonTrip && segmentFields.map((field, i) => (
         <div key={field.id} className="space-y-3">
           <div className="space-y-3 rounded-lg border p-4">
             <div className="flex items-center justify-between">
@@ -340,7 +422,7 @@ export function FlightBookingFields({
         </div>
       ))}
 
-      {tripType === "MULTI_CITY" && (
+      {!isAddonTrip && tripType === "MULTI_CITY" && (
         <Button
           type="button"
           variant="outline"
@@ -412,14 +494,20 @@ export function FlightBookingFields({
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label className="text-xs">Seat</Label>
+                  <Label className="text-xs">
+                    {isAddonTrip
+                      ? addonType === "seat"
+                        ? "Seat Number *"
+                        : "Seat Number (optional)"
+                      : "Seat"}
+                  </Label>
                   <Input {...form.register(`passengers.${i}.seat`)} placeholder="e.g. 12A" />
                 </div>
-                {seat && (
+                {(!isAddonTrip && seat) || (isAddonTrip && addonType === "food") ? (
                   <div className="space-y-2">
-                    <Label className="text-xs">Meal Preference</Label>
+                    <Label className="text-xs">{isAddonTrip ? "Meal Preference *" : "Meal Preference"}</Label>
                     <Select
-                      value={form.watch(`passengers.${i}.meal`) || "none"}
+                      value={form.watch(`passengers.${i}.meal`) || (isAddonTrip ? "veg" : "none")}
                       onValueChange={(v) => form.setValue(`passengers.${i}.meal`, v as "veg" | "nonveg" | "none")}
                     >
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -430,7 +518,9 @@ export function FlightBookingFields({
                       </SelectContent>
                     </Select>
                   </div>
-                )}
+                ) : null}
+                {!isAddonTrip && (
+                <>
                 <div className="space-y-2">
                   <Label className="text-xs">Cabin Baggage</Label>
                   <Select
@@ -482,6 +572,8 @@ export function FlightBookingFields({
                     <Label className="text-xs">E-Ticket Number</Label>
                     <Input {...form.register(`passengers.${i}.ticketNumber`)} placeholder="176-1234567890" />
                   </div>
+                )}
+                </>
                 )}
               </div>
             </div>

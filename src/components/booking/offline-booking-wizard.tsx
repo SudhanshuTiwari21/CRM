@@ -20,6 +20,7 @@ import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields"
 import { parseApiResponse } from "@/lib/parse-api-response";
 import { formatCustomerName } from "@/lib/utils";
 import { CUSTOMER_TITLE_OPTIONS } from "@/lib/constants/flight";
+import { buildAddonPlaceholderSegment, validateAddonBooking } from "@/lib/flight-addon";
 
 const baseCustomer = {
   title: "Mr",
@@ -52,7 +53,12 @@ const wizardSchema = z.object({
   discountAmount: z.coerce.number().optional(),
   invoiceNarration: z.string().optional(),
   msmeNumber: z.string().optional(),
-  tripType: z.enum(["ONE_WAY", "ROUND_TRIP", "MULTI_CITY"]).optional(),
+  tripType: z.enum(["ONE_WAY", "ROUND_TRIP", "MULTI_CITY", "ADDON_SERVICES"]).optional(),
+  addonType: z.enum(["seat", "food", "custom"]).optional(),
+  addonCustomLabel: z.string().optional(),
+  addonCustomValue: z.string().optional(),
+  addonFlightNumber: z.string().optional(),
+  addonTravelDate: z.string().optional(),
   cabinClass: z.enum(["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS"]).optional(),
   secondaryPnr: z.string().optional(),
   showEticket: z.boolean().optional(),
@@ -96,6 +102,7 @@ const wizardSchema = z.object({
     checkInBaggage: z.string().optional(),
     baggagePreset: z.string().optional(),
     cabinBaggagePreset: z.string().optional(),
+    baseFare: z.coerce.number().min(0).optional(),
   })).optional(),
   // Hotel
   propertyName: z.string().optional(),
@@ -150,6 +157,11 @@ export function OfflineBookingWizard() {
       invoiceNarration: "",
       msmeNumber: "",
       tripType: "ONE_WAY",
+      addonType: "seat",
+      addonCustomLabel: "",
+      addonCustomValue: "",
+      addonFlightNumber: "",
+      addonTravelDate: "",
       cabinClass: "ECONOMY",
       stopCount: 0,
       showEticket: false,
@@ -197,8 +209,21 @@ export function OfflineBookingWizard() {
   async function onSubmit(data: WizardForm) {
     setLoading(true);
     try {
-      if (productType === "FLIGHT" && (data.baseFare ?? 0) + (data.serviceCharge ?? 0) <= 0) {
-        throw new Error("Enter base fare and service charge for the flight invoice");
+      if (productType === "FLIGHT") {
+        const isAddon = data.tripType === "ADDON_SERVICES";
+        if (isAddon) {
+          validateAddonBooking(
+            data.addonType,
+            data.passengers || [],
+            data.addonCustomLabel,
+            data.addonCustomValue
+          );
+          if ((data.baseFare ?? 0) + (data.serviceCharge ?? 0) <= 0) {
+            throw new Error("Enter base fare and service charge for the add-on invoice");
+          }
+        } else if ((data.baseFare ?? 0) + (data.serviceCharge ?? 0) <= 0) {
+          throw new Error("Enter base fare and service charge for the flight invoice");
+        }
       }
       if (productType !== "FLIGHT" && data.totalAmount <= 0) {
         throw new Error("Total amount must be greater than 0");
@@ -215,15 +240,18 @@ export function OfflineBookingWizard() {
 
       if (productType === "FLIGHT") {
         const airline = data.airline?.trim() || "IndiGo";
-        const segments = (data.segments || []).map((s) => ({
-          ...s,
-          airline,
-          flightNumber: s.flightNumber?.trim() || "",
-          fromAirport: s.fromAirport?.trim() || "",
-          fromCity: s.fromCity?.trim() || "",
-          toAirport: s.toAirport?.trim() || "",
-          toCity: s.toCity?.trim() || "",
-        }));
+        const isAddon = data.tripType === "ADDON_SERVICES";
+        const segments = isAddon
+          ? [buildAddonPlaceholderSegment(airline, data.addonFlightNumber, data.addonTravelDate)]
+          : (data.segments || []).map((s) => ({
+              ...s,
+              airline,
+              flightNumber: s.flightNumber?.trim() || "",
+              fromAirport: s.fromAirport?.trim() || "",
+              fromCity: s.fromCity?.trim() || "",
+              toAirport: s.toAirport?.trim() || "",
+              toCity: s.toCity?.trim() || "",
+            }));
 
         const passengers = (data.passengers || []).map(({ baggagePreset, cabinBaggagePreset, ...p }) => {
           void baggagePreset;
@@ -246,11 +274,16 @@ export function OfflineBookingWizard() {
           invoiceNarration: data.invoiceNarration?.trim() || undefined,
           msmeNumber: data.msmeNumber?.trim() || undefined,
           tripType: data.tripType || "ONE_WAY",
+          addonType: data.addonType,
+          addonCustomLabel: data.addonCustomLabel?.trim() || undefined,
+          addonCustomValue: data.addonCustomValue?.trim() || undefined,
+          addonFlightNumber: data.addonFlightNumber?.trim() || undefined,
+          addonTravelDate: data.addonTravelDate?.trim() || undefined,
           cabinClass: data.cabinClass || "ECONOMY",
           secondaryPnr: data.segments?.[1]?.pnr?.trim() || data.secondaryPnr?.trim() || undefined,
-          showEticket: data.showEticket || false,
+          showEticket: isAddon ? false : data.showEticket || false,
           showPassengerName: data.showPassengerName !== false,
-          checkInAssistance: data.checkInAssistance || false,
+          checkInAssistance: isAddon ? false : data.checkInAssistance || false,
           airline,
           segments,
           passengers,

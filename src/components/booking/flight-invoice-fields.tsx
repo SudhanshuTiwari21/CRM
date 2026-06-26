@@ -14,6 +14,7 @@ import {
   formatInr,
   getStateCodeFromGstin,
 } from "@/lib/gst-calculator";
+import { getAdultPassengers, passengerDisplayName, sumAdultBaseFares } from "@/lib/flight-fare-breakup";
 
 interface FlightInvoiceFieldsProps {
   form: UseFormReturn<WizardForm>;
@@ -54,6 +55,30 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
   const baseFare = Number(form.watch("baseFare") || 0);
   const serviceCharge = Number(form.watch("serviceCharge") || 0);
   const discountAmount = Number(form.watch("discountAmount") || 0);
+  const passengers = form.watch("passengers") || [];
+  const adults = getAdultPassengers(passengers);
+
+  function setAdultBaseFare(passengerIndex: number, raw: string) {
+    const value = raw === "" ? undefined : Number(raw);
+    form.setValue(`passengers.${passengerIndex}.baseFare`, value, { shouldDirty: true });
+    const updated = form.getValues("passengers") || [];
+    form.setValue("baseFare", sumAdultBaseFares(updated), { shouldDirty: true });
+  }
+
+  function distributeBaseFareEvenly() {
+    if (adults.length === 0 || baseFare <= 0) return;
+    const each = Math.round((baseFare / adults.length) * 100) / 100;
+    let adultCount = 0;
+    passengers.forEach((p, i) => {
+      if ((p.paxType || "adult") !== "adult") return;
+      const amount =
+        adultCount === adults.length - 1
+          ? Math.round((baseFare - each * (adults.length - 1)) * 100) / 100
+          : each;
+      form.setValue(`passengers.${i}.baseFare`, amount, { shouldDirty: true });
+      adultCount++;
+    });
+  }
 
   useEffect(() => {
     if (invoiceTaxType === "ITC" && customerGstin && !buyerGstin) {
@@ -111,11 +136,39 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
       )}
 
       {hasAgencyGst ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Base Fare — Airline (INR) *</Label>
-            <Input {...form.register("baseFare")} type="number" min={0} step="0.01" placeholder="10582.00" />
-            <p className="text-xs text-muted-foreground">Fare reimbursement — no GST</p>
+        <div className="space-y-4">
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-base">Base Fare — Adult wise (INR)</Label>
+              {adults.length > 1 && baseFare > 0 && (
+                <Button type="button" variant="outline" size="sm" onClick={distributeBaseFareEvenly}>
+                  Split total evenly
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">Fare reimbursement per adult — shown as separate lines on the tax invoice.</p>
+            {adults.map((p) => {
+              const passengerIndex = passengers.indexOf(p);
+              const label = passengerDisplayName(p) || `Adult ${passengerIndex + 1}`;
+              return (
+                <div key={`adult-fare-${passengerIndex}`} className="space-y-2">
+                  <Label>{label}</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="0.00"
+                    value={p.baseFare ?? ""}
+                    onChange={(e) => setAdultBaseFare(passengerIndex, e.target.value)}
+                  />
+                </div>
+              );
+            })}
+            <div className="flex items-center justify-between border-t pt-3 text-sm font-medium">
+              <span>Total Base Fare</span>
+              <span>{formatInr(sumAdultBaseFares(passengers) || baseFare)}</span>
+            </div>
+            <input type="hidden" {...form.register("baseFare")} />
           </div>
           <div className="space-y-2">
             <Label>Service Charge / Other Charges (INR) *</Label>

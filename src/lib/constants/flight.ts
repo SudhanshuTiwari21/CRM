@@ -8,6 +8,13 @@ export const TRIP_TYPE_OPTIONS = [
   { value: "ONE_WAY", label: "One Way" },
   { value: "ROUND_TRIP", label: "Round Trip" },
   { value: "MULTI_CITY", label: "Multi City" },
+  { value: "ADDON_SERVICES", label: "Add-on Services" },
+] as const;
+
+export const ADDON_TYPE_OPTIONS = [
+  { value: "seat", label: "Seat Add-on" },
+  { value: "food", label: "Food Add-on" },
+  { value: "custom", label: "Other (Custom)" },
 ] as const;
 
 export const BAGGAGE_PRESETS = [

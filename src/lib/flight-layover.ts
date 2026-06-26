@@ -84,6 +84,7 @@ export function buildSectorLegs(segments: FlightSegment[], tripType?: string | n
 }
 
 export function itineraryBadgeLabel(tripType?: string | null, segments: FlightSegment[] = []) {
+  if (tripType === "ADDON_SERVICES") return "Add-on Services";
   if (tripType === "ROUND_TRIP") return "Round Trip";
   if (tripType === "MULTI_CITY") return "Multi City";
   return stopsLabel(segments);

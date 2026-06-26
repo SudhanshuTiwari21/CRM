@@ -9,6 +9,8 @@ import { amountInWordsInr } from "@/lib/number-to-words";
 import { CABIN_CLASS_OPTIONS } from "@/lib/constants/flight";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
 import { buildFullRoute, buildSectorLegs, buildSectorSummary } from "@/lib/flight-layover";
+import { buildAdultBaseFareLines, passengerDisplayName } from "@/lib/flight-fare-breakup";
+import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
 
 const styles = StyleSheet.create({
   page: { padding: 28, fontSize: 8, fontFamily: "Helvetica", color: "#000" },
@@ -81,11 +83,6 @@ function cabinLabel(value?: string | null) {
   return CABIN_CLASS_OPTIONS.find((c) => c.value === value)?.label || value || "Economy";
 }
 
-function paxLabel(p?: FlightPassenger) {
-  if (!p) return "";
-  return `${p.title} ${p.firstName} ${p.lastName}`.trim();
-}
-
 function buildTravelDates(segments: FlightSegment[]) {
   return segments
     .map((s) => (s.departureAt ? format(new Date(s.departureAt), "dd/MM/yyyy") : ""))
@@ -128,10 +125,8 @@ export function InvoicePDF({
   const sgst = hasGstInvoice ? Number(flight!.sgstAmount || 0) : 0;
   const igst = hasGstInvoice ? Number(flight!.igstAmount || 0) : 0;
   const totalTax = cgst + sgst + igst;
-  const otherCharges = serviceCharge + totalTax;
-  const grandTotal = hasGstInvoice ? baseFare + otherCharges - discount : Number(booking.totalAmount);
+  const grandTotal = hasGstInvoice ? baseFare + serviceCharge + totalTax - discount : Number(booking.totalAmount);
 
-  const passenger = passengers[0];
   const sector = buildSectorSummary(segments, flight?.tripType);
   const sectorLegs = buildSectorLegs(segments, flight?.tripType);
   const travelDate = buildTravelDates(segments) || format(booking.createdAt, "dd/MM/yyyy");
@@ -146,31 +141,38 @@ export function InvoicePDF({
   const buyerState = flight?.buyerState || customer.state;
   const placeOfSupply = flight?.placeOfSupply || buyerState || agency.state;
   const msmeNumber = flight?.msmeNumber || (agency.msmeRegistered ? agency.msmeNumber : null);
-  const qtyLabel = `${passengers.length} Pax`;
+  const adultFareLines = buildAdultBaseFareLines(passengers, baseFare);
+  const adultCount = adultFareLines.length || passengers.length || 1;
+  const qtyLabel = `${adultCount} Adult${adultCount === 1 ? "" : "s"}`;
 
   const fareDescription = flight
-    ? `${flight.airline} Airlines (Fare Reimbursement) Domestic`
+    ? flight.tripType === "ADDON_SERVICES"
+      ? `${flight.airline} — ${addonTypeLabel(flight.addonType, flight.addonCustomLabel)}`
+      : `${flight.airline} Airlines (Fare Reimbursement) Domestic`
     : `${booking.productType} Booking`;
 
   const showPassengerName = flight?.showPassengerName !== false;
 
-  const detailLines = [
+  const itineraryDetailLines = [
     pnrLine,
-    showPassengerName && passenger
-      ? `Pax: ${paxLabel(passenger)}${passengers.length > 1 ? ` +${passengers.length - 1}` : ""}`
-      : null,
-    sector ? `Sector: ${sector}` : null,
+    ...(flight?.tripType === "ADDON_SERVICES"
+      ? addonDetailLines(flight.addonType, flight.addonCustomLabel, flight.addonCustomValue, passengers)
+      : []),
+    sector && flight?.tripType !== "ADDON_SERVICES" ? `Sector: ${sector}` : null,
     ...sectorLegs.map((leg) => `${leg.label}: ${leg.sector} (${leg.date || "—"})`),
     segments.length > 1 && flight?.tripType !== "ROUND_TRIP"
       ? `Route: ${buildFullRoute(segments)}`
       : null,
     travelDate ? `Travel Date: ${travelDate}` : null,
     flight?.cabinClass ? `Class: ${cabinLabel(flight.cabinClass)}` : null,
-    passenger?.ticketNumber ? `E-Ticket: ${passenger.ticketNumber}` : null,
-    passenger?.seat ? `Seat: ${passenger.seat}` : null,
-    passenger?.meal && passenger.meal !== "none" ? `Meal: ${passenger.meal === "veg" ? "Veg" : "Non-Veg"}` : null,
-    passenger?.checkInBaggage ? `Baggage: ${passenger.checkInBaggage}` : null,
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
+
+  const gstRateLabel =
+    igst > 0
+      ? `${Number(flight?.igstRate || 0)}%`
+      : cgst > 0
+        ? `${Number(flight?.cgstRate || 0)}% + ${Number(flight?.sgstRate || 0)}%`
+        : "18%";
 
   // Same main-table layout for B2B and B2C: fare row + Other Charges column; B2B tax detail only in breakup section below.
   const col = {
@@ -258,21 +260,47 @@ export function InvoicePDF({
                 <Text style={[styles.th, col.amt, styles.right]}>Amount</Text>
               </View>
 
+              {adultFareLines.map((line, idx) => {
+                const paxName = showPassengerName
+                  ? passengerDisplayName(line.passenger)
+                  : `Adult ${idx + 1}`;
+                return (
+                  <View style={styles.tableRow} key={`fare-row-${idx}`}>
+                    <Text style={[styles.td, col.sl]}>{idx + 1}</Text>
+                    <View style={[styles.td, col.desc]}>
+                      <Text style={styles.descTitle}>
+                        {fareDescription} — {paxName}
+                      </Text>
+                      {idx === 0 &&
+                        itineraryDetailLines.map((detail) => (
+                          <Text key={detail} style={styles.descBullet}>
+                            • {detail}
+                          </Text>
+                        ))}
+                    </View>
+                    <Text style={[styles.td, col.hsn]}>—</Text>
+                    <Text style={[styles.td, col.gst, styles.right]}>—</Text>
+                    <Text style={[styles.td, col.qty, styles.right]}>1</Text>
+                    <Text style={[styles.td, col.rate, styles.right]}>{inr(line.amount)}</Text>
+                    <Text style={[styles.td, col.per]}>Adult</Text>
+                    <Text style={[styles.td, col.other, styles.right]}>{inr(0)}</Text>
+                    <Text style={[styles.td, col.amt, styles.right]}>{inr(line.amount)}</Text>
+                  </View>
+                );
+              })}
+
               <View style={styles.tableRow}>
-                <Text style={[styles.td, col.sl]}>1</Text>
+                <Text style={[styles.td, col.sl]}>{adultFareLines.length + 1}</Text>
                 <View style={[styles.td, col.desc]}>
-                  <Text style={styles.descTitle}>{fareDescription}</Text>
-                  {detailLines.map((line) => (
-                    <Text key={line} style={styles.descBullet}>• {line}</Text>
-                  ))}
+                  <Text style={styles.descTitle}>Booking / Service Fee (Domestic)</Text>
                 </View>
-                <Text style={[styles.td, col.hsn]}>—</Text>
-                <Text style={[styles.td, col.gst, styles.right]}>—</Text>
-                <Text style={[styles.td, col.qty, styles.right]}>{qtyLabel}</Text>
-                <Text style={[styles.td, col.rate, styles.right]}>{inr(baseFare)}</Text>
-                <Text style={[styles.td, col.per]}>Pax</Text>
-                <Text style={[styles.td, col.other, styles.right]}>{inr(otherCharges)}</Text>
-                <Text style={[styles.td, col.amt, styles.right]}>{inr(baseFare + otherCharges)}</Text>
+                <Text style={[styles.td, col.hsn]}>{flight.hsnSac || "998551"}</Text>
+                <Text style={[styles.td, col.gst, styles.right]}>{gstRateLabel}</Text>
+                <Text style={[styles.td, col.qty, styles.right]}>1</Text>
+                <Text style={[styles.td, col.rate, styles.right]}>{inr(serviceCharge)}</Text>
+                <Text style={[styles.td, col.per]}>Job</Text>
+                <Text style={[styles.td, col.other, styles.right]}>{inr(totalTax)}</Text>
+                <Text style={[styles.td, col.amt, styles.right]}>{inr(serviceCharge + totalTax)}</Text>
               </View>
 
               <View style={styles.totalRow}>

@@ -13,6 +13,7 @@ import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { logActivity } from "./activity.service";
 import { generateBookingDocuments } from "./document.service";
 import { flightFieldsWithDeparture, maybeSendImmediateCheckInAssistanceAlert } from "./checkin-assistance.service";
+import { toDbAddonType } from "@/lib/flight-addon";
 import type { z } from "zod";
 import type { adminBookingUpdateSchema } from "@/lib/validators/booking-admin";
 
@@ -44,7 +45,8 @@ export async function updateBookingAsAdmin(
     input.segments !== undefined ||
     input.passengers !== undefined ||
     input.tripType !== undefined ||
-    input.cabinClass !== undefined;
+    input.cabinClass !== undefined ||
+    input.addonType !== undefined;
 
   if (booking.flightBooking) {
     const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
@@ -106,6 +108,9 @@ export async function updateBookingAsAdmin(
     if (input.showEticket !== undefined) flightData.showEticket = input.showEticket;
     if (input.checkInAssistance !== undefined) flightData.checkInAssistance = input.checkInAssistance;
     if (input.secondaryPnr !== undefined) flightData.secondaryPnr = input.secondaryPnr || null;
+    if (input.addonType !== undefined) flightData.addonType = toDbAddonType(input.addonType);
+    if (input.addonCustomLabel !== undefined) flightData.addonCustomLabel = input.addonCustomLabel || null;
+    if (input.addonCustomValue !== undefined) flightData.addonCustomValue = input.addonCustomValue || null;
 
     if (hasFlightItineraryUpdate) {
       const normalizedSegments = segments.map((s) => ({ ...s, airline }));

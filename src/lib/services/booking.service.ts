@@ -8,6 +8,7 @@ import { getFlightProvider } from "./provider/flight-provider";
 import { upsertHotelProfile } from "./hotel.service";
 import { upsertAirlineProfile } from "./airline.service";
 import { getAirlineLogoUrl, resolveAirlineIata } from "@/lib/airline-logo";
+import { toDbAddonType, validateAddonBooking } from "@/lib/flight-addon";
 import { assertCreditAvailable, recordCreditTransaction } from "./credit.service";
 import type {
   BookingChannel,
@@ -72,6 +73,23 @@ function validateFlightInvoice(input: OfflineFlightBookingInput, agencyHasGst: b
   if (input.invoiceTaxType === "ITC" && !input.buyerGstin?.trim()) {
     throw new Error("Buyer GSTIN is required for B2B invoices");
   }
+
+  if (input.tripType === "ADDON_SERVICES") {
+    validateAddonBooking(
+      input.addonType,
+      input.passengers,
+      input.addonCustomLabel,
+      input.addonCustomValue
+    );
+    if (agencyHasGst && input.baseFare + input.serviceCharge <= 0) {
+      throw new Error("Enter service charge or amount for the add-on");
+    }
+    if (!agencyHasGst && input.totalAmount <= 0) {
+      throw new Error("Total amount must be greater than 0");
+    }
+    return;
+  }
+
   if (agencyHasGst && input.baseFare + input.serviceCharge <= 0) {
     throw new Error("Enter base fare and/or service charge");
   }
@@ -112,6 +130,9 @@ function buildFlightTaxData(input: OfflineFlightBookingInput, agencyStateCode: s
       segments: input.segments,
       passengers: input.passengers,
       tripType: input.tripType || "ONE_WAY",
+      addonType: toDbAddonType(input.addonType),
+      addonCustomLabel: input.addonCustomLabel?.trim() || null,
+      addonCustomValue: input.addonCustomValue?.trim() || null,
       cabinClass: input.cabinClass || "ECONOMY",
       secondaryPnr: input.secondaryPnr || null,
       showEticket: input.showEticket || false,
@@ -204,6 +225,9 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
         segments: flightInput.segments,
         passengers: flightInput.passengers,
         tripType: flightInput.tripType || "ONE_WAY",
+        addonType: toDbAddonType(flightInput.addonType),
+        addonCustomLabel: flightInput.addonCustomLabel?.trim() || null,
+        addonCustomValue: flightInput.addonCustomValue?.trim() || null,
         cabinClass: flightInput.cabinClass || "ECONOMY",
         secondaryPnr: flightInput.secondaryPnr || null,
         showEticket: flightInput.showEticket || false,

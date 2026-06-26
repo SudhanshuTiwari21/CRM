@@ -82,6 +82,13 @@ enum TripType {
   ONE_WAY
   ROUND_TRIP
   MULTI_CITY
+  ADDON_SERVICES
+}
+
+enum AddonType {
+  SEAT
+  FOOD
+  CUSTOM
 }
 
 enum CabinClass {
@@ -302,6 +309,9 @@ model FlightBooking {
   segments         Json
   passengers       Json
   tripType         TripType        @default(ONE_WAY)
+  addonType        AddonType?
+  addonCustomLabel String?
+  addonCustomValue String?
   cabinClass       CabinClass      @default(ECONOMY)
   secondaryPnr     String?
   showEticket      Boolean         @default(false)

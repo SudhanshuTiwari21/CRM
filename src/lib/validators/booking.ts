@@ -37,6 +37,7 @@ export const flightPassengerSchema = z.object({
   meal: z.enum(["veg", "nonveg", "none"]).optional(),
   handBaggage: z.string().optional(),
   checkInBaggage: z.string().optional(),
+  baseFare: z.coerce.number().min(0).optional(),
 });
 
 export const hotelGuestSchema = z.object({
@@ -65,7 +66,12 @@ export const offlineFlightBookingSchema = z.object({
   customer: customerSchema,
   totalAmount: z.coerce.number().positive(),
   airline: z.string().min(1),
-  tripType: z.enum(["ONE_WAY", "ROUND_TRIP", "MULTI_CITY"]).optional(),
+  tripType: z.enum(["ONE_WAY", "ROUND_TRIP", "MULTI_CITY", "ADDON_SERVICES"]).optional(),
+  addonType: z.enum(["seat", "food", "custom"]).optional(),
+  addonCustomLabel: z.string().optional(),
+  addonCustomValue: z.string().optional(),
+  addonFlightNumber: z.string().optional(),
+  addonTravelDate: z.string().optional(),
   cabinClass: z.enum(["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS"]).optional(),
   secondaryPnr: z.string().optional(),
   showEticket: z.boolean().optional(),

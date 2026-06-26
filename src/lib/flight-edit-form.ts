@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { FlightBooking } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { BAGGAGE_PRESETS, CABIN_BAGGAGE_PRESETS } from "@/lib/constants/flight";
+import { buildAddonPlaceholderSegment, fromDbAddonType } from "@/lib/flight-addon";
 
 const segmentEditSchema = z.object({
   flightNumber: z.string(),
@@ -39,6 +40,7 @@ const passengerEditSchema = z.object({
   checkInBaggage: z.string().optional(),
   baggagePreset: z.string().optional(),
   cabinBaggagePreset: z.string().optional(),
+  baseFare: z.coerce.number().min(0).optional(),
 });
 
 export const flightEditFormSchema = z.object({
@@ -56,7 +58,12 @@ export const flightEditFormSchema = z.object({
     state: z.string().optional(),
   }),
   airline: z.string().min(1, "Airline is required"),
-  tripType: z.enum(["ONE_WAY", "ROUND_TRIP", "MULTI_CITY"]),
+  tripType: z.enum(["ONE_WAY", "ROUND_TRIP", "MULTI_CITY", "ADDON_SERVICES"]),
+  addonType: z.enum(["seat", "food", "custom"]).optional(),
+  addonCustomLabel: z.string().optional(),
+  addonCustomValue: z.string().optional(),
+  addonFlightNumber: z.string().optional(),
+  addonTravelDate: z.string().optional(),
   cabinClass: z.enum(["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS"]),
   secondaryPnr: z.string().optional(),
   showEticket: z.boolean(),
@@ -93,6 +100,7 @@ function inferPreset(value: string | undefined, presets: readonly string[]): str
 function mapPassengerForForm(p: FlightPassenger) {
   return {
     ...p,
+    baseFare: p.baseFare != null ? Number(p.baseFare) : undefined,
     baggagePreset: inferPreset(p.checkInBaggage, BAGGAGE_PRESETS),
     cabinBaggagePreset: inferPreset(p.handBaggage, CABIN_BAGGAGE_PRESETS),
   };
@@ -138,6 +146,14 @@ export function buildFlightEditFormValues(
     },
     airline,
     tripType: flight.tripType,
+    addonType: fromDbAddonType(flight.addonType),
+    addonCustomLabel: flight.addonCustomLabel || "",
+    addonCustomValue: flight.addonCustomValue || "",
+    addonFlightNumber:
+      segments[0]?.flightNumber && segments[0].flightNumber !== "ADDON"
+        ? segments[0].flightNumber
+        : "",
+    addonTravelDate: segments[0]?.departureAt ? toDatetimeLocalValue(segments[0].departureAt) : "",
     cabinClass: flight.cabinClass,
     secondaryPnr: flight.secondaryPnr || "",
     showEticket: flight.showEticket,
@@ -162,15 +178,18 @@ export function buildFlightEditFormValues(
 
 export function normalizeFlightEditPayload(data: FlightEditFormValues) {
   const airline = data.airline.trim();
-  const segments = data.segments.map((s) => ({
-    ...s,
-    airline,
-    flightNumber: s.flightNumber?.trim() || "",
-    fromAirport: s.fromAirport?.trim() || "",
-    fromCity: s.fromCity?.trim() || "",
-    toAirport: s.toAirport?.trim() || "",
-    toCity: s.toCity?.trim() || "",
-  }));
+  const isAddon = data.tripType === "ADDON_SERVICES";
+  const segments = isAddon
+    ? [buildAddonPlaceholderSegment(airline, data.addonFlightNumber, data.addonTravelDate)]
+    : data.segments.map((s) => ({
+        ...s,
+        airline,
+        flightNumber: s.flightNumber?.trim() || "",
+        fromAirport: s.fromAirport?.trim() || "",
+        fromCity: s.fromCity?.trim() || "",
+        toAirport: s.toAirport?.trim() || "",
+        toCity: s.toCity?.trim() || "",
+      }));
 
   const passengers = data.passengers.map(({ baggagePreset, cabinBaggagePreset, ...p }) => {
     void baggagePreset;
@@ -184,11 +203,14 @@ export function normalizeFlightEditPayload(data: FlightEditFormValues) {
     totalAmount: data.totalAmount,
     airline,
     tripType: data.tripType,
+    addonType: data.addonType,
+    addonCustomLabel: data.addonCustomLabel?.trim() || undefined,
+    addonCustomValue: data.addonCustomValue?.trim() || undefined,
     cabinClass: data.cabinClass,
     secondaryPnr: data.segments?.[1]?.pnr?.trim() || data.secondaryPnr?.trim() || undefined,
-    showEticket: data.showEticket,
+    showEticket: isAddon ? false : data.showEticket,
     showPassengerName: data.showPassengerName,
-    checkInAssistance: data.checkInAssistance,
+    checkInAssistance: isAddon ? false : data.checkInAssistance,
     segments,
     passengers,
     invoiceTaxType: data.invoiceTaxType,

@@ -8,6 +8,7 @@ import { resolveSegmentAirline } from "@/lib/airline-logo";
 import { computeLayoverDuration } from "@/lib/flight-layover";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
 import { getVoucherTermsContent } from "@/templates/pdf/voucher-terms";
+import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
 
 const NAVY = "#1a2d3e";
 const MUTED = "#5c6b7a";
@@ -269,6 +270,10 @@ export function FlightTicketPDF({
   const priceBeforeTax = baseFare + serviceCharge;
   const segmentGroups = groupSegments(segments, flight.tripType);
   const terms = getVoucherTermsContent(agency.companyName);
+  const isAddon = flight.tripType === "ADDON_SERVICES";
+  const addonLines = isAddon
+    ? addonDetailLines(flight.addonType, flight.addonCustomLabel, flight.addonCustomValue, passengers)
+    : [];
 
   return (
     <Document>
@@ -297,8 +302,42 @@ export function FlightTicketPDF({
                 <Text style={styles.detailValue}>—</Text>
               </View>
             </View>
-            <Text style={styles.sectionTitle}>Flight Details</Text>
-            {segmentGroups.map((group, gIdx) => (
+            <Text style={styles.sectionTitle}>{isAddon ? "Add-on Service Details" : "Flight Details"}</Text>
+            {isAddon ? (
+              <View style={{ marginBottom: 14 }}>
+                <View style={styles.flightRow}>
+                  <View style={styles.flightCol}>
+                    <Text style={styles.flightColLabel}>Airline</Text>
+                    <View style={styles.airlineRow}>
+                      {airlineLogoSrc ? <Image src={airlineLogoSrc} style={styles.airlineLogo} /> : null}
+                      <Text style={styles.flightColValue}>{flight.airline}</Text>
+                    </View>
+                  </View>
+                  {pax.seat?.trim() ? (
+                    <View style={styles.flightCol}>
+                      <Text style={styles.flightColLabel}>Seat</Text>
+                      <Text style={styles.flightColValue}>{pax.seat.trim()}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text style={styles.timeLine}>
+                  <Text style={{ fontFamily: "Helvetica-Bold" }}>Service: </Text>
+                  {addonTypeLabel(flight.addonType, flight.addonCustomLabel)}
+                </Text>
+                {segments[0]?.flightNumber && segments[0].flightNumber !== "ADDON" ? (
+                  <Text style={styles.timeLine}>
+                    <Text style={{ fontFamily: "Helvetica-Bold" }}>Reference Flight: </Text>
+                    {segments[0].flightNumber}
+                  </Text>
+                ) : null}
+                {addonLines.map((line) => (
+                  <Text key={line} style={styles.timeLine}>
+                    {line}
+                  </Text>
+                ))}
+              </View>
+            ) : (
+            segmentGroups.map((group, gIdx) => (
               <View key={`grp-${gIdx}`} style={{ marginBottom: 8 }}>
                 <Text style={styles.departureHeading}>{group.label}</Text>
                 {group.segments.map((seg, sIdx) => {
@@ -324,7 +363,10 @@ export function FlightTicketPDF({
                   );
                 })}
               </View>
-            ))}
+            ))
+            )}
+            {!isAddon && (
+            <>
             <Text style={styles.sectionTitle}>Baggage Details</Text>
             <View style={styles.baggageGrid}>
               <View style={styles.baggageCol}>
@@ -342,6 +384,8 @@ export function FlightTicketPDF({
                 ))}
               </View>
             </View>
+            </>
+            )}
             <Text style={styles.sectionTitle}>Payment Information</Text>
             <View style={styles.paymentBox}>
               <View style={styles.paymentRow}>

@@ -39,6 +39,8 @@ export interface FlightPassenger {
   meal?: MealPreference;
   handBaggage?: string;
   checkInBaggage?: string;
+  /** Per-adult airline base fare for invoice breakup (INR). */
+  baseFare?: number;
 }
 
 export interface HotelGuest {

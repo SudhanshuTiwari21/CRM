@@ -13,6 +13,8 @@ import { BookingQuickActions } from "@/components/booking/booking-quick-actions"
 import { CHANNEL_LABELS, PRODUCT_LABELS } from "@/lib/constants";
 import { formatCurrency, formatDateTime, formatDate } from "@/lib/utils";
 import type { FlightSegment, FlightPassenger, HotelGuest, BusPassenger } from "@/types/booking";
+import { buildAdultBaseFareLines, passengerDisplayName } from "@/lib/flight-fare-breakup";
+import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
 import { buildSectorSummary, connectionGapText, connectionGapTitle, itineraryBadgeLabel } from "@/lib/flight-layover";
 import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -49,7 +51,13 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
   const isHotel = booking.productType === "HOTEL";
   const isFlight = booking.productType === "FLIGHT";
+  const flightPassengers = (booking.flightBooking?.passengers as unknown as FlightPassenger[]) || [];
+  const adultFareLines =
+    booking.flightBooking?.baseFare != null
+      ? buildAdultBaseFareLines(flightPassengers, Number(booking.flightBooking.baseFare))
+      : [];
   const isRoundTrip = booking.flightBooking?.tripType === "ROUND_TRIP";
+  const isAddonTrip = booking.flightBooking?.tripType === "ADDON_SERVICES";
   const canConfirmPnr =
     ["PROCESSING", "FAILED"].includes(booking.status) ||
     (booking.status === "CONFIRMED" && booking.documents.length === 0) ||
@@ -150,13 +158,15 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">
-                  Flight — {booking.flightBooking.airline}
+                  {isAddonTrip ? "Add-on Service" : "Flight"} — {booking.flightBooking.airline}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {buildSectorSummary(
-                    booking.flightBooking.segments as unknown as FlightSegment[],
-                    booking.flightBooking.tripType
-                  )}{" "}
+                  {isAddonTrip
+                    ? addonTypeLabel(booking.flightBooking.addonType, booking.flightBooking.addonCustomLabel)
+                    : buildSectorSummary(
+                        booking.flightBooking.segments as unknown as FlightSegment[],
+                        booking.flightBooking.tripType
+                      )}{" "}
                   • {itineraryBadgeLabel(
                     booking.flightBooking.tripType,
                     booking.flightBooking.segments as unknown as FlightSegment[]
@@ -169,6 +179,19 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
+                {isAddonTrip ? (
+                  <div className="rounded-lg border p-4 space-y-2 text-sm">
+                    {addonDetailLines(
+                      booking.flightBooking.addonType,
+                      booking.flightBooking.addonCustomLabel,
+                      booking.flightBooking.addonCustomValue,
+                      flightPassengers
+                    ).map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </div>
+                ) : (
+                <>
                 {(booking.flightBooking.segments as unknown as FlightSegment[]).map((seg, i, arr) => (
                   <div key={i} className="space-y-3">
                     <div className="rounded-lg border p-4">
@@ -202,6 +225,8 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                     )}
                   </div>
                 ))}
+                </>
+                )}
               </CardContent>
             </Card>
           )}
@@ -282,7 +307,21 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                     Invoice: {booking.flightBooking.invoiceTaxType === "ITC" ? "ITC (B2B)" : "Non-ITC (B2C)"}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <p><span className="text-muted-foreground">Base Fare:</span> {formatCurrency(Number(booking.flightBooking.baseFare))}</p>
+                    {adultFareLines.length > 0 ? (
+                      <div className="sm:col-span-2 space-y-1">
+                        <p className="text-muted-foreground">Base Fare (Adult wise):</p>
+                        {adultFareLines.map((line, idx) => (
+                          <p key={`fare-${idx}`}>
+                            {passengerDisplayName(line.passenger) || `Adult ${idx + 1}`}: {formatCurrency(line.amount)}
+                          </p>
+                        ))}
+                        <p className="font-medium pt-1">
+                          Total Base Fare: {formatCurrency(Number(booking.flightBooking!.baseFare))}
+                        </p>
+                      </div>
+                    ) : (
+                      <p><span className="text-muted-foreground">Base Fare:</span> {formatCurrency(Number(booking.flightBooking.baseFare))}</p>
+                    )}
                     <p><span className="text-muted-foreground">Service Charge:</span> {formatCurrency(Number(booking.flightBooking.serviceCharge || 0))}</p>
                     {Number(booking.flightBooking.cgstAmount) > 0 && (
                       <p><span className="text-muted-foreground">CGST ({Number(booking.flightBooking.cgstRate)}%):</span> {formatCurrency(Number(booking.flightBooking.cgstAmount))}</p>
