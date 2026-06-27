@@ -16,6 +16,7 @@ import type { FlightSegment, FlightPassenger, HotelGuest, BusPassenger } from "@
 import { buildAdultBaseFareLines, passengerDisplayName } from "@/lib/flight-fare-breakup";
 import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
 import { buildSectorSummary, connectionGapText, connectionGapTitle, itineraryBadgeLabel } from "@/lib/flight-layover";
+import { resolveCancellationCategory, computeB2BNetRefund } from "@/lib/cancellation-category";
 import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -37,6 +38,9 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
       activityLogs: {
         include: { user: { select: { name: true } } },
         orderBy: { createdAt: "desc" },
+      },
+      cancellation: {
+        include: { cancelledBy: { select: { name: true } } },
       },
     },
   });
@@ -62,6 +66,11 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     ["PROCESSING", "FAILED"].includes(booking.status) ||
     (booking.status === "CONFIRMED" && booking.documents.length === 0) ||
     (isHotel && booking.status === "TICKET_SENT" && !booking.hotelBooking?.confirmationNo);
+
+  const cancellationCategory =
+    booking.productType === "FLIGHT" || booking.productType === "HOTEL"
+      ? resolveCancellationCategory(booking)
+      : undefined;
 
   return (
     <div>
@@ -101,6 +110,8 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               pnr={booking.pnr}
               internalNotes={booking.internalNotes}
               totalAmount={Number(booking.totalAmount)}
+              cancellationCategory={cancellationCategory}
+              creditEnabled={booking.customer.creditEnabled}
               customer={{ gstin: booking.customer.gstin, state: booking.customer.state }}
               flight={booking.flightBooking}
             />
@@ -122,6 +133,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
           <TabsTrigger value="passengers">Passengers</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="cancellation">Cancellation</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
@@ -375,6 +387,66 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                       </Button>
                     </div>
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="cancellation">
+          <Card>
+            <CardContent className="pt-6">
+              {!booking.cancellation ? (
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>This booking has not been cancelled.</p>
+                  {(isFlight || isHotel) && booking.status !== "CANCELLED" && (
+                    <p>Use the &quot;Cancel Booking&quot; button in the header to record a cancellation.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4 text-sm">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="destructive">Cancelled</Badge>
+                    <Badge variant={booking.cancellation.category === "B2B" ? "default" : "secondary"}>
+                      {booking.cancellation.category}
+                    </Badge>
+                    {booking.cancellation.refundToCredit && (
+                      <Badge variant="outline">Refunded to credit</Badge>
+                    )}
+                  </div>
+                  <p><span className="text-muted-foreground">Reason:</span> {booking.cancellation.reason}</p>
+                  <p>
+                    <span className="text-muted-foreground">Cancelled:</span>{" "}
+                    {formatDateTime(booking.cancellation.cancelledAt)}
+                    {booking.cancellation.cancelledBy && ` by ${booking.cancellation.cancelledBy.name}`}
+                  </p>
+                  {booking.cancellation.category === "B2B" ? (
+                    <div className="rounded-lg border p-4 space-y-2">
+                      <p className="font-medium">B2B refund breakup</p>
+                      <p><span className="text-muted-foreground">Refund from airlines:</span> {formatCurrency(Number(booking.cancellation.airlineRefund || 0))}</p>
+                      <p><span className="text-muted-foreground">Supplier taxes & charges:</span> {formatCurrency(Number(booking.cancellation.supplierCharges || 0))}</p>
+                      <p><span className="text-muted-foreground">Our taxes & charges:</span> {formatCurrency(Number(booking.cancellation.agencyCharges || 0))}</p>
+                      <p className="font-medium pt-1">
+                        Net refund: {formatCurrency(computeB2BNetRefund(
+                          Number(booking.cancellation.airlineRefund || 0),
+                          Number(booking.cancellation.supplierCharges || 0),
+                          Number(booking.cancellation.agencyCharges || 0)
+                        ))}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border p-4 space-y-2">
+                      <p className="font-medium">B2C refund breakup</p>
+                      <p><span className="text-muted-foreground">Refund to customer:</span> {formatCurrency(Number(booking.cancellation.customerRefund || 0))}</p>
+                      <p><span className="text-muted-foreground">Cancellation fee:</span> {formatCurrency(Number(booking.cancellation.cancellationFee || 0))}</p>
+                      <p><span className="text-muted-foreground">Supplier penalty:</span> {formatCurrency(Number(booking.cancellation.supplierPenalty || 0))}</p>
+                    </div>
+                  )}
+                  {booking.cancellation.notes && (
+                    <p className="whitespace-pre-line">
+                      <span className="text-muted-foreground">Notes:</span> {booking.cancellation.notes}
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>

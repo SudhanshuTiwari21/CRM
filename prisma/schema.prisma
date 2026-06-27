@@ -91,6 +91,11 @@ enum AddonType {
   CUSTOM
 }
 
+enum CancellationCategory {
+  B2B
+  B2C
+}
+
 enum CabinClass {
   ECONOMY
   PREMIUM_ECONOMY
@@ -110,6 +115,7 @@ model User {
   assignedBookings Booking[]    @relation("AssignedAgent")
   activityLogs     ActivityLog[]
   creditTransactions CustomerCreditTransaction[] @relation("CreditCreatedBy")
+  cancellations    BookingCancellation[] @relation("CancelledBy")
   accounts         Account[]
   sessions         Session[]
 }
@@ -272,6 +278,7 @@ model Booking {
   whatsappLogs  WhatsAppLog[]
   activityLogs  ActivityLog[]
   creditTransactions CustomerCreditTransaction[]
+  cancellation  BookingCancellation?
 
   @@unique([serialYear, serialNumber])
   @@index([status])
@@ -475,6 +482,30 @@ model ActivityLog {
 
   @@index([bookingId])
   @@index([createdAt])
+}
+
+model BookingCancellation {
+  id               String               @id @default(cuid())
+  bookingId        String               @unique
+  category         CancellationCategory
+  reason           String
+  airlineRefund    Decimal?             @db.Decimal(12, 2)
+  supplierCharges  Decimal?             @db.Decimal(12, 2)
+  agencyCharges    Decimal?             @db.Decimal(12, 2)
+  customerRefund   Decimal?             @db.Decimal(12, 2)
+  cancellationFee  Decimal?             @db.Decimal(12, 2)
+  supplierPenalty  Decimal?             @db.Decimal(12, 2)
+  refundToCredit   Boolean              @default(false)
+  notes            String?
+  cancelledById    String?
+  cancelledAt      DateTime             @default(now())
+  createdAt        DateTime             @default(now())
+
+  booking     Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  cancelledBy User?   @relation("CancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([cancelledAt])
 }
 
 model AgencySettings {

@@ -136,6 +136,7 @@ export function BookingsTable() {
             <SelectItem value="TICKET_SENT">Ticket Sent</SelectItem>
             <SelectItem value="DRAFT">Draft</SelectItem>
             <SelectItem value="FAILED">Failed</SelectItem>
+            <SelectItem value="CANCELLED">Cancelled</SelectItem>
           </SelectContent>
         </Select>
         <Select value={channel} onValueChange={(v) => { setChannel(v); setPage(1); }}>

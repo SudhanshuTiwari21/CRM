@@ -7,6 +7,7 @@ import {
   UserPlus,
   StickyNote,
   Plus,
+  Ban,
 } from "lucide-react";
 
 interface ActivityItem {
@@ -25,6 +26,7 @@ const actionMeta: Record<string, { icon: typeof Plus; color: string; label: stri
   AGENT_ASSIGNED: { icon: UserPlus, color: "text-amber-600 bg-amber-500/10", label: "Agent assigned" },
   NOTE_ADDED: { icon: StickyNote, color: "text-slate-600 bg-slate-500/10", label: "Note added" },
   LIVE_BOOKING_CONFIRMED: { icon: CheckCircle2, color: "text-emerald-600 bg-emerald-500/10", label: "Live booking confirmed" },
+  BOOKING_CANCELLED: { icon: Ban, color: "text-red-600 bg-red-500/10", label: "Booking cancelled" },
 };
 
 export function ActivityFeed({ items }: { items: ActivityItem[] }) {

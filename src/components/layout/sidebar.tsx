@@ -17,6 +17,7 @@ import {
   Building2,
   Calculator,
   Clock,
+  Ban,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
@@ -30,6 +31,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/bookings", label: "Bookings", icon: Plane },
   { href: "/bookings/upcoming-48h", label: "Within 48 hrs", icon: Clock },
+  { href: "/cancellations", label: "Cancellations", icon: Ban },
   { href: "/hotels", label: "Hotels", icon: Building2 },
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/documents", label: "Documents", icon: FileText },
