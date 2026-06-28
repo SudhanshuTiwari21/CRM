@@ -106,6 +106,30 @@ Regards,
   });
 
   await prisma.emailTemplate.upsert({
+    where: { key: "itinerary_voucher" },
+    update: {},
+    create: {
+      key: "itinerary_voucher",
+      subject: "Your Flight Itinerary - {{publicRef}}",
+      body: `Dear {{customerName}},
+
+Thank you for booking with {{companyName}}.
+
+Your flight itinerary and booking voucher are attached. Your PNR will be shared in a separate confirmation once the airline confirms your booking.
+
+Booking ID: {{publicRef}}
+Product: {{productType}}
+Amount: {{amount}}
+
+Please find your booking voucher and invoice attached to this email.
+
+Regards,
+{{companyName}}
+{{companyPhone}}`,
+    },
+  });
+
+  await prisma.emailTemplate.upsert({
     where: { key: "checkin_assistance_reminder" },
     update: {},
     create: {

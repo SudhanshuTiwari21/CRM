@@ -5,13 +5,14 @@ import { sendWhatsAppText } from "@/lib/whatsapp";
 import {
   buildBusConfirmedMessage,
   buildFlightConfirmedMessage,
+  buildFlightItineraryMessage,
   buildGenericConfirmedMessage,
   buildHotelConfirmedMessage,
 } from "@/lib/whatsapp-messages";
 
 async function sendBookingEmail(
   bookingId: string,
-  templateKey: "held_processing" | "booking_confirmed"
+  templateKey: "held_processing" | "booking_confirmed" | "itinerary_voucher"
 ) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
@@ -32,7 +33,7 @@ async function sendBookingEmail(
   };
 
   let attachments;
-  if (templateKey === "booking_confirmed") {
+  if (templateKey === "booking_confirmed" || templateKey === "itinerary_voucher") {
     const paths = await getBookingDocumentPaths(bookingId);
     attachments = await getEmailAttachments(paths);
   }
@@ -46,7 +47,10 @@ async function sendBookingEmail(
   });
 }
 
-async function sendBookingWhatsApp(bookingId: string) {
+async function sendBookingWhatsApp(
+  bookingId: string,
+  mode: "confirmed" | "itinerary" = "confirmed"
+) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
     include: {
@@ -79,12 +83,20 @@ async function sendBookingWhatsApp(bookingId: string) {
       hotel: booking.hotelBooking,
     });
   } else if (booking.productType === "FLIGHT" && booking.flightBooking) {
-    body = buildFlightConfirmedMessage({
-      agency,
-      booking,
-      customer: booking.customer,
-      flight: booking.flightBooking,
-    });
+    body =
+      mode === "itinerary"
+        ? buildFlightItineraryMessage({
+            agency,
+            booking,
+            customer: booking.customer,
+            flight: booking.flightBooking,
+          })
+        : buildFlightConfirmedMessage({
+            agency,
+            booking,
+            customer: booking.customer,
+            flight: booking.flightBooking,
+          });
   } else if (booking.productType === "BUS" && booking.busBooking) {
     body = buildBusConfirmedMessage({
       agency,
@@ -104,14 +116,14 @@ async function sendBookingWhatsApp(bookingId: string) {
     to: booking.customer.phone,
     body,
     bookingId,
-    template: "booking_confirmed",
+    template: mode === "itinerary" ? "itinerary_voucher" : "booking_confirmed",
   });
 }
 
-/** Send email and WhatsApp in parallel. WhatsApp only on confirmed bookings. */
+/** Send email and WhatsApp. Flight itinerary voucher on create; PNR confirmation after confirm. */
 export async function sendBookingNotifications(
   bookingId: string,
-  templateKey: "held_processing" | "booking_confirmed"
+  templateKey: "held_processing" | "booking_confirmed" | "itinerary_voucher"
 ) {
   const emailResult = await sendBookingEmail(bookingId, templateKey);
 
@@ -121,9 +133,11 @@ export async function sendBookingNotifications(
     | undefined;
 
   if (templateKey === "booking_confirmed") {
-    whatsappResult = await sendBookingWhatsApp(bookingId);
+    whatsappResult = await sendBookingWhatsApp(bookingId, "confirmed");
+  } else if (templateKey === "itinerary_voucher") {
+    whatsappResult = await sendBookingWhatsApp(bookingId, "itinerary");
   } else {
-    whatsappResult = { skipped: true, reason: "WhatsApp is only sent for confirmed bookings (with PNR)." };
+    whatsappResult = { skipped: true, reason: "WhatsApp is only sent for flight vouchers and confirmed bookings." };
   }
 
   return { email: emailResult, whatsapp: whatsappResult };

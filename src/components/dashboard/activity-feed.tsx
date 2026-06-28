@@ -27,6 +27,7 @@ const actionMeta: Record<string, { icon: typeof Plus; color: string; label: stri
   NOTE_ADDED: { icon: StickyNote, color: "text-slate-600 bg-slate-500/10", label: "Note added" },
   LIVE_BOOKING_CONFIRMED: { icon: CheckCircle2, color: "text-emerald-600 bg-emerald-500/10", label: "Live booking confirmed" },
   BOOKING_CANCELLED: { icon: Ban, color: "text-red-600 bg-red-500/10", label: "Booking cancelled" },
+  ITINERARY_VOUCHER_SENT: { icon: Mail, color: "text-sky-600 bg-sky-500/10", label: "Itinerary voucher sent" },
 };
 
 export function ActivityFeed({ items }: { items: ActivityItem[] }) {

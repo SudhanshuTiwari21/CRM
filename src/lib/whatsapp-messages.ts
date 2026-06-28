@@ -141,6 +141,48 @@ export function buildFlightConfirmedMessage(params: {
   return lines.filter((l) => l !== null).join("\n");
 }
 
+export function buildFlightItineraryMessage(params: {
+  agency: AgencySettings;
+  booking: Booking;
+  customer: Customer;
+  flight: FlightBooking;
+}) {
+  const { agency, booking, customer, flight } = params;
+  const segments = flight.segments as unknown as FlightSegment[];
+  const passengers = flight.passengers as unknown as { firstName: string; lastName: string }[];
+  const paxCount = passengers.length;
+
+  const lines = [
+    `*Dear ${firstName(customer.name)}*,`,
+    "",
+    `Thank you for choosing ${agency.companyName}. Your flight *itinerary* is ready ✈️`,
+    "",
+    `*Booking ID*: ${booking.publicRef}`,
+    "",
+    `*PNR*: Pending — will be shared once confirmed`,
+    "",
+    `*Airline*: ${flight.airline}`,
+    "",
+    `*Route*: ${buildFullRoute(segments)} (${itineraryBadgeLabel(flight.tripType, segments)})`,
+    "",
+    `*Sector*: ${buildSector(segments, flight.tripType)}`,
+    "",
+    `*Travel Date*: ${buildTravelDate(segments)}`,
+    "",
+    `*Passengers*: ${paxCount}`,
+    "",
+    `*Amount*: ${formatInr(Number(booking.totalAmount))}`,
+    "",
+    "Your booking voucher and invoice have been sent to your email.",
+    "",
+    "We will send a separate confirmation with your PNR once the airline confirms.",
+    "",
+    `Team ${agency.companyName}`,
+  ];
+
+  return lines.join("\n");
+}
+
 export function buildBusConfirmedMessage(params: {
   agency: AgencySettings;
   booking: Booking;

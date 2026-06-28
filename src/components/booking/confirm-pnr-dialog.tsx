@@ -62,7 +62,9 @@ export function ConfirmPnrDialog({
       }
 
       toast.success(
-        isHotel ? "Supplier confirmation saved! Voucher sent to customer." : "PNR confirmed! Documents generated and email sent."
+        isHotel
+          ? "Supplier confirmation saved! Voucher sent to customer."
+          : "PNR confirmed! Confirmation email sent to customer."
       );
       setOpen(false);
       router.refresh();
@@ -93,12 +95,12 @@ export function ConfirmPnrDialog({
           </DialogTitle>
           <DialogDescription>
             {resume
-              ? "PNR was saved but ticket generation failed. Click below to generate PDFs and send the confirmation email."
+              ? "PNR was saved but ticket generation failed. Click below to regenerate PDFs and send the PNR confirmation."
               : isHotel
                 ? hotelPendingSupplier
                   ? "Enter the hotel supplier confirmation number. This will regenerate the voucher and resend it to the customer."
                   : "Enter the confirmed supplier number from the hotel operator."
-                : "Enter the confirmed PNR from the airline/hotel/bus operator. This will generate tickets and send confirmation email."}
+                : "Enter the airline PNR. A separate confirmation email with PNR will be sent. The booking voucher was already emailed when the itinerary was created."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -136,7 +138,7 @@ export function ConfirmPnrDialog({
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {resume || hotelPendingSupplier ? "Regenerate & Send Voucher" : isHotel ? "Confirm & Send Voucher" : "Confirm & Send Ticket"}
+            {resume || hotelPendingSupplier ? "Regenerate & Send Voucher" : isHotel ? "Confirm & Send Voucher" : "Confirm PNR & Send Email"}
           </Button>
         </form>
       </DialogContent>

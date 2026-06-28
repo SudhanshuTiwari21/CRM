@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/booking/status-badge";
 import { ConfirmPnrDialog } from "@/components/booking/confirm-pnr-dialog";
 import { AdminBookingToolbar } from "@/components/booking/admin-booking-toolbar";
-import { SendItineraryDialog } from "@/components/booking/send-itinerary-dialog";
 import { BookingQuickActions } from "@/components/booking/booking-quick-actions";
 import { CHANNEL_LABELS, PRODUCT_LABELS } from "@/lib/constants";
 import { formatCurrency, formatDateTime, formatDate } from "@/lib/utils";
@@ -98,9 +97,6 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 isHotel={isHotel}
                 hotelPendingSupplier={isHotel && !booking.hotelBooking?.confirmationNo}
               />
-            )}
-            {isFlight && booking.status === "PROCESSING" && (
-              <SendItineraryDialog bookingId={booking.id} isRoundTrip={isRoundTrip} />
             )}
             <AdminBookingToolbar
               bookingId={booking.id}

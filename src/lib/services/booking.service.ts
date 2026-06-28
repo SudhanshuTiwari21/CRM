@@ -407,6 +407,18 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
 
   if (input.productType === "FLIGHT") {
     const flightInput = input as OfflineFlightBookingInput;
+    try {
+      await generateBookingDocuments(booking.id, userId);
+      await sendBookingNotifications(booking.id, "itinerary_voucher");
+      await logActivity({
+        bookingId: booking.id,
+        userId: userId && userId !== "bypass" ? userId : undefined,
+        action: "ITINERARY_VOUCHER_SENT",
+        details: { channel: "OFFLINE" },
+      });
+    } catch (err) {
+      console.error("Failed to send itinerary voucher:", err);
+    }
     if (flightInput.checkInAssistance) {
       try {
         await maybeSendImmediateCheckInAssistanceAlert(booking.id);
@@ -727,12 +739,18 @@ export async function sendItineraryWithPnr(
 }
 
 export async function resendBookingEmail(bookingId: string, userId: string) {
-  const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { documents: true },
+  });
   if (!booking) throw new Error("Booking not found");
 
-  const templateKey = ["CONFIRMED", "TICKET_SENT"].includes(booking.status)
-    ? "booking_confirmed"
-    : "held_processing";
+  const templateKey =
+    ["CONFIRMED", "TICKET_SENT"].includes(booking.status) || booking.pnr
+      ? "booking_confirmed"
+      : booking.documents.length > 0 && booking.productType === "FLIGHT"
+        ? "itinerary_voucher"
+        : "held_processing";
 
   const results = await sendBookingNotifications(bookingId, templateKey);
 
