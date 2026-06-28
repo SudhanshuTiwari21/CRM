@@ -1,14 +1,16 @@
 import React from "react";
 import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import type { AgencySettings, Booking, FlightBooking } from "@prisma/client";
+import type { AgencySettings, Booking, Customer, FlightBooking } from "@prisma/client";
 import type { CabinClass } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { getAirportDisplay } from "@/lib/airport-names";
 import { resolveSegmentAirline } from "@/lib/airline-logo";
 import { computeLayoverDuration } from "@/lib/flight-layover";
+import { formatBillingAddress } from "@/lib/cash-customer";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
 import { getVoucherTermsContent } from "@/templates/pdf/voucher-terms";
 import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
+import { formatPassportDate } from "@/lib/passport-dates";
 
 const NAVY = "#1a2d3e";
 const MUTED = "#5c6b7a";
@@ -76,6 +78,7 @@ const styles = StyleSheet.create({
   termsIntro: { fontSize: 9.5, marginBottom: 14, color: "#2a3a4a" },
   termsSectionHeading: { fontFamily: "Helvetica-Bold", fontSize: 9.5, marginTop: 12, marginBottom: 6, color: NAVY },
   termsParagraph: { fontSize: 9, marginBottom: 8, color: "#2a3a4a", lineHeight: 1.5 },
+  policyText: { fontSize: 9, color: "#4b5563", lineHeight: 1.45, marginBottom: 12 },
   termsItem: { fontSize: 9, marginBottom: 6, color: "#2a3a4a", lineHeight: 1.5 },
   termsItemLabel: { fontFamily: "Helvetica-Bold" },
   termsClosing: { fontFamily: "Helvetica-Bold", fontSize: 10, marginTop: 16, color: NAVY },
@@ -201,6 +204,7 @@ interface Props {
   agency: AgencySettings;
   booking: Booking;
   flight: FlightBooking;
+  customer: Pick<Customer, "name" | "phone" | "email" | "pan" | "gstin" | "address" | "city" | "state" | "pincode">;
   segments: FlightSegment[];
   passengers: FlightPassenger[];
   logoSrc?: string | null;
@@ -255,6 +259,7 @@ export function FlightTicketPDF({
   agency,
   booking,
   flight,
+  customer,
   segments,
   passengers,
   logoSrc,
@@ -262,6 +267,7 @@ export function FlightTicketPDF({
   segmentAirlineLogoSrcs,
 }: Props) {
   const pnr = booking.pnr || "—";
+  const billingAddress = formatBillingAddress(customer);
   const baseFare = Number(flight.baseFare || 0);
   const taxes = Number(flight.cgstAmount || 0) + Number(flight.sgstAmount || 0) + Number(flight.igstAmount || 0);
   const discount = Number(flight.discountAmount || 0);
@@ -281,6 +287,18 @@ export function FlightTicketPDF({
         <React.Fragment key={`pax-${pIdx}`}>
           <Page size="A4" style={styles.page}>
             <AgencyHeader agency={agency} logoSrc={logoSrc} />
+            {(billingAddress || customer.pan || customer.gstin) && (
+              <>
+                <Text style={styles.sectionTitle}>Billing Details</Text>
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={styles.detailValue}>{customer.name}</Text>
+                  {billingAddress ? <Text style={styles.timeLine}>{billingAddress}</Text> : null}
+                  {customer.gstin ? <Text style={styles.timeLine}>GSTIN: {customer.gstin}</Text> : null}
+                  {customer.pan ? <Text style={styles.timeLine}>PAN: {customer.pan}</Text> : null}
+                  {customer.phone ? <Text style={styles.timeLine}>Contact: {customer.phone}</Text> : null}
+                </View>
+              </>
+            )}
             <Text style={styles.sectionTitle}>Traveler Details</Text>
             <View style={styles.detailGrid}>
               <View style={styles.detailCell}>
@@ -299,8 +317,28 @@ export function FlightTicketPDF({
               </View>
               <View style={styles.detailCell}>
                 <Text style={styles.detailLabel}>Date of Birth</Text>
-                <Text style={styles.detailValue}>—</Text>
+                <Text style={styles.detailValue}>{formatPassportDate(pax.dateOfBirth)}</Text>
               </View>
+              {pax.passportNumber ? (
+                <>
+                  <View style={styles.detailCell}>
+                    <Text style={styles.detailLabel}>Passport No</Text>
+                    <Text style={styles.detailValue}>{pax.passportNumber}</Text>
+                  </View>
+                  <View style={styles.detailCell}>
+                    <Text style={styles.detailLabel}>Passport Country</Text>
+                    <Text style={styles.detailValue}>{pax.passportIssuingCountry || "—"}</Text>
+                  </View>
+                  <View style={styles.detailCell}>
+                    <Text style={styles.detailLabel}>Passport Issue</Text>
+                    <Text style={styles.detailValue}>{formatPassportDate(pax.passportIssueDate)}</Text>
+                  </View>
+                  <View style={styles.detailCell}>
+                    <Text style={styles.detailLabel}>Passport Expiry</Text>
+                    <Text style={styles.detailValue}>{formatPassportDate(pax.passportExpiryDate)}</Text>
+                  </View>
+                </>
+              ) : null}
             </View>
             <Text style={styles.sectionTitle}>{isAddon ? "Add-on Service Details" : "Flight Details"}</Text>
             {isAddon ? (
@@ -385,6 +423,12 @@ export function FlightTicketPDF({
               </View>
             </View>
             </>
+            )}
+            {flight.includeCancellationPolicy && flight.cancellationPolicy && (
+              <>
+                <Text style={styles.sectionTitle}>Cancellation Policy</Text>
+                <Text style={styles.policyText}>{flight.cancellationPolicy}</Text>
+              </>
             )}
             <Text style={styles.sectionTitle}>Payment Information</Text>
             <View style={styles.paymentBox}>

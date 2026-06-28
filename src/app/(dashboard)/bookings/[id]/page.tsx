@@ -16,6 +16,12 @@ import { buildAdultBaseFareLines, passengerDisplayName } from "@/lib/flight-fare
 import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
 import { buildSectorSummary, connectionGapText, connectionGapTitle, itineraryBadgeLabel } from "@/lib/flight-layover";
 import { resolveCancellationCategory, computeB2BNetRefund } from "@/lib/cancellation-category";
+import { getBookingCustomerContact, formatBillingAddress } from "@/lib/cash-customer";
+import { passengerHasFrequentFlyer } from "@/lib/frequent-flyer";
+import { passengerNeedsWheelchair } from "@/lib/special-assistance";
+import { formatPassportDate } from "@/lib/passport-dates";
+import { FreqFlyerStatusPanel } from "@/components/booking/freq-flyer-status-panel";
+import { SpecialAssistanceStatusPanel } from "@/components/booking/special-assistance-status-panel";
 import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -71,6 +77,9 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
       ? resolveCancellationCategory(booking)
       : undefined;
 
+  const displayCustomer = getBookingCustomerContact(booking);
+  const billingAddress = formatBillingAddress(displayCustomer);
+
   return (
     <div>
       <div className="mb-4">
@@ -103,6 +112,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               publicRef={booking.publicRef}
               productType={booking.productType}
               status={booking.status}
+              paymentStatus={booking.paymentStatus}
               pnr={booking.pnr}
               internalNotes={booking.internalNotes}
               totalAmount={Number(booking.totalAmount)}
@@ -117,6 +127,8 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
       <div className="mb-6 flex flex-wrap gap-3">
         <StatusBadge status={booking.status} />
+        {booking.billingType === "CASH" && <Badge variant="secondary">Cash Bill</Badge>}
+        {booking.billingType === "LEDGER" && <Badge variant="outline">Ledger Bill</Badge>}
         {booking.pnr && <Badge variant="info">PNR: {booking.pnr}</Badge>}
         <Badge variant="outline">{formatCurrency(booking.totalAmount)}</Badge>
         <Badge variant="outline">Payment: {booking.paymentStatus}</Badge>
@@ -138,12 +150,26 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             <Card>
               <CardHeader><CardTitle className="text-base">Customer</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <p><span className="text-muted-foreground">Name:</span> {booking.customer.name}</p>
-                <p><span className="text-muted-foreground">Phone:</span> {booking.customer.phone}</p>
-                <p><span className="text-muted-foreground">Email:</span> {booking.customer.email || "—"}</p>
+                <p><span className="text-muted-foreground">Name:</span> {displayCustomer.name}</p>
+                <p><span className="text-muted-foreground">Phone:</span> {displayCustomer.phone}</p>
+                <p><span className="text-muted-foreground">Email:</span> {displayCustomer.email || "—"}</p>
+                {displayCustomer.gstin && (
+                  <p><span className="text-muted-foreground">GSTIN:</span> {displayCustomer.gstin}</p>
+                )}
+                {displayCustomer.pan && (
+                  <p><span className="text-muted-foreground">PAN:</span> {displayCustomer.pan}</p>
+                )}
+                {billingAddress && (
+                  <p><span className="text-muted-foreground">Billing Address:</span> {billingAddress}</p>
+                )}
+                {booking.billingType === "LEDGER" && (
                 <Link href={`/customers/${booking.customer.id}`} className="text-primary text-sm hover:underline">
                   View customer profile →
                 </Link>
+                )}
+                {booking.billingType === "CASH" && (
+                  <p className="text-xs text-muted-foreground">Cash walk-in — no ledger profile</p>
+                )}
               </CardContent>
             </Card>
             <Card>
@@ -159,6 +185,30 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               </CardContent>
             </Card>
           </div>
+          {booking.flightBooking && (
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader><CardTitle className="text-base">Frequent Flyer</CardTitle></CardHeader>
+                <CardContent>
+                  <FreqFlyerStatusPanel
+                    bookingId={booking.id}
+                    passengers={flightPassengers}
+                    updatedToAirline={booking.flightBooking.freqFlyerUpdatedToAirline}
+                  />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle className="text-base">Special Assistance</CardTitle></CardHeader>
+                <CardContent>
+                  <SpecialAssistanceStatusPanel
+                    bookingId={booking.id}
+                    passengers={flightPassengers}
+                    updatedToAirline={booking.flightBooking.specialAssistanceUpdatedToAirline}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="itinerary">
@@ -274,6 +324,24 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                       <div>
                         <p className="font-medium">{p.title} {p.firstName} {p.lastName}</p>
                         <p className="text-sm text-muted-foreground">{p.gender}</p>
+                        {passengerHasFrequentFlyer(p) && (
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            FF: {p.frequentFlyerAirline || "—"} · {p.frequentFlyerNumber || "—"}
+                          </p>
+                        )}
+                        {passengerNeedsWheelchair(p) && (
+                          <p className="mt-1 text-sm text-violet-700 dark:text-violet-300">
+                            Wheelchair assistance requested
+                          </p>
+                        )}
+                        {(p.dateOfBirth || p.passportNumber) && (
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            DOB: {formatPassportDate(p.dateOfBirth)}
+                            {p.passportNumber
+                              ? ` · Passport: ${p.passportNumber} (${p.passportIssuingCountry || "—"}) · Exp: ${formatPassportDate(p.passportExpiryDate)}`
+                              : ""}
+                          </p>
+                        )}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         Seat: {p.seat || "—"} | Baggage: {p.checkInBaggage || "15 KG"}

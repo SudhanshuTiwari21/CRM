@@ -4,6 +4,7 @@ import { createCustomerSchema } from "@/lib/validators/customer";
 import { createCustomerRecord, customerListInclude } from "@/lib/services/customer.service";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api-utils";
 import type { Prisma } from "@prisma/client";
+import { CASH_WALK_IN_PHONE } from "@/lib/cash-customer";
 
 export async function GET(request: Request) {
   try {
@@ -15,17 +16,20 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = parseInt(searchParams.get("limit") || "20", 10);
 
-    const where: Prisma.CustomerWhereInput = search
-      ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" } },
-            { phone: { contains: search } },
-            { email: { contains: search, mode: "insensitive" } },
-            { pan: { contains: search, mode: "insensitive" } },
-            { gstin: { contains: search, mode: "insensitive" } },
-          ],
-        }
-      : {};
+    const where: Prisma.CustomerWhereInput = {
+      phone: { not: CASH_WALK_IN_PHONE },
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" } },
+              { phone: { contains: search } },
+              { email: { contains: search, mode: "insensitive" } },
+              { pan: { contains: search, mode: "insensitive" } },
+              { gstin: { contains: search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    };
 
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
@@ -61,7 +65,8 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const data = createCustomerSchema.parse(body);
-    const customer = await createCustomerRecord(data);
+    const isAdmin = session.user.role === "ADMIN";
+    const customer = await createCustomerRecord(data, { creditLimitAllowed: isAdmin });
 
     return jsonOk(customer, 201);
   } catch (error) {

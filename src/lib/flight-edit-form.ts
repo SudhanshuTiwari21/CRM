@@ -30,7 +30,7 @@ const segmentEditSchema = z.object({
 const passengerEditSchema = z.object({
   title: z.string(),
   firstName: z.string(),
-  lastName: z.string(),
+  lastName: z.string().optional(),
   gender: z.string(),
   paxType: z.enum(["adult", "child", "infant"]).optional(),
   ticketNumber: z.string().optional(),
@@ -41,6 +41,14 @@ const passengerEditSchema = z.object({
   baggagePreset: z.string().optional(),
   cabinBaggagePreset: z.string().optional(),
   baseFare: z.coerce.number().min(0).optional(),
+  frequentFlyerAirline: z.string().optional(),
+  frequentFlyerNumber: z.string().optional(),
+  wheelchairAssistance: z.boolean().optional(),
+  dateOfBirth: z.string().optional(),
+  passportNumber: z.string().optional(),
+  passportIssuingCountry: z.string().optional(),
+  passportIssueDate: z.string().optional(),
+  passportExpiryDate: z.string().optional(),
 });
 
 export const flightEditFormSchema = z.object({
@@ -79,6 +87,10 @@ export const flightEditFormSchema = z.object({
   discountAmount: z.coerce.number().min(0).optional(),
   invoiceNarration: z.string().optional(),
   msmeNumber: z.string().optional(),
+  cancellationPolicy: z.string().optional(),
+  includeCancellationPolicy: z.boolean().optional(),
+  freqFlyerUpdatedToAirline: z.boolean().optional(),
+  specialAssistanceUpdatedToAirline: z.boolean().optional(),
 });
 
 export type FlightEditFormValues = z.infer<typeof flightEditFormSchema>;
@@ -173,6 +185,10 @@ export function buildFlightEditFormValues(
     discountAmount: Number(flight.discountAmount || 0),
     invoiceNarration: flight.invoiceNarration || "",
     msmeNumber: flight.msmeNumber || "",
+    cancellationPolicy: flight.cancellationPolicy || "",
+    includeCancellationPolicy: flight.includeCancellationPolicy,
+    freqFlyerUpdatedToAirline: flight.freqFlyerUpdatedToAirline,
+    specialAssistanceUpdatedToAirline: flight.specialAssistanceUpdatedToAirline,
   };
 }
 
@@ -220,6 +236,10 @@ export function normalizeFlightEditPayload(data: FlightEditFormValues) {
     discountAmount: data.discountAmount ?? 0,
     invoiceNarration: data.invoiceNarration?.trim() || undefined,
     msmeNumber: data.msmeNumber?.trim() || undefined,
+    cancellationPolicy: data.cancellationPolicy?.trim() || undefined,
+    includeCancellationPolicy: data.includeCancellationPolicy || false,
+    freqFlyerUpdatedToAirline: data.freqFlyerUpdatedToAirline,
+    specialAssistanceUpdatedToAirline: data.specialAssistanceUpdatedToAirline,
     regenerateDocuments: true,
   };
 }

@@ -15,6 +15,7 @@ import {
   getStateCodeFromGstin,
 } from "@/lib/gst-calculator";
 import { getAdultPassengers, passengerDisplayName, sumAdultBaseFares } from "@/lib/flight-fare-breakup";
+import { FormSettingToggle } from "@/components/booking/edit-form-section";
 
 interface FlightInvoiceFieldsProps {
   form: UseFormReturn<WizardForm>;
@@ -147,9 +148,9 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
               )}
             </div>
             <p className="text-xs text-muted-foreground">Fare reimbursement per adult — shown as separate lines on the tax invoice.</p>
-            {adults.map((p) => {
+            {adults.map((p, adultIdx) => {
               const passengerIndex = passengers.indexOf(p);
-              const label = passengerDisplayName(p) || `Adult ${passengerIndex + 1}`;
+              const label = passengerDisplayName(p) || `Adult ${adultIdx + 1}`;
               return (
                 <div key={`adult-fare-${passengerIndex}`} className="space-y-2">
                   <Label>{label}</Label>
@@ -248,23 +249,12 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
         </p>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border p-3">
-        <div>
-          <Label>Show passenger name on invoice</Label>
-          <p className="text-xs text-muted-foreground">Hide passenger name for privacy on B2B invoices</p>
-        </div>
-        <Button
-          type="button"
-          variant={form.watch("showPassengerName") !== false ? "default" : "outline"}
-          size="sm"
-          onClick={() => {
-            const show = form.watch("showPassengerName") !== false;
-            form.setValue("showPassengerName", !show);
-          }}
-        >
-          {form.watch("showPassengerName") !== false ? "Yes" : "No"}
-        </Button>
-      </div>
+      <FormSettingToggle
+        label="Show passenger name on invoice"
+        description="Hide passenger name for privacy on B2B invoices"
+        checked={form.watch("showPassengerName") !== false}
+        onCheckedChange={(v) => form.setValue("showPassengerName", v)}
+      />
 
       <input type="hidden" {...form.register("totalAmount")} />
     </div>

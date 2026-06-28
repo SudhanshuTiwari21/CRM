@@ -25,6 +25,20 @@ export const adminBookingUpdateSchema = z.object({
   invoiceTaxType: z.enum(["ITC", "NON_ITC"]).optional(),
   buyerGstin: z.string().optional(),
   msmeNumber: z.string().optional(),
+  cancellationPolicy: z.string().optional(),
+  includeCancellationPolicy: z.boolean().optional(),
+  freqFlyerUpdatedToAirline: z.boolean().optional(),
+  specialAssistanceUpdatedToAirline: z.boolean().optional(),
+  paymentStatus: z.enum(["PAID"]).optional(),
+  paymentMethod: z.string().min(1).optional(),
+}).superRefine((data, ctx) => {
+  if (data.paymentStatus === "PAID" && !data.paymentMethod?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Payment method is required when marking as paid",
+      path: ["paymentMethod"],
+    });
+  }
 });
 
 export const customerCreditSettingsSchema = z.object({

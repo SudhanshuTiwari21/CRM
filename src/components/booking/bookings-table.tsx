@@ -18,6 +18,9 @@ import { Badge } from "@/components/ui/badge";
 import { CHANNEL_LABELS, PRODUCT_LABELS } from "@/lib/constants";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import type { BookingStatus, BookingChannel, ProductType } from "@prisma/client";
+import type { FlightPassenger } from "@/types/booking";
+import { freqFlyerStatusLabel } from "@/lib/frequent-flyer";
+import { specialAssistanceStatusLabel } from "@/lib/special-assistance";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { parseApiResponse } from "@/lib/parse-api-response";
 
@@ -32,6 +35,11 @@ interface BookingRow {
   createdAt: string;
   customer: { name: string; phone: string };
   assignedAgent?: { name: string } | null;
+  flightBooking?: {
+    freqFlyerUpdatedToAirline: boolean;
+    specialAssistanceUpdatedToAirline: boolean;
+    passengers: unknown;
+  } | null;
 }
 
 const columnHelper = createColumnHelper<BookingRow>();
@@ -61,6 +69,46 @@ const columns = [
   columnHelper.accessor("status", {
     header: "Status",
     cell: (info) => <StatusBadge status={info.getValue()} />,
+  }),
+  columnHelper.display({
+    id: "freqFlyerUpdated",
+    header: "FF Updated to Airline",
+    cell: ({ row }) => {
+      const fb = row.original.flightBooking;
+      if (!fb || row.original.productType !== "FLIGHT") {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      const passengers = (fb.passengers as FlightPassenger[]) || [];
+      const status = freqFlyerStatusLabel("FLIGHT", passengers, fb.freqFlyerUpdatedToAirline);
+      if (status === "na") return <span className="text-muted-foreground">—</span>;
+      return (
+        <Badge variant={status === "yes" ? "success" : "warning"} className="font-normal">
+          {status === "yes" ? "Yes" : "No"}
+        </Badge>
+      );
+    },
+  }),
+  columnHelper.display({
+    id: "specialAssistanceUpdated",
+    header: "Assistance Updated",
+    cell: ({ row }) => {
+      const fb = row.original.flightBooking;
+      if (!fb || row.original.productType !== "FLIGHT") {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      const passengers = (fb.passengers as FlightPassenger[]) || [];
+      const status = specialAssistanceStatusLabel(
+        "FLIGHT",
+        passengers,
+        fb.specialAssistanceUpdatedToAirline
+      );
+      if (status === "na") return <span className="text-muted-foreground">—</span>;
+      return (
+        <Badge variant={status === "yes" ? "success" : "warning"} className="font-normal">
+          {status === "yes" ? "Yes" : "No"}
+        </Badge>
+      );
+    },
   }),
   columnHelper.accessor("totalAmount", {
     header: "Amount",

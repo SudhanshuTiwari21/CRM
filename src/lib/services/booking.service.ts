@@ -10,6 +10,8 @@ import { upsertAirlineProfile } from "./airline.service";
 import { getAirlineLogoUrl, resolveAirlineIata } from "@/lib/airline-logo";
 import { toDbAddonType, validateAddonBooking } from "@/lib/flight-addon";
 import { assertCreditAvailable, recordCreditTransaction } from "./credit.service";
+import { upsertCustomerFromBooking, getOrCreateCashWalkInCustomer } from "./customer.service";
+import type { CashCustomerSnapshot } from "@/lib/cash-customer";
 import type {
   BookingChannel,
   BookingStatus,
@@ -31,32 +33,60 @@ type OfflineBookingInput = z.infer<typeof offlineBookingSchema>;
 type OfflineFlightBookingInput = z.infer<typeof offlineFlightBookingSchema>;
 type WebhookBookingInput = z.infer<typeof webhookLiveBookingSchema>;
 
-async function upsertCustomer(customer: {
-  name: string;
-  email?: string;
-  phone: string;
-  gstin?: string;
-  address?: string;
-  state?: string;
+async function resolveBookingCustomer(input: {
+  billingType: "CASH" | "LEDGER";
+  ledgerMode?: "EXISTING" | "NEW";
+  customerId?: string;
+  customer?: {
+    name: string;
+    email?: string;
+    phone: string;
+    pan?: string;
+    gstin?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
 }) {
-  const existing = await prisma.customer.findFirst({
-    where: { phone: customer.phone },
-  });
-
-  if (existing) {
-    return prisma.customer.update({
-      where: { id: existing.id },
-      data: {
-        name: customer.name,
-        email: customer.email || existing.email,
-        gstin: customer.gstin || existing.gstin,
-        address: customer.address || existing.address,
-        state: customer.state || existing.state,
-      },
-    });
+  if (input.billingType === "CASH") {
+    if (!input.customer) throw new Error("Customer contact is required for cash bill");
+    const walkIn = await getOrCreateCashWalkInCustomer();
+    const cashCustomer: CashCustomerSnapshot = {
+      name: input.customer.name,
+      phone: input.customer.phone,
+      email: input.customer.email || null,
+      pan: input.customer.pan?.toUpperCase() || null,
+      gstin: input.customer.gstin || null,
+      address: input.customer.address || null,
+      city: input.customer.city || null,
+      state: input.customer.state || null,
+      pincode: input.customer.pincode || null,
+    };
+    return {
+      customer: walkIn,
+      billingType: "CASH" as const,
+      metadata: { cashCustomer } as Prisma.InputJsonValue,
+    };
   }
 
-  return prisma.customer.create({ data: customer });
+  if (input.ledgerMode === "EXISTING" && input.customerId) {
+    const existing = await prisma.customer.findUnique({ where: { id: input.customerId } });
+    if (!existing) throw new Error("Selected customer not found");
+    return {
+      customer: existing,
+      billingType: "LEDGER" as const,
+      metadata: undefined,
+    };
+  }
+
+  if (!input.customer) throw new Error("Customer details are required");
+  const customer = await upsertCustomerFromBooking(input.customer);
+  return {
+    customer,
+    billingType: "LEDGER" as const,
+    metadata: undefined,
+  };
 }
 
 async function getAgencyStateCode() {
@@ -98,17 +128,21 @@ function validateFlightInvoice(input: OfflineFlightBookingInput, agencyHasGst: b
   }
 }
 
-function buildFlightTaxData(input: OfflineFlightBookingInput, agencyStateCode: string | null) {
+function buildFlightTaxData(
+  input: OfflineFlightBookingInput,
+  agencyStateCode: string | null,
+  customerContact: { gstin?: string | null; state?: string | null }
+) {
   const buyerGstin =
     input.invoiceTaxType === "ITC"
-      ? (input.buyerGstin || input.customer.gstin || "").toUpperCase() || null
-      : (input.buyerGstin || input.customer.gstin || "").toUpperCase() || null;
+      ? (input.buyerGstin || customerContact.gstin || "").toUpperCase() || null
+      : (input.buyerGstin || customerContact.gstin || "").toUpperCase() || null;
 
   const tax = calculateFlightGst({
     serviceCharge: input.serviceCharge,
     agencyStateCode,
     buyerGstin,
-    buyerState: input.customer.state,
+    buyerState: customerContact.state,
     invoiceTaxType: input.invoiceTaxType,
   });
 
@@ -160,7 +194,12 @@ function buildFlightTaxData(input: OfflineFlightBookingInput, agencyStateCode: s
 }
 
 export async function createOfflineBooking(input: OfflineBookingInput, userId?: string) {
-  const customer = await upsertCustomer(input.customer);
+  const { customer, billingType, metadata } = await resolveBookingCustomer({
+    billingType: input.billingType,
+    ledgerMode: input.ledgerMode,
+    customerId: input.customerId,
+    customer: input.customer,
+  });
   const isCredit = input.paymentMethod === "CREDIT";
   let totalForCredit = input.totalAmount;
 
@@ -170,7 +209,10 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
     const flightInput = input as OfflineFlightBookingInput;
     if (agencyHasGst) {
       const agencyStateCode = getStateCodeFromGstin(agency?.gstin);
-      totalForCredit = buildFlightTaxData(flightInput, agencyStateCode).totalAmount;
+      totalForCredit = buildFlightTaxData(flightInput, agencyStateCode, {
+        gstin: input.customer?.gstin ?? customer.gstin,
+        state: input.customer?.state ?? customer.state,
+      }).totalAmount;
     }
   }
 
@@ -202,12 +244,14 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
       serialNumber,
       channel: "OFFLINE" as BookingChannel,
       productType: input.productType as ProductType,
+      billingType,
       status: "PROCESSING" as BookingStatus,
       paymentStatus,
       totalAmount: input.totalAmount,
       customerId: customer.id,
       assignedAgentId,
       internalNotes: input.internalNotes,
+      metadata,
     };
 
     let created;
@@ -237,10 +281,15 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
         invoiceNarration: flightInput.invoiceNarration || null,
         msmeNumber: flightInput.msmeNumber || null,
         invoiceTaxType: flightInput.invoiceTaxType,
+        cancellationPolicy: flightInput.cancellationPolicy?.trim() || null,
+        includeCancellationPolicy: flightInput.includeCancellationPolicy || false,
       });
 
       if (agencyHasGst) {
-        const built = buildFlightTaxData(flightInput, agencyStateCode);
+        const built = buildFlightTaxData(flightInput, agencyStateCode, {
+          gstin: input.customer?.gstin ?? customer.gstin,
+          state: input.customer?.state ?? customer.state,
+        });
         totalAmount = built.totalAmount;
         flightData = { ...flightData, ...built.flightData };
       }
@@ -432,7 +481,7 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
 }
 
 export async function createHeldBooking(input: WebhookBookingInput) {
-  const customer = await upsertCustomer(input.customer);
+  const customer = await upsertCustomerFromBooking(input.customer);
   const { publicRef, serialYear, serialNumber } = await allocatePublicRef();
 
   const booking = await createBookingFromWebhook({
@@ -450,7 +499,7 @@ export async function createHeldBooking(input: WebhookBookingInput) {
 }
 
 export async function createLiveBooking(input: WebhookBookingInput) {
-  const customer = await upsertCustomer(input.customer);
+  const customer = await upsertCustomerFromBooking(input.customer);
   const { publicRef, serialYear, serialNumber } = await allocatePublicRef();
 
   let pnr: string | undefined;

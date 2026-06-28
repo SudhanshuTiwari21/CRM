@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { sendTemplatedEmail, getEmailAttachments } from "@/lib/mailer";
 import { getBookingDocumentPaths } from "./document.service";
+import { getBookingCustomerContact } from "@/lib/cash-customer";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import {
   buildBusConfirmedMessage,
@@ -20,10 +21,11 @@ async function sendBookingEmail(
   });
   const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
 
-  if (!booking?.customer.email) return { skipped: true as const };
+  const contact = booking ? getBookingCustomerContact(booking) : null;
+  if (!booking || !contact?.email) return { skipped: true as const };
 
   const vars = {
-    customerName: booking.customer.name,
+    customerName: contact.name,
     publicRef: booking.publicRef,
     productType: booking.productType,
     amount: `₹${Number(booking.totalAmount).toLocaleString("en-IN")}`,
@@ -40,7 +42,7 @@ async function sendBookingEmail(
 
   return sendTemplatedEmail({
     templateKey,
-    to: booking.customer.email,
+    to: contact.email!,
     vars,
     bookingId,
     attachments,
@@ -66,7 +68,9 @@ async function sendBookingWhatsApp(
     return { success: false, skipped: true, error: "Booking not found" };
   }
 
-  if (!booking.customer.phone?.trim()) {
+  const contact = getBookingCustomerContact(booking);
+
+  if (!contact.phone?.trim()) {
     return { success: false, skipped: true, error: "Customer has no phone number — add it on the customer profile." };
   }
 
@@ -75,11 +79,12 @@ async function sendBookingWhatsApp(
   }
 
   let body: string;
+  const customerForMsg = { ...booking.customer, ...contact };
   if (booking.productType === "HOTEL" && booking.hotelBooking) {
     body = buildHotelConfirmedMessage({
       agency,
       booking,
-      customer: booking.customer,
+      customer: customerForMsg,
       hotel: booking.hotelBooking,
     });
   } else if (booking.productType === "FLIGHT" && booking.flightBooking) {
@@ -88,32 +93,32 @@ async function sendBookingWhatsApp(
         ? buildFlightItineraryMessage({
             agency,
             booking,
-            customer: booking.customer,
+            customer: customerForMsg,
             flight: booking.flightBooking,
           })
         : buildFlightConfirmedMessage({
             agency,
             booking,
-            customer: booking.customer,
+            customer: customerForMsg,
             flight: booking.flightBooking,
           });
   } else if (booking.productType === "BUS" && booking.busBooking) {
     body = buildBusConfirmedMessage({
       agency,
       booking,
-      customer: booking.customer,
+      customer: customerForMsg,
       bus: booking.busBooking,
     });
   } else {
     body = buildGenericConfirmedMessage({
       agency,
       booking,
-      customer: booking.customer,
+      customer: customerForMsg,
     });
   }
 
   return sendWhatsAppText({
-    to: booking.customer.phone,
+    to: contact.phone,
     body,
     bookingId,
     template: mode === "itinerary" ? "itinerary_voucher" : "booking_confirmed",

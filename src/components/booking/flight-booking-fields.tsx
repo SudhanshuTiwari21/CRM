@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import type { WizardForm } from "@/components/booking/offline-booking-wizard";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -21,6 +22,14 @@ import {
   TRIP_TYPE_OPTIONS,
 } from "@/lib/constants/flight";
 import { computeLayoverDuration } from "@/lib/flight-layover";
+import { FormSettingToggle } from "@/components/booking/edit-form-section";
+import { passportExpiryFromIssueDate } from "@/lib/passport-dates";
+import { PASSPORT_ISSUING_COUNTRIES } from "@/lib/constants/passport";
+import {
+  SavedPassengerLoadDialog,
+  SavedPassengerRowActions,
+  useSavedPassengerActions,
+} from "@/components/booking/saved-passenger-picker";
 
 interface FlightBookingFieldsProps {
   form: UseFormReturn<WizardForm>;
@@ -62,6 +71,9 @@ export function FlightBookingFields({
   const addonType = form.watch("addonType") || "seat";
   const showEticket = form.watch("showEticket");
   const checkInAssistance = form.watch("checkInAssistance");
+  const includeCancellationPolicy = form.watch("includeCancellationPolicy");
+
+  const savedPassenger = useSavedPassengerActions(form, appendPassenger);
   const airline = form.watch("airline");
   const segments = form.watch("segments") || [];
   const stopCount = form.watch("stopCount") ?? Math.max(0, segmentFields.length - 1);
@@ -316,38 +328,19 @@ export function FlightBookingFields({
       )}
 
       {!isAddonTrip && (
-      <div className="flex items-center justify-between rounded-lg border p-3">
-        <div>
-          <Label>Check-in Booking Assistance</Label>
-          <p className="text-xs text-muted-foreground">
-            Admin gets email & WhatsApp alert 48 hours before departure
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant={checkInAssistance ? "default" : "outline"}
-          size="sm"
-          onClick={() => form.setValue("checkInAssistance", !checkInAssistance)}
-        >
-          {checkInAssistance ? "Yes" : "No"}
-        </Button>
-      </div>
-      )}
-
-      {!isAddonTrip && (
-      <div className="flex items-center justify-between rounded-lg border p-3">
-        <div>
-          <Label>E-Ticket Number (International)</Label>
-          <p className="text-xs text-muted-foreground">Show e-ticket field for passengers when enabled</p>
-        </div>
-        <Button
-          type="button"
-          variant={showEticket ? "default" : "outline"}
-          size="sm"
-          onClick={() => form.setValue("showEticket", !showEticket)}
-        >
-          {showEticket ? "Yes" : "No"}
-        </Button>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <FormSettingToggle
+          label="Check-in Booking Assistance"
+          description="Admin gets email & WhatsApp alert 48 hours before departure"
+          checked={Boolean(checkInAssistance)}
+          onCheckedChange={(v) => form.setValue("checkInAssistance", v)}
+        />
+        <FormSettingToggle
+          label="E-Ticket Number (International)"
+          description="Enable passport, DOB, and e-ticket fields for international bookings"
+          checked={Boolean(showEticket)}
+          onCheckedChange={(v) => form.setValue("showEticket", v)}
+        />
       </div>
       )}
 
@@ -363,22 +356,58 @@ export function FlightBookingFields({
               )}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Input {...form.register(`segments.${i}.flightNumber`)} placeholder="Flight No (6E 212)" />
-              <Input {...form.register(`segments.${i}.aircraft`)} placeholder="Aircraft (A320)" />
-              <Input {...form.register(`segments.${i}.fromCity`)} placeholder="From City" />
-              <Input {...form.register(`segments.${i}.fromAirport`)} placeholder="From Airport (CCU)" />
-              <Input {...form.register(`segments.${i}.departureTerminal`)} placeholder="Dep Terminal (optional)" />
-              <Input {...form.register(`segments.${i}.departureAt`)} type="datetime-local" step="60" />
-              <Input {...form.register(`segments.${i}.toCity`)} placeholder="To City" />
-              <Input {...form.register(`segments.${i}.toAirport`)} placeholder="To Airport (DEL)" />
-              <Input {...form.register(`segments.${i}.terminal`)} placeholder="Arr Terminal (optional)" />
-              <Input {...form.register(`segments.${i}.arrivalAt`)} type="datetime-local" step="60" />
-              <Input {...form.register(`segments.${i}.duration`)} placeholder="Duration (e.g. 2h 15m)" />
+              <div className="space-y-2">
+                <Label className="text-xs">Flight Number</Label>
+                <Input {...form.register(`segments.${i}.flightNumber`)} placeholder="6E 212" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Aircraft</Label>
+                <Input {...form.register(`segments.${i}.aircraft`)} placeholder="A320" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Departure City</Label>
+                <Input {...form.register(`segments.${i}.fromCity`)} placeholder="Kolkata" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">From Airport</Label>
+                <Input {...form.register(`segments.${i}.fromAirport`)} placeholder="CCU" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Departure Terminal</Label>
+                <Input {...form.register(`segments.${i}.departureTerminal`)} placeholder="Optional" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Departure</Label>
+                <Input {...form.register(`segments.${i}.departureAt`)} type="datetime-local" step="60" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Arrival City</Label>
+                <Input {...form.register(`segments.${i}.toCity`)} placeholder="Delhi" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">To Airport</Label>
+                <Input {...form.register(`segments.${i}.toAirport`)} placeholder="DEL" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Arrival Terminal</Label>
+                <Input {...form.register(`segments.${i}.terminal`)} placeholder="Optional" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Arrival</Label>
+                <Input {...form.register(`segments.${i}.arrivalAt`)} type="datetime-local" step="60" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Duration</Label>
+                <Input {...form.register(`segments.${i}.duration`)} placeholder="2h 15m" />
+              </div>
               {tripType === "ROUND_TRIP" && (
-                <Input
-                  {...form.register(`segments.${i}.pnr`)}
-                  placeholder={i === 0 ? "Outbound PNR (optional)" : "Return PNR (optional)"}
-                />
+                <div className="space-y-2">
+                  <Label className="text-xs">{i === 0 ? "Outbound PNR" : "Return PNR"}</Label>
+                  <Input
+                    {...form.register(`segments.${i}.pnr`)}
+                    placeholder="Optional"
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -440,7 +469,23 @@ export function FlightBookingFields({
       )}
 
       <div className="space-y-3">
-        <Label className="text-base">Passengers</Label>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Label className="text-base">Passengers</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => savedPassenger.openLoad("new")}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add from saved
+          </Button>
+        </div>
+        {showEticket && !isAddonTrip && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+            <strong>Important:</strong> If the traveller&apos;s passport does not include a last name, leave the Last Name field empty.
+          </div>
+        )}
         {passengerFields.map((field, i) => {
           const paxType = form.watch(`passengers.${i}.paxType`) || "adult";
           const baggagePreset = form.watch(`passengers.${i}.baggagePreset`) || "";
@@ -448,7 +493,8 @@ export function FlightBookingFields({
           const seat = form.watch(`passengers.${i}.seat`);
           return (
             <div key={field.id} className="space-y-3 rounded-lg border p-4">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-start gap-2">
+                <div className="flex flex-wrap flex-1 gap-2">
                 <Select
                   value={form.watch(`passengers.${i}.title`)}
                   onValueChange={(v) => form.setValue(`passengers.${i}.title`, v)}
@@ -462,8 +508,16 @@ export function FlightBookingFields({
                     <SelectItem value="Miss">Miss</SelectItem>
                   </SelectContent>
                 </Select>
-                <Input {...form.register(`passengers.${i}.firstName`)} placeholder="First Name" className="min-w-[120px] flex-1" />
-                <Input {...form.register(`passengers.${i}.lastName`)} placeholder="Last Name" className="min-w-[120px] flex-1" />
+                <Input
+                  {...form.register(`passengers.${i}.firstName`)}
+                  placeholder={showEticket ? "First & Middle Name" : "First Name"}
+                  className="min-w-[120px] flex-1"
+                />
+                <Input
+                  {...form.register(`passengers.${i}.lastName`)}
+                  placeholder={showEticket ? "Last Name (optional)" : "Last Name"}
+                  className="min-w-[120px] flex-1"
+                />
                 <Select
                   value={form.watch(`passengers.${i}.gender`)}
                   onValueChange={(v) => form.setValue(`passengers.${i}.gender`, v)}
@@ -490,6 +544,13 @@ export function FlightBookingFields({
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 )}
+                </div>
+                <SavedPassengerRowActions
+                  index={i}
+                  onSave={savedPassenger.handleSave}
+                  onLoad={savedPassenger.openLoad}
+                  saving={savedPassenger.savingIndex === i}
+                />
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -568,10 +629,137 @@ export function FlightBookingFields({
                   </div>
                 )}
                 {showEticket && (
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label className="text-xs">E-Ticket Number</Label>
-                    <Input {...form.register(`passengers.${i}.ticketNumber`)} placeholder="176-1234567890" />
+                  <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-4 sm:col-span-2 dark:border-blue-900 dark:bg-blue-950/20">
+                    <p className="text-sm font-medium text-blue-950 dark:text-blue-100">International traveller details</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label className="text-xs">Date of Birth</Label>
+                        <Input {...form.register(`passengers.${i}.dateOfBirth`)} type="date" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">E-Ticket Number</Label>
+                        <Input {...form.register(`passengers.${i}.ticketNumber`)} placeholder="176-1234567890" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Passport No</Label>
+                        <Input
+                          {...form.register(`passengers.${i}.passportNumber`)}
+                          placeholder="Passport number"
+                          className="uppercase"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Passport Issuing Country</Label>
+                        <Select
+                          value={form.watch(`passengers.${i}.passportIssuingCountry`) || undefined}
+                          onValueChange={(v) => form.setValue(`passengers.${i}.passportIssuingCountry`, v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select country" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PASSPORT_ISSUING_COUNTRIES.map((country) => (
+                              <SelectItem key={country} value={country}>
+                                {country}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Passport Issue Date</Label>
+                        <Input
+                          type="date"
+                          value={form.watch(`passengers.${i}.passportIssueDate`) || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            form.setValue(`passengers.${i}.passportIssueDate`, value);
+                            const expiry = passportExpiryFromIssueDate(value);
+                            if (expiry) form.setValue(`passengers.${i}.passportExpiryDate`, expiry);
+                          }}
+                        />
+                        <p className="text-xs text-muted-foreground">Expiry auto-fills as issue date + 15 years</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Passport Expiry</Label>
+                        <Input {...form.register(`passengers.${i}.passportExpiryDate`)} type="date" />
+                      </div>
+                    </div>
                   </div>
+                )}
+                {!isAddonTrip && (() => {
+                  const ffAirline = form.watch(`passengers.${i}.frequentFlyerAirline`) || "";
+                  const ffNumber = form.watch(`passengers.${i}.frequentFlyerNumber`) || "";
+                  const showFf = Boolean(ffAirline.trim() || ffNumber.trim());
+                  return (
+                    <div className="space-y-3 rounded-lg border border-dashed border-sky-200 bg-sky-50/30 p-3 sm:col-span-2 dark:border-sky-900 dark:bg-sky-950/10">
+                      <FormSettingToggle
+                        label="Add frequent flyer number"
+                        description="Loyalty program ID for this passenger"
+                        checked={showFf}
+                        onCheckedChange={(v) => {
+                          if (!v) {
+                            form.setValue(`passengers.${i}.frequentFlyerAirline`, "");
+                            form.setValue(`passengers.${i}.frequentFlyerNumber`, "");
+                          } else if (!ffAirline.trim() && airline?.trim()) {
+                            form.setValue(`passengers.${i}.frequentFlyerAirline`, airline.trim());
+                          }
+                        }}
+                      />
+                      {showFf && (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label className="text-xs">Frequent Flyer Airline</Label>
+                            <Select
+                              value={ffAirline || undefined}
+                              onValueChange={(v) => form.setValue(`passengers.${i}.frequentFlyerAirline`, v)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select airline" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[...new Set([
+                                  airline?.trim(),
+                                  ...COMMON_AIRLINES.map((a) => a.name),
+                                  ...savedAirlines.map((a) => a.name),
+                                  ffAirline.trim(),
+                                ].filter(Boolean) as string[])].map((name) => (
+                                  <SelectItem key={name} value={name}>
+                                    {name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Frequent Flyer No</Label>
+                            <Input
+                              {...form.register(`passengers.${i}.frequentFlyerNumber`)}
+                              placeholder="Frequent flyer number"
+                              className="font-mono"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                {!isAddonTrip && (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-violet-200 bg-violet-50/30 px-3 py-3 sm:col-span-2 dark:border-violet-900 dark:bg-violet-950/10">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                      checked={Boolean(form.watch(`passengers.${i}.wheelchairAssistance`))}
+                      onChange={(e) => form.setValue(`passengers.${i}.wheelchairAssistance`, e.target.checked)}
+                    />
+                    <span className="text-sm">
+                      <span className="font-medium">I require wheelchair assistance</span>
+                      <span className="text-muted-foreground"> (Optional)</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        Enter name as on passport or government ID
+                      </span>
+                    </span>
+                  </label>
                 )}
                 </>
                 )}
@@ -597,7 +785,41 @@ export function FlightBookingFields({
         >
           <Plus className="mr-2 h-4 w-4" /> Add Passenger
         </Button>
+
+        <SavedPassengerLoadDialog
+          open={savedPassenger.loadOpen}
+          onOpenChange={savedPassenger.setLoadOpen}
+          target={savedPassenger.target}
+          search={savedPassenger.search}
+          onSearchChange={savedPassenger.setSearch}
+          loading={savedPassenger.loading}
+          passengers={savedPassenger.passengers}
+          onSelect={savedPassenger.handleSelect}
+          onDelete={savedPassenger.handleDelete}
+        />
       </div>
+
+      {!isAddonTrip && (
+        <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-800 dark:bg-amber-950/20">
+          <FormSettingToggle
+            label="Add cancellation policy to voucher"
+            description="Shown on the flight ticket PDF sent to the customer"
+            checked={Boolean(includeCancellationPolicy)}
+            onCheckedChange={(v) => form.setValue("includeCancellationPolicy", v)}
+          />
+          {includeCancellationPolicy && (
+            <div className="space-y-2">
+              <Label>Cancellation Policy</Label>
+              <Textarea
+                {...form.register("cancellationPolicy")}
+                placeholder="e.g. Cancellation charges as per airline policy. Agency fee non-refundable..."
+                rows={4}
+                className="resize-y bg-background"
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

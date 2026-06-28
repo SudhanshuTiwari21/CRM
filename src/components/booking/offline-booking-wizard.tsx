@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,29 +19,41 @@ import { FlightBookingFields } from "@/components/booking/flight-booking-fields"
 import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields";
 import { parseApiResponse } from "@/lib/parse-api-response";
 import { formatCustomerName } from "@/lib/utils";
-import { CUSTOMER_TITLE_OPTIONS } from "@/lib/constants/flight";
 import { buildAddonPlaceholderSegment, validateAddonBooking } from "@/lib/flight-addon";
+import { CustomerBillingSection } from "@/components/booking/customer-billing-section";
+import { refineOfflineBilling } from "@/lib/validators/booking";
+import { normalizePhone } from "@/lib/phone";
 
 const baseCustomer = {
   title: "Mr",
   name: "",
   email: "",
   phone: "",
+  pan: "",
   gstin: "",
   address: "",
+  city: "",
   state: "",
+  pincode: "",
 };
 
-const wizardSchema = z.object({
+const wizardSchema = z
+  .object({
   productType: z.enum(["FLIGHT", "HOTEL", "BUS"]),
+  billingType: z.enum(["CASH", "LEDGER"]),
+  ledgerMode: z.enum(["EXISTING", "NEW"]).optional(),
+  customerId: z.string().optional(),
   customer: z.object({
     title: z.string().optional(),
-    name: z.string().min(2, "Customer name is required"),
+    name: z.string(),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
-    phone: z.string().min(10, "Phone must be at least 10 digits"),
+    phone: z.string(),
+    pan: z.string().optional(),
     gstin: z.string().optional(),
     address: z.string().optional(),
+    city: z.string().optional(),
     state: z.string().optional(),
+    pincode: z.string().optional(),
   }),
   totalAmount: z.coerce.number().min(0),
   paymentMethod: z.string().optional(),
@@ -92,7 +104,7 @@ const wizardSchema = z.object({
   passengers: z.array(z.object({
     title: z.string(),
     firstName: z.string(),
-    lastName: z.string(),
+    lastName: z.string().optional(),
     gender: z.string(),
     paxType: z.enum(["adult", "child", "infant"]).optional(),
     ticketNumber: z.string().optional(),
@@ -103,6 +115,14 @@ const wizardSchema = z.object({
     baggagePreset: z.string().optional(),
     cabinBaggagePreset: z.string().optional(),
     baseFare: z.coerce.number().min(0).optional(),
+    frequentFlyerAirline: z.string().optional(),
+    frequentFlyerNumber: z.string().optional(),
+    wheelchairAssistance: z.boolean().optional(),
+    dateOfBirth: z.string().optional(),
+    passportNumber: z.string().optional(),
+    passportIssuingCountry: z.string().optional(),
+    passportIssueDate: z.string().optional(),
+    passportExpiryDate: z.string().optional(),
   })).optional(),
   // Hotel
   propertyName: z.string().optional(),
@@ -131,7 +151,8 @@ const wizardSchema = z.object({
   arrivalAt: z.string().optional(),
   busPassengers: z.array(z.object({ name: z.string(), seat: z.string(), gender: z.string().optional() })).optional(),
   seats: z.array(z.object({ seatNumber: z.string() })).optional(),
-});
+  })
+  .superRefine(refineOfflineBilling);
 
 type WizardForm = z.infer<typeof wizardSchema>;
 
@@ -147,6 +168,9 @@ export function OfflineBookingWizard() {
     resolver: zodResolver(wizardSchema),
     defaultValues: {
       productType: "FLIGHT",
+      billingType: "LEDGER",
+      ledgerMode: "EXISTING",
+      customerId: undefined,
       customer: baseCustomer,
       totalAmount: 0,
       invoiceTaxType: "NON_ITC",
@@ -189,22 +213,7 @@ export function OfflineBookingWizard() {
   const { fields: passengerFields, append: appendPassenger, remove: removePassenger } = useFieldArray({ control: form.control, name: "passengers" });
   const { fields: guestFields, append: appendGuest } = useFieldArray({ control: form.control, name: "guests" });
   const { fields: busPaxFields, append: appendBusPax } = useFieldArray({ control: form.control, name: "busPassengers" });
-  const customerPhone = form.watch("customer.phone");
-
-  useEffect(() => {
-    const phone = customerPhone?.trim();
-    if (!phone || phone.length < 10) {
-      setCreditAvailable(false);
-      return;
-    }
-    const timer = setTimeout(() => {
-      fetch(`/api/crm/customers/credit-lookup?phone=${encodeURIComponent(phone)}`)
-        .then((r) => r.json())
-        .then((data) => setCreditAvailable(Boolean(data.customer?.creditEnabled)))
-        .catch(() => setCreditAvailable(false));
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [customerPhone]);
+  const billingType = form.watch("billingType");
 
   async function onSubmit(data: WizardForm) {
     setLoading(true);
@@ -229,11 +238,30 @@ export function OfflineBookingWizard() {
         throw new Error("Total amount must be greater than 0");
       }
       const { title: _title, ...customerRest } = data.customer;
-      const customer = {
-        ...customerRest,
-        name: formatCustomerName(data.customer.title, data.customer.name),
-        email: data.customer.email?.trim() || undefined,
-        gstin: data.customer.gstin?.trim() || undefined,
+      const customerPayload =
+        data.billingType === "LEDGER" && data.ledgerMode === "EXISTING"
+          ? undefined
+          : {
+              ...customerRest,
+              name: formatCustomerName(data.customer.title, data.customer.name),
+              phone: normalizePhone(customerRest.phone),
+              email: data.customer.email?.trim() || undefined,
+              pan: data.customer.pan?.trim().toUpperCase() || undefined,
+              gstin: data.customer.gstin?.trim() || undefined,
+              address: data.customer.address?.trim() || undefined,
+              city: data.customer.city?.trim() || undefined,
+              state: data.customer.state?.trim() || undefined,
+              pincode: data.customer.pincode?.trim() || undefined,
+            };
+
+      const billingPayload = {
+        billingType: data.billingType,
+        ledgerMode: data.billingType === "LEDGER" ? data.ledgerMode : undefined,
+        customerId:
+          data.billingType === "LEDGER" && data.ledgerMode === "EXISTING"
+            ? data.customerId
+            : undefined,
+        customer: customerPayload,
       };
 
       let payload: Record<string, unknown>;
@@ -262,12 +290,12 @@ export function OfflineBookingWizard() {
         payload = {
           productType: "FLIGHT",
           channel: "OFFLINE",
-          customer,
+          ...billingPayload,
           totalAmount: data.totalAmount,
           paymentMethod: data.paymentMethod,
           internalNotes: data.internalNotes,
           invoiceTaxType: data.invoiceTaxType || "NON_ITC",
-          buyerGstin: (data.buyerGstin || customer.gstin || "").trim() || undefined,
+          buyerGstin: (data.buyerGstin || data.customer.gstin || "").trim() || undefined,
           baseFare: data.baseFare ?? 0,
           serviceCharge: data.serviceCharge ?? 0,
           discountAmount: data.discountAmount ?? 0,
@@ -287,12 +315,14 @@ export function OfflineBookingWizard() {
           airline,
           segments,
           passengers,
+          cancellationPolicy: data.cancellationPolicy?.trim() || undefined,
+          includeCancellationPolicy: data.includeCancellationPolicy || false,
         };
       } else if (productType === "HOTEL") {
         payload = {
           productType: "HOTEL",
           channel: "OFFLINE",
-          customer,
+          ...billingPayload,
           totalAmount: data.totalAmount,
           paymentMethod: data.paymentMethod,
           internalNotes: data.internalNotes,
@@ -318,7 +348,7 @@ export function OfflineBookingWizard() {
         payload = {
           productType: "BUS",
           channel: "OFFLINE",
-          customer,
+          ...billingPayload,
           totalAmount: data.totalAmount,
           paymentMethod: data.paymentMethod,
           internalNotes: data.internalNotes,
@@ -374,48 +404,10 @@ export function OfflineBookingWizard() {
           <TabsTrigger value="BUS">Bus</TabsTrigger>
         </TabsList>
 
-        <Card className="mt-4">
-          <CardHeader><CardTitle className="text-base">Customer Details</CardTitle></CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Name *</Label>
-              <div className="flex gap-2">
-                <Select
-                  value={form.watch("customer.title") || "Mr"}
-                  onValueChange={(v) => form.setValue("customer.title", v)}
-                >
-                  <SelectTrigger className="w-[100px] shrink-0"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CUSTOMER_TITLE_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  {...form.register("customer.name")}
-                  placeholder="Full name (without title)"
-                  className="flex-1"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Phone *</Label>
-              <Input {...form.register("customer.phone")} />
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input {...form.register("customer.email")} type="text" inputMode="email" autoComplete="email" placeholder="optional" />
-            </div>
-            <div className="space-y-2">
-              <Label>GSTIN</Label>
-              <Input {...form.register("customer.gstin")} />
-            </div>
-            <div className="space-y-2">
-              <Label>State</Label>
-              <Input {...form.register("customer.state")} placeholder="West Bengal" />
-            </div>
-          </CardContent>
-        </Card>
+        <CustomerBillingSection
+          form={form}
+          onCreditAvailabilityChange={setCreditAvailable}
+        />
 
         <TabsContent value="FLIGHT">
           <Card>
@@ -487,10 +479,12 @@ export function OfflineBookingWizard() {
                 <SelectItem value="Cash">Cash</SelectItem>
                 <SelectItem value="Card">Card</SelectItem>
                 <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                {creditAvailable && <SelectItem value="CREDIT">On Credit</SelectItem>}
+                {creditAvailable && billingType === "LEDGER" && (
+                  <SelectItem value="CREDIT">On Credit</SelectItem>
+                )}
               </SelectContent>
             </Select>
-            {creditAvailable && (
+            {creditAvailable && billingType === "LEDGER" && (
               <p className="text-xs text-muted-foreground">Credit account enabled for this customer</p>
             )}
           </div>

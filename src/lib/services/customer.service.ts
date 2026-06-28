@@ -2,8 +2,80 @@ import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import type { z } from "zod";
 import type { createCustomerSchema } from "@/lib/validators/customer";
+import { normalizePhone, phoneLookupVariants } from "@/lib/phone";
+import { CASH_WALK_IN_PHONE } from "@/lib/cash-customer";
 
 type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
+
+export async function getOrCreateCashWalkInCustomer() {
+  const existing = await prisma.customer.findFirst({
+    where: { phone: CASH_WALK_IN_PHONE },
+  });
+  if (existing) return existing;
+
+  return prisma.customer.create({
+    data: {
+      type: "INDIVIDUAL",
+      name: "Cash Walk-in",
+      phone: CASH_WALK_IN_PHONE,
+      tags: ["SYSTEM_CASH"],
+    },
+  });
+}
+
+export async function findCustomerByPhone(phone: string) {
+  const variants = phoneLookupVariants(phone);
+  return prisma.customer.findFirst({
+    where: { phone: { in: variants } },
+  });
+}
+
+export async function upsertCustomerFromBooking(customer: {
+  name: string;
+  email?: string;
+  phone: string;
+  pan?: string;
+  gstin?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+}) {
+  const normalizedPhone = normalizePhone(customer.phone);
+  const existing = await findCustomerByPhone(customer.phone);
+  const pan = customer.pan?.toUpperCase() || null;
+
+  if (existing) {
+    return prisma.customer.update({
+      where: { id: existing.id },
+      data: {
+        phone: normalizedPhone,
+        name: customer.name,
+        email: customer.email || existing.email,
+        pan: pan || existing.pan,
+        gstin: customer.gstin || existing.gstin,
+        address: customer.address || existing.address,
+        city: customer.city || existing.city,
+        state: customer.state || existing.state,
+        pincode: customer.pincode || existing.pincode,
+      },
+    });
+  }
+
+  return prisma.customer.create({
+    data: {
+      name: customer.name,
+      phone: normalizedPhone,
+      email: customer.email || null,
+      pan,
+      gstin: customer.gstin || null,
+      address: customer.address || null,
+      city: customer.city || null,
+      state: customer.state || null,
+      pincode: customer.pincode || null,
+    },
+  });
+}
 
 function primaryBranchAddress(
   branches?: Array<{
@@ -26,18 +98,35 @@ function primaryBranchAddress(
   };
 }
 
-export async function createCustomerRecord(input: CreateCustomerInput) {
+export async function createCustomerRecord(
+  input: CreateCustomerInput,
+  options?: { creditLimitAllowed?: boolean }
+) {
+  const normalizedPhone = normalizePhone(input.phone);
+  const existing = await findCustomerByPhone(input.phone);
+  if (existing) {
+    throw new Error(
+      `A customer with this phone number already exists (${existing.name}). Use the existing profile or update it.`
+    );
+  }
+
+  const creditEnabled = input.creditEnabled ?? false;
+  const creditLimit =
+    options?.creditLimitAllowed && input.creditLimit != null ? input.creditLimit : null;
+
   if (input.type === "INDIVIDUAL") {
     return prisma.customer.create({
       data: {
         type: "INDIVIDUAL",
         name: input.name,
-        phone: input.phone,
+        phone: normalizedPhone,
         email: input.email || null,
         address: input.address || null,
         city: input.city || null,
         state: input.state || null,
         pincode: input.pincode || null,
+        creditEnabled,
+        creditLimit,
       },
       include: { branches: true, contacts: true },
     });
@@ -49,9 +138,11 @@ export async function createCustomerRecord(input: CreateCustomerInput) {
     data: {
       type: "BUSINESS",
       name: input.name,
-      phone: input.phone,
+      phone: normalizedPhone,
       email: input.email || null,
       pan: input.pan || null,
+      creditEnabled,
+      creditLimit,
       ...primaryAddr,
       branches: {
         create: (input.branches || []).map((branch, index) => ({
@@ -82,6 +173,17 @@ export async function updateCustomerRecord(
   id: string,
   input: CreateCustomerInput
 ) {
+  const normalizedPhone = normalizePhone(input.phone);
+  const duplicate = await prisma.customer.findFirst({
+    where: {
+      phone: { in: phoneLookupVariants(input.phone) },
+      NOT: { id },
+    },
+  });
+  if (duplicate) {
+    throw new Error(`Phone number is already used by ${duplicate.name}`);
+  }
+
   if (input.type === "INDIVIDUAL") {
     await prisma.customerBranch.deleteMany({ where: { customerId: id } });
     await prisma.customerContact.deleteMany({ where: { customerId: id } });
@@ -90,7 +192,7 @@ export async function updateCustomerRecord(
       data: {
         type: "INDIVIDUAL",
         name: input.name,
-        phone: input.phone,
+        phone: normalizedPhone,
         email: input.email || null,
         address: input.address || null,
         city: input.city || null,
@@ -113,7 +215,7 @@ export async function updateCustomerRecord(
     data: {
       type: "BUSINESS",
       name: input.name,
-      phone: input.phone,
+      phone: normalizedPhone,
       email: input.email || null,
       pan: input.pan || null,
       ...primaryAddr,

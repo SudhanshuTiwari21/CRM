@@ -46,5 +46,5 @@ function round2(n: number) {
 }
 
 export function passengerDisplayName(p: FlightPassenger): string {
-  return `${p.title} ${p.firstName} ${p.lastName}`.trim();
+  return [p.firstName, p.lastName].filter(Boolean).join(" ").trim();
 }

@@ -12,10 +12,13 @@ import {
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { logActivity } from "./activity.service";
 import { generateBookingDocuments } from "./document.service";
+import { recordBookingPayment } from "./booking-payment.service";
+import { computeAmountDue, sumPaidPayments } from "@/lib/payment-utils";
 import { flightFieldsWithDeparture, maybeSendImmediateCheckInAssistanceAlert } from "./checkin-assistance.service";
 import { toDbAddonType } from "@/lib/flight-addon";
 import type { z } from "zod";
 import type { adminBookingUpdateSchema } from "@/lib/validators/booking-admin";
+import type { RecordBookingPaymentInput } from "@/lib/validators/payment";
 
 type AdminBookingUpdateInput = z.infer<typeof adminBookingUpdateSchema>;
 
@@ -28,7 +31,7 @@ export async function updateBookingAsAdmin(
 ) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    include: { flightBooking: true, hotelBooking: true, customer: true },
+    include: { flightBooking: true, hotelBooking: true, customer: true, payments: true },
   });
   if (!booking) throw new Error("Booking not found");
 
@@ -38,6 +41,13 @@ export async function updateBookingAsAdmin(
   };
   if (input.pnr !== undefined) bookingData.pnr = input.pnr || null;
   if (input.internalNotes !== undefined) bookingData.internalNotes = input.internalNotes;
+
+  const markablePaidStatuses = ["PENDING", "FAILED", "ON_CREDIT", "PARTIAL"];
+  const markingPaid =
+    input.paymentStatus === "PAID" && markablePaidStatuses.includes(booking.paymentStatus);
+  if (input.paymentStatus === "PAID" && !markingPaid) {
+    throw new Error("Only unpaid or partially paid bookings can be marked as paid");
+  }
 
   const flightData: Record<string, unknown> = {};
   const hasFlightItineraryUpdate =
@@ -105,6 +115,16 @@ export async function updateBookingAsAdmin(
     if (input.invoiceNarration !== undefined) flightData.invoiceNarration = input.invoiceNarration;
     if (input.showPassengerName !== undefined) flightData.showPassengerName = input.showPassengerName;
     if (input.msmeNumber !== undefined) flightData.msmeNumber = input.msmeNumber || null;
+    if (input.cancellationPolicy !== undefined) flightData.cancellationPolicy = input.cancellationPolicy || null;
+    if (input.includeCancellationPolicy !== undefined) {
+      flightData.includeCancellationPolicy = input.includeCancellationPolicy;
+    }
+    if (input.freqFlyerUpdatedToAirline !== undefined) {
+      flightData.freqFlyerUpdatedToAirline = input.freqFlyerUpdatedToAirline;
+    }
+    if (input.specialAssistanceUpdatedToAirline !== undefined) {
+      flightData.specialAssistanceUpdatedToAirline = input.specialAssistanceUpdatedToAirline;
+    }
     if (input.showEticket !== undefined) flightData.showEticket = input.showEticket;
     if (input.checkInAssistance !== undefined) flightData.checkInAssistance = input.checkInAssistance;
     if (input.secondaryPnr !== undefined) flightData.secondaryPnr = input.secondaryPnr || null;
@@ -150,6 +170,27 @@ export async function updateBookingAsAdmin(
       where: { bookingId },
       data: flightData,
     });
+  }
+
+  if (markingPaid) {
+    const totalAmount =
+      input.totalAmount !== undefined
+        ? input.totalAmount
+        : bookingData.totalAmount !== undefined
+          ? Number(bookingData.totalAmount)
+          : Number(booking.totalAmount);
+    const amountDue = computeAmountDue(totalAmount, sumPaidPayments(booking.payments));
+    if (amountDue > 0) {
+      await recordBookingPayment(
+        bookingId,
+        {
+          amount: amountDue,
+          method: input.paymentMethod!.trim() as RecordBookingPaymentInput["method"],
+          note: "Marked as paid from booking edit",
+        },
+        userId
+      );
+    }
   }
 
   await logActivity({

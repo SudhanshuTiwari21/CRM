@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Pencil } from "lucide-react";
+import { CreditCard, FileText, Pencil, Plane, Ticket } from "lucide-react";
 import { toast } from "sonner";
 import type { FlightBooking } from "@prisma/client";
 import { Button } from "@/components/ui/button";
@@ -19,8 +19,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FlightBookingFields } from "@/components/booking/flight-booking-fields";
 import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields";
+import {
+  EditDialogFooter,
+  EditFormSection,
+  FormSettingToggle,
+  PaymentStatusChip,
+} from "@/components/booking/edit-form-section";
 import type { WizardForm } from "@/components/booking/offline-booking-wizard";
 import {
   buildFlightEditFormValues,
@@ -29,11 +36,84 @@ import {
   type FlightEditFormValues,
 } from "@/lib/flight-edit-form";
 
-type FlightEditWizardForm = WizardForm & Pick<FlightEditFormValues, "pnr" | "internalNotes">;
+type FlightEditWizardForm = Omit<WizardForm, "billingType" | "ledgerMode" | "customerId"> &
+  Pick<FlightEditFormValues, "pnr" | "internalNotes">;
+
+const PAYMENT_METHOD_OPTIONS = ["UPI", "Cash", "Card", "Bank Transfer"] as const;
+
+function buildPaymentPayload(markAsPaid: boolean, paymentMethod: string) {
+  if (!markAsPaid) return {};
+  return {
+    paymentStatus: "PAID" as const,
+    paymentMethod,
+  };
+}
+
+function MarkPaymentPaidFields({
+  paymentStatus,
+  markAsPaid,
+  onMarkAsPaidChange,
+  paymentMethod,
+  onPaymentMethodChange,
+}: {
+  paymentStatus: string;
+  markAsPaid: boolean;
+  onMarkAsPaidChange: (value: boolean) => void;
+  paymentMethod: string;
+  onPaymentMethodChange: (value: string) => void;
+}) {
+  const canMarkPaid = paymentStatus === "PENDING" || paymentStatus === "FAILED";
+
+  if (!canMarkPaid) {
+    return (
+      <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-4 py-3">
+        <div>
+          <p className="text-sm font-medium">Payment recorded</p>
+          <p className="text-xs text-muted-foreground">Status cannot be changed from this screen.</p>
+        </div>
+        <PaymentStatusChip status={paymentStatus} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Payment is currently <PaymentStatusChip status={paymentStatus} />
+        </p>
+      </div>
+      <FormSettingToggle
+        label="Mark as paid"
+        description="Record payment and update booking status"
+        checked={markAsPaid}
+        onCheckedChange={onMarkAsPaidChange}
+      />
+      {markAsPaid && (
+        <div className="space-y-2">
+          <Label>Payment Method *</Label>
+          <Select value={paymentMethod} onValueChange={onPaymentMethodChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="How was payment received?" />
+            </SelectTrigger>
+            <SelectContent>
+              {PAYMENT_METHOD_OPTIONS.map((method) => (
+                <SelectItem key={method} value={method}>
+                  {method}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface EditBookingDialogProps {
   bookingId: string;
   productType: string;
+  paymentStatus: string;
   pnr?: string | null;
   internalNotes?: string | null;
   totalAmount: number;
@@ -44,6 +124,7 @@ interface EditBookingDialogProps {
 function SimpleEditForm({
   bookingId,
   productType,
+  paymentStatus,
   pnr,
   internalNotes,
   totalAmount,
@@ -52,6 +133,8 @@ function SimpleEditForm({
 }: Omit<EditBookingDialogProps, "customer"> & { onClose: () => void }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [markAsPaid, setMarkAsPaid] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
   const [form, setForm] = useState({
     pnr: pnr || "",
     internalNotes: internalNotes || "",
@@ -64,12 +147,18 @@ function SimpleEditForm({
   });
 
   async function handleSave() {
+    if (markAsPaid && !paymentMethod) {
+      toast.error("Select a payment method");
+      return;
+    }
+
     setLoading(true);
     try {
       const payload: Record<string, unknown> = {
         pnr: form.pnr.trim() || undefined,
         internalNotes: form.internalNotes,
         regenerateDocuments: true,
+        ...buildPaymentPayload(markAsPaid, paymentMethod),
       };
 
       if (productType !== "FLIGHT") {
@@ -91,7 +180,7 @@ function SimpleEditForm({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Update failed");
 
-      toast.success("Booking updated — documents regenerated");
+      toast.success(markAsPaid ? "Booking updated and marked as paid" : "Booking updated — documents regenerated");
       onClose();
       router.refresh();
     } catch (error) {
@@ -102,40 +191,41 @@ function SimpleEditForm({
   }
 
   return (
-    <>
-      <div className="grid gap-4 py-2">
-        <div className="space-y-2">
-          <Label>PNR / Confirmation</Label>
-          <Input value={form.pnr} onChange={(e) => setForm({ ...form, pnr: e.target.value })} />
-        </div>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex-1 space-y-5 overflow-y-auto pr-1">
+        <EditFormSection title="Booking Reference" description="PNR or supplier confirmation number">
+          <div className="space-y-2">
+            <Label>PNR / Confirmation</Label>
+            <Input
+              value={form.pnr}
+              onChange={(e) => setForm({ ...form, pnr: e.target.value.toUpperCase() })}
+              placeholder="e.g. UC9WTSJS"
+              className="font-mono tracking-wide"
+            />
+          </div>
+        </EditFormSection>
 
         {productType === "FLIGHT" && (
-          <>
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <Label>Show passenger name on invoice</Label>
-                <p className="text-xs text-muted-foreground">Hide for privacy-sensitive B2B invoices</p>
-              </div>
-              <Button
-                type="button"
-                variant={form.showPassengerName ? "default" : "outline"}
-                size="sm"
-                onClick={() => setForm({ ...form, showPassengerName: !form.showPassengerName })}
-              >
-                {form.showPassengerName ? "Yes" : "No"}
-              </Button>
-            </div>
+          <EditFormSection title="Invoice & Pricing" description="Fare breakup shown on tax invoice">
+            <FormSettingToggle
+              label="Show passenger name on invoice"
+              description="Hide for privacy-sensitive B2B invoices"
+              checked={form.showPassengerName}
+              onCheckedChange={(v) => setForm({ ...form, showPassengerName: v })}
+            />
             <div className="space-y-2">
               <Label>Invoice Remarks / Narration</Label>
               <Textarea
                 value={form.invoiceNarration}
                 onChange={(e) => setForm({ ...form, invoiceNarration: e.target.value })}
                 rows={3}
+                placeholder="e.g. Sector - MAA-CCU 11100/-"
+                className="resize-y"
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Base Fare</Label>
+                <Label>Base Fare (INR)</Label>
                 <Input
                   type="number"
                   value={form.baseFare}
@@ -143,7 +233,7 @@ function SimpleEditForm({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Service Charge</Label>
+                <Label>Service Charge (INR)</Label>
                 <Input
                   type="number"
                   value={form.serviceCharge}
@@ -151,7 +241,7 @@ function SimpleEditForm({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Discount</Label>
+                <Label>Discount (INR)</Label>
                 <Input
                   type="number"
                   value={form.discountAmount}
@@ -159,7 +249,7 @@ function SimpleEditForm({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Total Amount</Label>
+                <Label>Total Amount (INR)</Label>
                 <Input
                   type="number"
                   value={form.totalAmount}
@@ -167,40 +257,50 @@ function SimpleEditForm({
                 />
               </div>
             </div>
-          </>
+          </EditFormSection>
         )}
 
         {productType !== "FLIGHT" && (
-          <div className="space-y-2">
-            <Label>Total Amount</Label>
-            <Input
-              type="number"
-              value={form.totalAmount}
-              onChange={(e) => setForm({ ...form, totalAmount: e.target.value })}
-            />
-          </div>
+          <EditFormSection title="Pricing">
+            <div className="space-y-2">
+              <Label>Total Amount (INR)</Label>
+              <Input
+                type="number"
+                value={form.totalAmount}
+                onChange={(e) => setForm({ ...form, totalAmount: e.target.value })}
+              />
+            </div>
+          </EditFormSection>
         )}
 
-        <div className="space-y-2">
-          <Label>Internal Notes</Label>
+        <EditFormSection title="Internal Notes" description="Staff-only — not shown on voucher or invoice">
           <Textarea
             value={form.internalNotes}
             onChange={(e) => setForm({ ...form, internalNotes: e.target.value })}
-            rows={3}
+            rows={4}
+            placeholder="WhatsApp conversation notes, follow-up reminders..."
+            className="resize-y min-h-[100px]"
           />
-        </div>
+        </EditFormSection>
+
+        <EditFormSection title="Payment" description="Record payment received after booking">
+          <MarkPaymentPaidFields
+            paymentStatus={paymentStatus}
+            markAsPaid={markAsPaid}
+            onMarkAsPaidChange={setMarkAsPaid}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
+          />
+        </EditFormSection>
       </div>
 
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button onClick={handleSave} disabled={loading}>
-          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Save & Regenerate
-        </Button>
-      </div>
-    </>
+      <EditDialogFooter
+        onCancel={onClose}
+        onSave={handleSave}
+        loading={loading}
+        saveLabel={markAsPaid ? "Save & Mark Paid" : "Save & Regenerate"}
+      />
+    </div>
   );
 }
 
@@ -208,6 +308,7 @@ function FlightEditForm({
   bookingId,
   flight,
   customer,
+  paymentStatus,
   pnr,
   internalNotes,
   totalAmount,
@@ -216,6 +317,7 @@ function FlightEditForm({
   bookingId: string;
   flight: FlightBooking;
   customer: { gstin?: string | null; state?: string | null };
+  paymentStatus: string;
   pnr?: string | null;
   internalNotes?: string | null;
   totalAmount: number;
@@ -223,6 +325,8 @@ function FlightEditForm({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [markAsPaid, setMarkAsPaid] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
 
   const form = useForm<FlightEditWizardForm>({
     resolver: zodResolver(flightEditFormSchema) as Resolver<FlightEditWizardForm>,
@@ -247,10 +351,17 @@ function FlightEditForm({
       toast.error("Please fix the highlighted fields");
       return;
     }
+    if (markAsPaid && !paymentMethod) {
+      toast.error("Select a payment method");
+      return;
+    }
 
     setLoading(true);
     try {
-      const payload = normalizeFlightEditPayload(form.getValues() as FlightEditFormValues);
+      const payload = {
+        ...normalizeFlightEditPayload(form.getValues() as FlightEditFormValues),
+        ...buildPaymentPayload(markAsPaid, paymentMethod),
+      };
       const res = await fetch(`/api/crm/bookings/${bookingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -259,7 +370,7 @@ function FlightEditForm({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Update failed");
 
-      toast.success("Booking updated — documents regenerated");
+      toast.success(markAsPaid ? "Booking updated and marked as paid" : "Booking updated — documents regenerated");
       onClose();
       router.refresh();
     } catch (error) {
@@ -270,47 +381,70 @@ function FlightEditForm({
   }
 
   return (
-    <>
-      <div className="grid gap-6 py-2">
-        <div className="space-y-2">
-          <Label>PNR / Confirmation</Label>
-          <Input {...form.register("pnr")} placeholder="e.g. B5ETJP" />
-        </div>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex-1 space-y-5 overflow-y-auto pr-1">
+        <EditFormSection title="Booking Reference" description="PNR or airline confirmation number">
+          <div className="space-y-2">
+            <Label htmlFor="edit-pnr">PNR / Confirmation</Label>
+            <Input
+              id="edit-pnr"
+              {...form.register("pnr")}
+              placeholder="e.g. B5ETJP"
+              className="font-mono tracking-wide"
+            />
+          </div>
+        </EditFormSection>
 
-        <FlightBookingFields
-          form={form as ReturnType<typeof useForm<WizardForm>>}
-          segmentFields={segmentFields}
-          appendSegment={appendSegment}
-          removeSegment={removeSegment}
-          passengerFields={passengerFields}
-          appendPassenger={appendPassenger}
-          removePassenger={removePassenger}
-        />
+        <EditFormSection title="Flight Itinerary" description="Segments, passengers, and travel options">
+          <FlightBookingFields
+            form={form as unknown as ReturnType<typeof useForm<WizardForm>>}
+            segmentFields={segmentFields}
+            appendSegment={appendSegment as never}
+            removeSegment={removeSegment}
+            passengerFields={passengerFields}
+            appendPassenger={appendPassenger as never}
+            removePassenger={removePassenger}
+          />
+        </EditFormSection>
 
-        <FlightInvoiceFields form={form as ReturnType<typeof useForm<WizardForm>>} />
+        <EditFormSection title="Invoice & Pricing" description="Fare breakup, tax category, and invoice narration">
+          <FlightInvoiceFields form={form as unknown as ReturnType<typeof useForm<WizardForm>>} />
+        </EditFormSection>
 
-        <div className="space-y-2">
-          <Label>Internal Notes</Label>
-          <Textarea {...form.register("internalNotes")} rows={3} />
-        </div>
+        <EditFormSection title="Internal Notes" description="Staff-only — not printed on voucher or invoice">
+          <Textarea
+            {...form.register("internalNotes")}
+            rows={4}
+            placeholder="WhatsApp conversation notes, follow-up reminders..."
+            className="resize-y min-h-[100px]"
+          />
+        </EditFormSection>
+
+        <EditFormSection title="Payment" description="Record payment when received from customer">
+          <MarkPaymentPaidFields
+            paymentStatus={paymentStatus}
+            markAsPaid={markAsPaid}
+            onMarkAsPaidChange={setMarkAsPaid}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
+          />
+        </EditFormSection>
       </div>
 
-      <div className="flex justify-end gap-2 border-t pt-4">
-        <Button variant="outline" onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button onClick={handleSave} disabled={loading}>
-          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Save & Regenerate
-        </Button>
-      </div>
-    </>
+      <EditDialogFooter
+        onCancel={onClose}
+        onSave={handleSave}
+        loading={loading}
+        saveLabel={markAsPaid ? "Save & Mark Paid" : "Save & Regenerate"}
+      />
+    </div>
   );
 }
 
 export function EditBookingDialog({
   bookingId,
   productType,
+  paymentStatus,
   pnr,
   internalNotes,
   totalAmount,
@@ -328,35 +462,69 @@ export function EditBookingDialog({
           Edit Booking
         </Button>
       </DialogTrigger>
-      <DialogContent className={isFlightEdit ? "max-h-[90vh] overflow-y-auto sm:max-w-4xl" : "max-h-[90vh] overflow-y-auto sm:max-w-lg"}>
-        <DialogHeader>
-          <DialogTitle>Edit Booking</DialogTitle>
-          <DialogDescription>
-            Admin only. Changes regenerate invoice and voucher PDFs.
-          </DialogDescription>
+      <DialogContent
+        className={
+          isFlightEdit
+            ? "flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+            : "flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
+        }
+      >
+        <DialogHeader className="shrink-0 space-y-3 border-b bg-muted/20 px-6 py-5 pr-12">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                Edit Booking
+              </DialogTitle>
+              <DialogDescription>
+                Admin only. Saving regenerates invoice and voucher PDFs.
+              </DialogDescription>
+            </div>
+            <PaymentStatusChip status={paymentStatus} />
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1">
+              <Ticket className="h-3 w-3" />
+              {productType}
+            </span>
+            {isFlightEdit && (
+              <span className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1">
+                <Plane className="h-3 w-3" />
+                Full itinerary edit
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1">
+              <CreditCard className="h-3 w-3" />
+              Payment: {paymentStatus.replace(/_/g, " ").toLowerCase()}
+            </span>
+          </div>
         </DialogHeader>
 
-        {open && isFlightEdit ? (
-          <FlightEditForm
-            bookingId={bookingId}
-            flight={flight}
-            customer={customer || {}}
-            pnr={pnr}
-            internalNotes={internalNotes}
-            totalAmount={totalAmount}
-            onClose={() => setOpen(false)}
-          />
-        ) : open ? (
-          <SimpleEditForm
-            bookingId={bookingId}
-            productType={productType}
-            pnr={pnr}
-            internalNotes={internalNotes}
-            totalAmount={totalAmount}
-            flight={flight}
-            onClose={() => setOpen(false)}
-          />
-        ) : null}
+        <div className="flex min-h-0 flex-1 flex-col px-6 py-5">
+          {open && isFlightEdit ? (
+            <FlightEditForm
+              bookingId={bookingId}
+              flight={flight}
+              customer={customer || {}}
+              paymentStatus={paymentStatus}
+              pnr={pnr}
+              internalNotes={internalNotes}
+              totalAmount={totalAmount}
+              onClose={() => setOpen(false)}
+            />
+          ) : open ? (
+            <SimpleEditForm
+              bookingId={bookingId}
+              productType={productType}
+              paymentStatus={paymentStatus}
+              pnr={pnr}
+              internalNotes={internalNotes}
+              totalAmount={totalAmount}
+              flight={flight}
+              onClose={() => setOpen(false)}
+            />
+          ) : null}
+        </div>
       </DialogContent>
     </Dialog>
   );

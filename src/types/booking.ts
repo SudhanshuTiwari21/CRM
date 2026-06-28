@@ -31,7 +31,7 @@ export type MealPreference = "veg" | "nonveg" | "none";
 export interface FlightPassenger {
   title: string;
   firstName: string;
-  lastName: string;
+  lastName?: string;
   gender: string;
   paxType?: PaxType;
   ticketNumber?: string;
@@ -41,6 +41,14 @@ export interface FlightPassenger {
   checkInBaggage?: string;
   /** Per-adult airline base fare for invoice breakup (INR). */
   baseFare?: number;
+  frequentFlyerAirline?: string;
+  frequentFlyerNumber?: string;
+  wheelchairAssistance?: boolean;
+  dateOfBirth?: string;
+  passportNumber?: string;
+  passportIssuingCountry?: string;
+  passportIssueDate?: string;
+  passportExpiryDate?: string;
 }
 
 export interface HotelGuest {

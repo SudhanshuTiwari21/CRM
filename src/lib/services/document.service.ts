@@ -9,6 +9,7 @@ import { InvoicePDF } from "@/templates/pdf/invoice";
 import type { DocumentType } from "@prisma/client";
 import type { FlightPassenger, FlightSegment, HotelGuest, BusPassenger } from "@/types/booking";
 import { logActivity } from "./activity.service";
+import { getBookingCustomerContact } from "@/lib/cash-customer";
 import { getPdfLogoDataUri } from "@/lib/pdf-logo";
 import { resolveSegmentAirline } from "@/lib/airline-logo";
 import { getAirlineLogoDataUri } from "@/lib/airline-logo-pdf";
@@ -42,6 +43,9 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
   const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
   if (!agency) throw new Error("Agency settings not found");
 
+  const customerContact = getBookingCustomerContact(booking);
+  const customerForDocs = { ...booking.customer, ...customerContact };
+
   const storageDir = getStorageDir();
   await ensureStorageDir();
   const logoSrc = await getPdfLogoDataUri();
@@ -62,6 +66,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
         agency,
         booking,
         flight: booking.flightBooking,
+        customer: customerForDocs,
         segments,
         passengers,
         logoSrc,
@@ -81,6 +86,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
         agency,
         booking,
         hotel: booking.hotelBooking,
+        customer: customerForDocs,
         guests: booking.hotelBooking.guests as unknown as HotelGuest[],
         logoSrc,
       })
@@ -110,7 +116,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
     InvoicePDF({
       agency,
       booking,
-      customer: booking.customer,
+      customer: customerForDocs,
       payments: booking.payments,
       flight: booking.flightBooking,
       segments: booking.flightBooking

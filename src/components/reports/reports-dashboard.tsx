@@ -1,17 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { CHANNEL_LABELS } from "@/lib/constants";
-import type { BookingChannel } from "@prisma/client";
+import { CHANNEL_LABELS, PRODUCT_LABELS } from "@/lib/constants";
+import type { BookingChannel, ProductType } from "@prisma/client";
 
 interface ReportData {
   revenueByDay: { date: string; revenue: number }[];
   agentPerformance: { name: string; count: number; revenue: number }[];
   channelMix: { channel: string; count: number; revenue: number }[];
+  cashBookings: {
+    id: string;
+    publicRef: string;
+    productType: string;
+    totalAmount: number;
+    paymentStatus: string;
+    createdAt: string;
+    customerName: string;
+    customerPhone: string;
+  }[];
+  cashRevenue: number;
+  ledgerRevenue: number;
   avgProcessingHours: number;
   totalBookings: number;
   totalRevenue: number;
@@ -48,7 +61,7 @@ export function ReportsDashboard() {
         </Select>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total Bookings</CardTitle></CardHeader>
           <CardContent><p className="text-2xl font-bold">{data.totalBookings}</p></CardContent>
@@ -58,8 +71,18 @@ export function ReportsDashboard() {
           <CardContent><p className="text-2xl font-bold">{formatCurrency(data.totalRevenue)}</p></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Avg Processing SLA</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold">{data.avgProcessingHours}h</p></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Cash Sales</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{formatCurrency(data.cashRevenue)}</p>
+            <p className="text-xs text-muted-foreground">{data.cashBookings.length} walk-in bills</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Ledger Sales</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{formatCurrency(data.ledgerRevenue)}</p>
+            <p className="text-xs text-muted-foreground">Registered customer bills</p>
+          </CardContent>
         </Card>
       </div>
 
@@ -94,6 +117,36 @@ export function ReportsDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Cash Sales (walk-in, no ledger profile)</CardTitle></CardHeader>
+        <CardContent>
+          {data.cashBookings.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No cash bills in this period.</p>
+          ) : (
+            <div className="space-y-2">
+              {data.cashBookings.map((row) => (
+                <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+                  <div>
+                    <Link href={`/bookings/${row.id}`} className="font-medium text-primary hover:underline">
+                      {row.publicRef}
+                    </Link>
+                    <p className="text-muted-foreground">
+                      {row.customerName} • {row.customerPhone}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold">{formatCurrency(row.totalAmount)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {PRODUCT_LABELS[row.productType as ProductType]} • {formatDateTime(row.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle className="text-base">Agent Performance</CardTitle></CardHeader>

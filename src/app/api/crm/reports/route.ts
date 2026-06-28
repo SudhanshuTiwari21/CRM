@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { parseCashCustomerSnapshot } from "@/lib/cash-customer";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api-utils";
 
 export async function GET(request: Request) {
@@ -15,6 +16,7 @@ export async function GET(request: Request) {
     const bookings = await prisma.booking.findMany({
       where: { createdAt: { gte: since } },
       include: {
+        customer: true,
         assignedAgent: { select: { name: true } },
         activityLogs: {
           where: { action: "PNR_CONFIRMED" },
@@ -23,6 +25,22 @@ export async function GET(request: Request) {
         },
       },
     });
+
+    const cashBookings = bookings
+      .filter((b) => b.billingType === "CASH")
+      .map((b) => {
+        const snap = parseCashCustomerSnapshot(b.metadata);
+        return {
+          id: b.id,
+          publicRef: b.publicRef,
+          productType: b.productType,
+          totalAmount: Number(b.totalAmount),
+          paymentStatus: b.paymentStatus,
+          createdAt: b.createdAt.toISOString(),
+          customerName: snap?.name || "Walk-in",
+          customerPhone: snap?.phone || "—",
+        };
+      });
 
     const revenueByDay: Record<string, number> = {};
     const agentStats: Record<string, { name: string; count: number; revenue: number }> = {};
@@ -67,6 +85,13 @@ export async function GET(request: Request) {
         count: c._count,
         revenue: Number(c._sum.totalAmount || 0),
       })),
+      cashBookings,
+      cashRevenue: cashBookings
+        .filter((b) => b.paymentStatus === "PAID")
+        .reduce((s, b) => s + b.totalAmount, 0),
+      ledgerRevenue: bookings
+        .filter((b) => b.billingType === "LEDGER" && b.paymentStatus === "PAID")
+        .reduce((s, b) => s + Number(b.totalAmount), 0),
       avgProcessingHours: slaCount > 0 ? Math.round(totalSlaHours / slaCount) : 0,
       totalBookings: bookings.length,
       totalRevenue: bookings

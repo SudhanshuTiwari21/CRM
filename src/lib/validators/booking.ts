@@ -1,6 +1,13 @@
 import { z } from "zod";
+import { isValidIndianMobile, normalizePhone } from "@/lib/phone";
 
 const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+
+export const phoneSchema = z
+  .string()
+  .min(10, "Phone must be at least 10 digits")
+  .transform(normalizePhone)
+  .refine(isValidIndianMobile, "Enter a valid 10-digit Indian mobile number");
 
 export const flightSegmentSchema = z.object({
   flightNumber: z.string().min(1),
@@ -29,7 +36,7 @@ export const flightSegmentSchema = z.object({
 export const flightPassengerSchema = z.object({
   title: z.string().min(1),
   firstName: z.string().min(1),
-  lastName: z.string().min(1),
+  lastName: z.string().optional().or(z.literal("")),
   gender: z.string().min(1),
   paxType: z.enum(["adult", "child", "infant"]).optional(),
   ticketNumber: z.string().optional(),
@@ -38,6 +45,14 @@ export const flightPassengerSchema = z.object({
   handBaggage: z.string().optional(),
   checkInBaggage: z.string().optional(),
   baseFare: z.coerce.number().min(0).optional(),
+  frequentFlyerAirline: z.string().optional(),
+  frequentFlyerNumber: z.string().optional(),
+  wheelchairAssistance: z.boolean().optional(),
+  dateOfBirth: z.string().optional(),
+  passportNumber: z.string().optional(),
+  passportIssuingCountry: z.string().optional(),
+  passportIssueDate: z.string().optional(),
+  passportExpiryDate: z.string().optional(),
 });
 
 export const hotelGuestSchema = z.object({
@@ -51,19 +66,110 @@ export const busPassengerSchema = z.object({
   gender: z.string().optional(),
 });
 
+const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+
+export const optionalPanSchema = z
+  .string()
+  .optional()
+  .or(z.literal(""))
+  .refine((v) => !v || panRegex.test(v.toUpperCase()), "Invalid PAN format (e.g. ABCDE1234F)");
+
 export const customerSchema = z.object({
   name: z.string().min(2),
   email: z.string().email().optional().or(z.literal("")),
-  phone: z.string().min(10),
+  phone: phoneSchema,
+  pan: optionalPanSchema,
   gstin: z.string().optional(),
   address: z.string().optional(),
+  city: z.string().optional(),
   state: z.string().optional(),
+  pincode: z.string().optional(),
 });
 
-export const offlineFlightBookingSchema = z.object({
+function validateOptionalPan(pan: string | undefined, ctx: z.RefinementCtx, path: string[]) {
+  if (pan?.trim() && !panRegex.test(pan.trim().toUpperCase())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Invalid PAN format (e.g. ABCDE1234F)",
+      path,
+    });
+  }
+}
+
+function refineOfflineBilling(
+  data: {
+    billingType: "CASH" | "LEDGER";
+    ledgerMode?: "EXISTING" | "NEW";
+    customerId?: string;
+    customer?: {
+      name?: string;
+      phone?: string;
+      email?: string;
+      pan?: string;
+      gstin?: string;
+      address?: string;
+      city?: string;
+      state?: string;
+      pincode?: string;
+    };
+    paymentMethod?: string;
+  },
+  ctx: z.RefinementCtx
+) {
+  if (data.billingType === "CASH") {
+    if (!data.customer?.name?.trim() || data.customer.name.trim().length < 2) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Customer name is required", path: ["customer", "name"] });
+    }
+    if (!data.customer?.phone || !isValidIndianMobile(normalizePhone(data.customer.phone))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Enter a valid 10-digit mobile number",
+        path: ["customer", "phone"],
+      });
+    }
+    validateOptionalPan(data.customer?.pan, ctx, ["customer", "pan"]);
+    if (data.paymentMethod === "CREDIT") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Credit payment is only available for ledger bills",
+        path: ["paymentMethod"],
+      });
+    }
+    return;
+  }
+  if (!data.ledgerMode) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select ledger option", path: ["ledgerMode"] });
+    return;
+  }
+  if (data.ledgerMode === "EXISTING") {
+    if (!data.customerId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select a customer", path: ["customerId"] });
+    }
+    return;
+  }
+  if (!data.customer?.name?.trim() || data.customer.name.trim().length < 2) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Customer name is required", path: ["customer", "name"] });
+  }
+  if (!data.customer?.phone || !isValidIndianMobile(normalizePhone(data.customer.phone))) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Enter a valid 10-digit mobile number",
+      path: ["customer", "phone"],
+    });
+  }
+  validateOptionalPan(data.customer?.pan, ctx, ["customer", "pan"]);
+}
+
+export { refineOfflineBilling };
+
+export const offlineFlightBookingSchema = z
+  .object({
   productType: z.literal("FLIGHT"),
   channel: z.literal("OFFLINE"),
-  customer: customerSchema,
+  billingType: z.enum(["CASH", "LEDGER"]),
+  ledgerMode: z.enum(["EXISTING", "NEW"]).optional(),
+  customerId: z.string().optional(),
+  customer: customerSchema.optional(),
   totalAmount: z.coerce.number().positive(),
   airline: z.string().min(1),
   tripType: z.enum(["ONE_WAY", "ROUND_TRIP", "MULTI_CITY", "ADDON_SERVICES"]).optional(),
@@ -92,12 +198,19 @@ export const offlineFlightBookingSchema = z.object({
   discountAmount: z.coerce.number().min(0).optional(),
   invoiceNarration: z.string().optional(),
   msmeNumber: z.string().optional(),
-});
+  cancellationPolicy: z.string().optional(),
+  includeCancellationPolicy: z.boolean().optional(),
+  })
+  .superRefine(refineOfflineBilling);
 
-export const offlineHotelBookingSchema = z.object({
+export const offlineHotelBookingSchema = z
+  .object({
   productType: z.literal("HOTEL"),
   channel: z.literal("OFFLINE"),
-  customer: customerSchema,
+  billingType: z.enum(["CASH", "LEDGER"]),
+  ledgerMode: z.enum(["EXISTING", "NEW"]).optional(),
+  customerId: z.string().optional(),
+  customer: customerSchema.optional(),
   totalAmount: z.coerce.number().positive(),
   propertyName: z.string().min(1),
   propertyAddress: z.string().min(1),
@@ -120,12 +233,17 @@ export const offlineHotelBookingSchema = z.object({
   agentRemarks: z.string().optional(),
   paymentMethod: z.enum(["UPI", "Cash", "Card", "Bank Transfer", "CREDIT"]).optional(),
   internalNotes: z.string().optional(),
-});
+  })
+  .superRefine(refineOfflineBilling);
 
-export const offlineBusBookingSchema = z.object({
+export const offlineBusBookingSchema = z
+  .object({
   productType: z.literal("BUS"),
   channel: z.literal("OFFLINE"),
-  customer: customerSchema,
+  billingType: z.enum(["CASH", "LEDGER"]),
+  ledgerMode: z.enum(["EXISTING", "NEW"]).optional(),
+  customerId: z.string().optional(),
+  customer: customerSchema.optional(),
   totalAmount: z.coerce.number().positive(),
   operator: z.string().min(1),
   route: z.string().min(1),
@@ -137,9 +255,10 @@ export const offlineBusBookingSchema = z.object({
   passengers: z.array(busPassengerSchema).min(1),
   paymentMethod: z.enum(["UPI", "Cash", "Card", "Bank Transfer", "CREDIT"]).optional(),
   internalNotes: z.string().optional(),
-});
+  })
+  .superRefine(refineOfflineBilling);
 
-export const offlineBookingSchema = z.discriminatedUnion("productType", [
+export const offlineBookingSchema = z.union([
   offlineFlightBookingSchema,
   offlineHotelBookingSchema,
   offlineBusBookingSchema,

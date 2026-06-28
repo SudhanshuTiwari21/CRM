@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Building2, Loader2, Plus, Trash2, User, Search } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -17,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import { FormSettingToggle } from "@/components/booking/edit-form-section";
 import { extractPanFromGstin } from "@/lib/gstin-lookup";
 
 type CustomerType = "INDIVIDUAL" | "BUSINESS";
@@ -79,6 +81,8 @@ const emptyContact = (): ContactForm => ({
 
 export function AddCustomerDialog({ customer, trigger }: AddCustomerDialogProps) {
   const router = useRouter();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
   const isEdit = !!customer;
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"type" | "form">(isEdit ? "form" : "type");
@@ -114,6 +118,9 @@ export function AddCustomerDialog({ customer, trigger }: AddCustomerDialogProps)
       ? customer.contacts
       : [emptyContact()]
   );
+
+  const [creditEnabled, setCreditEnabled] = useState(false);
+  const [creditLimit, setCreditLimit] = useState("");
 
   function resetOnClose(isOpen: boolean) {
     setOpen(isOpen);
@@ -230,9 +237,17 @@ export function AddCustomerDialog({ customer, trigger }: AddCustomerDialogProps)
     e.preventDefault();
     setLoading(true);
 
+    const creditPayload =
+      !isEdit
+        ? {
+            creditEnabled,
+            ...(isAdmin && creditLimit ? { creditLimit: Number(creditLimit) } : {}),
+          }
+        : {};
+
     const payload =
       customerType === "INDIVIDUAL"
-        ? { type: "INDIVIDUAL" as const, ...individual }
+        ? { type: "INDIVIDUAL" as const, ...individual, ...creditPayload }
         : {
             type: "BUSINESS" as const,
             ...business,
@@ -241,6 +256,7 @@ export function AddCustomerDialog({ customer, trigger }: AddCustomerDialogProps)
               gstin: b.gstin || undefined,
             })),
             contacts,
+            ...creditPayload,
           };
 
     try {
@@ -484,6 +500,38 @@ export function AddCustomerDialog({ customer, trigger }: AddCustomerDialogProps)
                   ))}
                 </div>
               </>
+            )}
+
+            {!isEdit && (
+              <div className="space-y-4 rounded-lg border p-4">
+                <p className="text-sm font-medium">Credit Account</p>
+                <FormSettingToggle
+                  label="Credit allowed"
+                  description="Allow on-credit bookings for this customer"
+                  checked={creditEnabled}
+                  onCheckedChange={setCreditEnabled}
+                />
+                {creditEnabled && isAdmin && (
+                  <div className="space-y-2">
+                    <Label>Credit Limit (INR)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={creditLimit}
+                      onChange={(e) => setCreditLimit(e.target.value)}
+                      placeholder="Optional — max outstanding credit"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Only admins can set the credit limit. Adjust later from the customer profile.
+                    </p>
+                  </div>
+                )}
+                {creditEnabled && !isAdmin && (
+                  <p className="text-xs text-muted-foreground">
+                    Credit enabled. An admin can set the credit limit from the customer profile.
+                  </p>
+                )}
+              </div>
             )}
 
             <Button type="submit" className="w-full" disabled={loading}>

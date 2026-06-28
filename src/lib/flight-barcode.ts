@@ -11,7 +11,7 @@ export function buildBarcodePayload(params: {
   airlineCode?: string | null;
 }) {
   const { pnr, bookingRef, passenger, segment, airlineCode } = params;
-  const last = passenger.lastName.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 20);
+  const last = (passenger.lastName || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 20);
   const first = passenger.firstName.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 20);
   const from = (segment.fromAirport || "").toUpperCase().slice(0, 3);
   const to = (segment.toAirport || "").toUpperCase().slice(0, 3);

@@ -23,7 +23,7 @@ export const BOOKING_STATUS_VARIANT: Record<BookingStatus, "default" | "secondar
 export const CHANNEL_LABELS: Record<BookingChannel, string> = {
   LIVE_API: "Live API",
   HELD: "Held",
-  OFFLINE: "Offline / WhatsApp",
+  OFFLINE: "Offline Booking",
 };
 
 export const PRODUCT_LABELS: Record<ProductType, string> = {
@@ -31,6 +31,21 @@ export const PRODUCT_LABELS: Record<ProductType, string> = {
   HOTEL: "Hotel",
   BUS: "Bus",
 };
+
+export const PAYMENT_METHODS = [
+  "Cash",
+  "UPI",
+  "Card",
+  "Bank Transfer",
+  "Razorpay",
+  "PayU",
+  "CCAvenue",
+  "PhonePe",
+  "Paytm",
+  "Stripe",
+] as const;
+
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" },

@@ -12,6 +12,7 @@ interface AdminBookingToolbarProps {
   publicRef: string;
   productType: ProductType;
   status: BookingStatus;
+  paymentStatus: string;
   pnr?: string | null;
   internalNotes?: string | null;
   totalAmount: number;
@@ -36,6 +37,7 @@ export function AdminBookingToolbar(props: AdminBookingToolbarProps) {
           <EditBookingDialog
             bookingId={props.bookingId}
             productType={props.productType}
+            paymentStatus={props.paymentStatus}
             pnr={props.pnr}
             internalNotes={props.internalNotes}
             totalAmount={props.totalAmount}

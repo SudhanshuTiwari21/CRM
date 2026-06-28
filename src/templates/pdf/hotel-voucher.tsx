@@ -1,10 +1,11 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import type { AgencySettings, Booking, HotelBooking } from "@prisma/client";
+import type { AgencySettings, Booking, Customer, HotelBooking } from "@prisma/client";
 import type { HotelGuest } from "@/types/booking";
 import { format } from "date-fns";
 import { MEAL_PLAN_LABELS } from "@/lib/constants/hotel";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
+import { formatBillingAddress } from "@/lib/cash-customer";
 
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 9, fontFamily: "Helvetica", color: "#1f2937" },
@@ -47,6 +48,7 @@ interface Props {
   agency: AgencySettings;
   booking: Booking;
   hotel: HotelBooking;
+  customer: Pick<Customer, "name" | "phone" | "email" | "pan" | "gstin" | "address" | "city" | "state" | "pincode">;
   guests: HotelGuest[];
   logoSrc?: string | null;
 }
@@ -64,11 +66,12 @@ function formatGuestList(guests: HotelGuest[]) {
   return others > 0 ? `${lead.name} (Primary Guest) + ${others} Other(s)` : `${lead.name} (Primary Guest)`;
 }
 
-export function HotelVoucherPDF({ agency, booking, hotel, guests, logoSrc }: Props) {
+export function HotelVoucherPDF({ agency, booking, hotel, customer, guests, logoSrc }: Props) {
   const { adults, children } = countGuests(guests);
   const supplierConfirmation = hotel.confirmationNo || booking.pnr || "";
   const isConfirmed = Boolean(supplierConfirmation);
   const mealPlanLabel = MEAL_PLAN_LABELS[hotel.mealPlan] || hotel.mealPlan;
+  const billingAddress = formatBillingAddress(customer);
 
   return (
     <Document>
@@ -103,6 +106,17 @@ export function HotelVoucherPDF({ agency, booking, hotel, guests, logoSrc }: Pro
         <Text style={styles.confirmLine}>
           Hotel Confirmation Number : {supplierConfirmation || "—"}
         </Text>
+
+        {(billingAddress || customer.pan || customer.gstin) && (
+          <View style={{ marginBottom: 12 }}>
+            <Text style={styles.sectionTitle}>Billing Details</Text>
+            <Text style={styles.guestLine}>{customer.name}</Text>
+            {billingAddress ? <Text style={styles.contactLine}>{billingAddress}</Text> : null}
+            {customer.gstin ? <Text style={styles.contactLine}>GSTIN: {customer.gstin}</Text> : null}
+            {customer.pan ? <Text style={styles.contactLine}>PAN: {customer.pan}</Text> : null}
+            {customer.phone ? <Text style={styles.contactLine}>Contact: {customer.phone}</Text> : null}
+          </View>
+        )}
 
         {hotel.city && (
           <Text style={styles.cityLine}>

@@ -173,6 +173,9 @@ export function buildFlightItineraryMessage(params: {
     "",
     `*Amount*: ${formatInr(Number(booking.totalAmount))}`,
     "",
+    ...(flight.includeCancellationPolicy && flight.cancellationPolicy
+      ? [`*Cancellation Policy*: ${flight.cancellationPolicy}`, ""]
+      : []),
     "Your booking voucher and invoice have been sent to your email.",
     "",
     "We will send a separate confirmation with your PNR once the airline confirms.",
