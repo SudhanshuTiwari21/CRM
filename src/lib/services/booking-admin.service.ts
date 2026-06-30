@@ -9,6 +9,7 @@ import {
   FLIGHT_SERVICE_HSN,
   getStateCodeFromGstin,
 } from "@/lib/gst-calculator";
+import { applyCardGatewayCharge } from "@/lib/payment-gateway";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { logActivity } from "./activity.service";
 import { generateBookingDocuments } from "./document.service";
@@ -56,6 +57,7 @@ export async function updateBookingAsAdmin(
     input.passengers !== undefined ||
     input.tripType !== undefined ||
     input.cabinClass !== undefined ||
+    input.fareType !== undefined ||
     input.addonType !== undefined;
 
   if (booking.flightBooking) {
@@ -68,6 +70,7 @@ export async function updateBookingAsAdmin(
     const passengers = (input.passengers ?? booking.flightBooking.passengers) as unknown as FlightPassenger[];
     const tripType = input.tripType ?? booking.flightBooking.tripType;
     const cabinClass = input.cabinClass ?? booking.flightBooking.cabinClass;
+    const fareType = input.fareType ?? booking.flightBooking.fareType;
     const invoiceTaxType = input.invoiceTaxType ?? booking.flightBooking.invoiceTaxType;
     const buyerGstin =
       input.buyerGstin !== undefined
@@ -87,6 +90,13 @@ export async function updateBookingAsAdmin(
         invoiceTaxType,
       });
       totalAmount = calculateFlightInvoiceTotal(baseFare, serviceCharge, tax, discountAmount);
+      const existingGateway = Number(booking.flightBooking.paymentGatewayCharge || 0);
+      const gatewayApplied = applyCardGatewayCharge(
+        totalAmount,
+        input.paymentGatewayCharge && input.paymentGatewayCharge > 0 ? "Card" : existingGateway > 0 ? "Card" : null
+      );
+      totalAmount = gatewayApplied.totalAmount;
+      flightData.paymentGatewayCharge = gatewayApplied.paymentGatewayCharge || null;
       flightData.cgstRate = tax.cgstRate;
       flightData.sgstRate = tax.sgstRate;
       flightData.igstRate = tax.igstRate;
@@ -131,6 +141,7 @@ export async function updateBookingAsAdmin(
     if (input.addonType !== undefined) flightData.addonType = toDbAddonType(input.addonType);
     if (input.addonCustomLabel !== undefined) flightData.addonCustomLabel = input.addonCustomLabel || null;
     if (input.addonCustomValue !== undefined) flightData.addonCustomValue = input.addonCustomValue || null;
+    if (input.fareType !== undefined) flightData.fareType = input.fareType;
 
     if (hasFlightItineraryUpdate) {
       const normalizedSegments = segments.map((s) => ({ ...s, airline }));
@@ -144,6 +155,7 @@ export async function updateBookingAsAdmin(
           passengers,
           tripType,
           cabinClass,
+          fareType,
           secondaryPnr: input.secondaryPnr ?? booking.flightBooking.secondaryPnr,
           showEticket: input.showEticket ?? booking.flightBooking.showEticket,
           showPassengerName: input.showPassengerName ?? booking.flightBooking.showPassengerName,

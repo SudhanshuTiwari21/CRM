@@ -6,7 +6,6 @@ import { Plus, Trash2 } from "lucide-react";
 import type { WizardForm } from "@/components/booking/offline-booking-wizard";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -14,6 +13,7 @@ import {
   CABIN_BAGGAGE_PRESETS,
   CABIN_CLASS_OPTIONS,
   COMMON_AIRLINES,
+  FARE_TYPE_OPTIONS,
   ADDON_TYPE_OPTIONS,
   LAYOVER_TYPE_OPTIONS,
   MEAL_OPTIONS,
@@ -30,6 +30,7 @@ import {
   SavedPassengerRowActions,
   useSavedPassengerActions,
 } from "@/components/booking/saved-passenger-picker";
+import { FlightCancellationPolicyFields } from "@/components/booking/flight-cancellation-policy-fields";
 
 interface FlightBookingFieldsProps {
   form: UseFormReturn<WizardForm>;
@@ -71,7 +72,6 @@ export function FlightBookingFields({
   const addonType = form.watch("addonType") || "seat";
   const showEticket = form.watch("showEticket");
   const checkInAssistance = form.watch("checkInAssistance");
-  const includeCancellationPolicy = form.watch("includeCancellationPolicy");
 
   const savedPassenger = useSavedPassengerActions(form, appendPassenger);
   const airline = form.watch("airline");
@@ -110,8 +110,9 @@ export function FlightBookingFields({
     });
   }, [airline, form]);
 
-  // Auto-calculate layover duration between connected segments
+  // Auto-calculate layover duration between connected segments (not between round-trip legs)
   useEffect(() => {
+    if (tripType === "ROUND_TRIP") return;
     for (let i = 0; i < segments.length - 1; i++) {
       const seg = segments[i];
       const next = segments[i + 1];
@@ -127,7 +128,7 @@ export function FlightBookingFields({
         form.setValue(`segments.${i}.layoverAirport`, seg.toAirport);
       }
     }
-  }, [segments, form]);
+  }, [segments, form, tripType]);
 
   function handleTripTypeChange(value: string) {
     form.setValue("tripType", value as WizardForm["tripType"]);
@@ -150,6 +151,15 @@ export function FlightBookingFields({
         form.setValue("segments.0.direction", "outbound");
         form.setValue("segments.1.direction", "return");
       }
+      const segs = form.getValues("segments") || [];
+      segs.forEach((_, idx) => {
+        form.setValue(`segments.${idx}.layoverDuration`, "");
+        form.setValue(`segments.${idx}.layoverCity`, "");
+        form.setValue(`segments.${idx}.layoverAirport`, "");
+        form.setValue(`segments.${idx}.layoverTerminal`, "");
+        form.setValue(`segments.${idx}.layoverNote`, "");
+        form.setValue(`segments.${idx}.layoverType`, "connection");
+      });
     } else if (value === "ONE_WAY") {
       const target = (form.getValues("stopCount") ?? 0) + 1;
       resizeSegments(target);
@@ -211,6 +221,22 @@ export function FlightBookingFields({
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {CABIN_CLASS_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        )}
+        {!isAddonTrip && (
+        <div className="space-y-2">
+          <Label>Fare Type</Label>
+          <Select
+            value={form.watch("fareType") || "NORMAL"}
+            onValueChange={(v) => form.setValue("fareType", v as WizardForm["fareType"])}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {FARE_TYPE_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
               ))}
             </SelectContent>
@@ -412,7 +438,7 @@ export function FlightBookingFields({
             </div>
           </div>
 
-          {i < segmentFields.length - 1 && (
+          {i < segmentFields.length - 1 && tripType !== "ROUND_TRIP" && (
             <div className="ml-4 space-y-3 rounded-lg border-2 border-dashed border-amber-300 bg-amber-50/50 p-4 dark:border-amber-700 dark:bg-amber-950/20">
               <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
                 Layover after {segments[i]?.toCity || "this flight"}
@@ -799,27 +825,7 @@ export function FlightBookingFields({
         />
       </div>
 
-      {!isAddonTrip && (
-        <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-800 dark:bg-amber-950/20">
-          <FormSettingToggle
-            label="Add cancellation policy to voucher"
-            description="Shown on the flight ticket PDF sent to the customer"
-            checked={Boolean(includeCancellationPolicy)}
-            onCheckedChange={(v) => form.setValue("includeCancellationPolicy", v)}
-          />
-          {includeCancellationPolicy && (
-            <div className="space-y-2">
-              <Label>Cancellation Policy</Label>
-              <Textarea
-                {...form.register("cancellationPolicy")}
-                placeholder="e.g. Cancellation charges as per airline policy. Agency fee non-refundable..."
-                rows={4}
-                className="resize-y bg-background"
-              />
-            </div>
-          )}
-        </div>
-      )}
+      {!isAddonTrip && <FlightCancellationPolicyFields form={form} />}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { extractPanFromGstin } from "@/lib/gstin-lookup";
 import { getStateCodeFromGstin } from "@/lib/gst-calculator";
 import { amountInWordsInr } from "@/lib/number-to-words";
-import { CABIN_CLASS_OPTIONS } from "@/lib/constants/flight";
+import { CABIN_CLASS_OPTIONS, fareTypeLabel } from "@/lib/constants/flight";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
 import { buildFullRoute, buildSectorLegs, buildSectorSummary } from "@/lib/flight-layover";
 import { buildAdultBaseFareLines, passengerDisplayName } from "@/lib/flight-fare-breakup";
@@ -125,7 +125,10 @@ export function InvoicePDF({
   const sgst = hasGstInvoice ? Number(flight!.sgstAmount || 0) : 0;
   const igst = hasGstInvoice ? Number(flight!.igstAmount || 0) : 0;
   const totalTax = cgst + sgst + igst;
-  const grandTotal = hasGstInvoice ? baseFare + serviceCharge + totalTax - discount : Number(booking.totalAmount);
+  const gatewayCharge = hasGstInvoice ? Number(flight!.paymentGatewayCharge || 0) : 0;
+  const grandTotal = hasGstInvoice
+    ? baseFare + serviceCharge + totalTax - discount + gatewayCharge
+    : Number(booking.totalAmount);
 
   const sector = buildSectorSummary(segments, flight?.tripType);
   const sectorLegs = buildSectorLegs(segments, flight?.tripType);
@@ -165,6 +168,7 @@ export function InvoicePDF({
       : null,
     travelDate ? `Travel Date: ${travelDate}` : null,
     flight?.cabinClass ? `Class: ${cabinLabel(flight.cabinClass)}` : null,
+    flight?.fareType ? `Fare Type: ${fareTypeLabel(flight.fareType)}` : null,
   ].filter(Boolean) as string[];
 
   const gstRateLabel =
@@ -376,6 +380,11 @@ export function InvoicePDF({
             {discount > 0 && (
               <Text style={[styles.amountWords, { color: "#b45309" }]}>
                 Discount Applied: −{inr(discount)}
+              </Text>
+            )}
+            {gatewayCharge > 0 && (
+              <Text style={styles.amountWords}>
+                Card Payment Gateway Charge (2.5%): {inr(gatewayCharge)}
               </Text>
             )}
           </>

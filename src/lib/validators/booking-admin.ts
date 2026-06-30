@@ -17,6 +17,8 @@ export const adminBookingUpdateSchema = z.object({
   addonCustomLabel: z.string().optional(),
   addonCustomValue: z.string().optional(),
   cabinClass: z.enum(["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS"]).optional(),
+  fareType: z.enum(["NORMAL", "CORP", "FLEXI", "UPFRONT"]).optional(),
+  paymentGatewayCharge: z.coerce.number().min(0).optional(),
   secondaryPnr: z.string().optional(),
   showEticket: z.boolean().optional(),
   checkInAssistance: z.boolean().optional(),

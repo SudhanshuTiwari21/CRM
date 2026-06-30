@@ -108,6 +108,13 @@ enum CabinClass {
   BUSINESS
 }
 
+enum FareType {
+  NORMAL
+  CORP
+  FLEXI
+  UPFRONT
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -361,6 +368,8 @@ model FlightBooking {
   addonCustomLabel String?
   addonCustomValue String?
   cabinClass       CabinClass      @default(ECONOMY)
+  fareType         FareType        @default(NORMAL)
+  paymentGatewayCharge Decimal?    @db.Decimal(12, 2)
   secondaryPnr     String?
   showEticket      Boolean         @default(false)
   showPassengerName Boolean        @default(true)

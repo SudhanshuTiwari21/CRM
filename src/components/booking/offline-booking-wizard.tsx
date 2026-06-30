@@ -72,6 +72,9 @@ const wizardSchema = z
   addonFlightNumber: z.string().optional(),
   addonTravelDate: z.string().optional(),
   cabinClass: z.enum(["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS"]).optional(),
+  fareType: z.enum(["NORMAL", "CORP", "FLEXI", "UPFRONT"]).optional(),
+  paymentGatewayCharge: z.coerce.number().min(0).optional(),
+  flightInvoiceSubtotal: z.coerce.number().min(0).optional(),
   secondaryPnr: z.string().optional(),
   showEticket: z.boolean().optional(),
   showPassengerName: z.boolean().optional(),
@@ -187,6 +190,9 @@ export function OfflineBookingWizard() {
       addonFlightNumber: "",
       addonTravelDate: "",
       cabinClass: "ECONOMY",
+      fareType: "NORMAL",
+      paymentGatewayCharge: 0,
+      flightInvoiceSubtotal: 0,
       stopCount: 0,
       showEticket: false,
       showPassengerName: true,
@@ -308,6 +314,8 @@ export function OfflineBookingWizard() {
           addonFlightNumber: data.addonFlightNumber?.trim() || undefined,
           addonTravelDate: data.addonTravelDate?.trim() || undefined,
           cabinClass: data.cabinClass || "ECONOMY",
+          fareType: data.fareType || "NORMAL",
+          paymentGatewayCharge: data.paymentGatewayCharge ?? 0,
           secondaryPnr: data.segments?.[1]?.pnr?.trim() || data.secondaryPnr?.trim() || undefined,
           showEticket: isAddon ? false : data.showEticket || false,
           showPassengerName: data.showPassengerName !== false,
@@ -472,7 +480,10 @@ export function OfflineBookingWizard() {
           )}
           <div className="space-y-2">
             <Label>Payment Method</Label>
-            <Select onValueChange={(v) => form.setValue("paymentMethod", v)}>
+            <Select
+              value={form.watch("paymentMethod") || undefined}
+              onValueChange={(v) => form.setValue("paymentMethod", v)}
+            >
               <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="UPI">UPI</SelectItem>
@@ -484,6 +495,16 @@ export function OfflineBookingWizard() {
                 )}
               </SelectContent>
             </Select>
+            {form.watch("paymentMethod") === "Card" && Number(form.watch("paymentGatewayCharge") || 0) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Card payment gateway charge (2.5%): ₹
+                {Number(form.watch("paymentGatewayCharge")).toLocaleString("en-IN", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                added automatically to the booking total.
+              </p>
+            )}
             {creditAvailable && billingType === "LEDGER" && (
               <p className="text-xs text-muted-foreground">Credit account enabled for this customer</p>
             )}

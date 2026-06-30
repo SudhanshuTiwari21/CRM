@@ -4,6 +4,17 @@ export const CABIN_CLASS_OPTIONS = [
   { value: "BUSINESS", label: "Business" },
 ] as const;
 
+export const FARE_TYPE_OPTIONS = [
+  { value: "NORMAL", label: "Normal" },
+  { value: "CORP", label: "CORP" },
+  { value: "FLEXI", label: "Flexi" },
+  { value: "UPFRONT", label: "Upfront" },
+] as const;
+
+export function fareTypeLabel(value?: string | null) {
+  return FARE_TYPE_OPTIONS.find((o) => o.value === value)?.label || value || "Normal";
+}
+
 export const TRIP_TYPE_OPTIONS = [
   { value: "ONE_WAY", label: "One Way" },
   { value: "ROUND_TRIP", label: "Round Trip" },

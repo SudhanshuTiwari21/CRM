@@ -28,6 +28,7 @@ import {
   FLIGHT_SERVICE_HSN,
   getStateCodeFromGstin,
 } from "@/lib/gst-calculator";
+import { applyCardGatewayCharge } from "@/lib/payment-gateway";
 
 type OfflineBookingInput = z.infer<typeof offlineBookingSchema>;
 type OfflineFlightBookingInput = z.infer<typeof offlineFlightBookingSchema>;
@@ -147,11 +148,15 @@ function buildFlightTaxData(
   });
 
   const discountAmount = input.discountAmount || 0;
-  const totalAmount = calculateFlightInvoiceTotal(
+  const invoiceSubtotal = calculateFlightInvoiceTotal(
     input.baseFare,
     input.serviceCharge,
     tax,
     discountAmount
+  );
+  const { paymentGatewayCharge, totalAmount } = applyCardGatewayCharge(
+    invoiceSubtotal,
+    input.paymentMethod
   );
 
   const airlineLogoUrl = getAirlineLogoUrl(input.airline) || undefined;
@@ -168,6 +173,8 @@ function buildFlightTaxData(
       addonCustomLabel: input.addonCustomLabel?.trim() || null,
       addonCustomValue: input.addonCustomValue?.trim() || null,
       cabinClass: input.cabinClass || "ECONOMY",
+      fareType: input.fareType || "NORMAL",
+      paymentGatewayCharge: paymentGatewayCharge || null,
       secondaryPnr: input.secondaryPnr || null,
       showEticket: input.showEticket || false,
       showPassengerName: input.showPassengerName !== false,
@@ -273,6 +280,8 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
         addonCustomLabel: flightInput.addonCustomLabel?.trim() || null,
         addonCustomValue: flightInput.addonCustomValue?.trim() || null,
         cabinClass: flightInput.cabinClass || "ECONOMY",
+        fareType: flightInput.fareType || "NORMAL",
+        paymentGatewayCharge: flightInput.paymentGatewayCharge || null,
         secondaryPnr: flightInput.secondaryPnr || null,
         showEticket: flightInput.showEticket || false,
         showPassengerName: flightInput.showPassengerName !== false,
@@ -292,6 +301,9 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
         });
         totalAmount = built.totalAmount;
         flightData = { ...flightData, ...built.flightData };
+      } else if (flightInput.paymentGatewayCharge) {
+        totalAmount = flightInput.totalAmount;
+        flightData.paymentGatewayCharge = flightInput.paymentGatewayCharge;
       }
 
       created = await tx.booking.create({

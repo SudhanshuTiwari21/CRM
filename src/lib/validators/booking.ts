@@ -179,6 +179,8 @@ export const offlineFlightBookingSchema = z
   addonFlightNumber: z.string().optional(),
   addonTravelDate: z.string().optional(),
   cabinClass: z.enum(["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS"]).optional(),
+  fareType: z.enum(["NORMAL", "CORP", "FLEXI", "UPFRONT"]).optional(),
+  paymentGatewayCharge: z.coerce.number().min(0).optional(),
   secondaryPnr: z.string().optional(),
   showEticket: z.boolean().optional(),
   showPassengerName: z.boolean().optional(),
