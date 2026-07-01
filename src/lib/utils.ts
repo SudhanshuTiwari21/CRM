@@ -40,6 +40,18 @@ export function formatDateTime(date: Date | string) {
   }).format(d);
 }
 
+import { CUSTOMER_TITLE_OPTIONS } from "@/lib/constants/flight";
+
+/** Split stored full name into title prefix and remainder for form fields. */
+export function splitCustomerName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/);
+  const titles = CUSTOMER_TITLE_OPTIONS.map((o) => o.value);
+  if (parts.length > 1 && titles.includes(parts[0] as (typeof titles)[number])) {
+    return { title: parts[0], name: parts.slice(1).join(" ") };
+  }
+  return { title: "Mr", name: fullName };
+}
+
 /** Combine optional title with customer name for storage/display. */
 export function formatCustomerName(title: string | undefined, name: string) {
   const trimmed = name.trim();

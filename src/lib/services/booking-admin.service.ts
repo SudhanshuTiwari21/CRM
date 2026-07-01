@@ -18,11 +18,29 @@ import { recordBookingPayment } from "./booking-payment.service";
 import { computeAmountDue, sumPaidPayments } from "@/lib/payment-utils";
 import { flightFieldsWithDeparture, maybeSendImmediateCheckInAssistanceAlert } from "./checkin-assistance.service";
 import { toDbAddonType } from "@/lib/flight-addon";
+import { formatCustomerName } from "@/lib/utils";
+import { updateExistingCustomerFromBooking } from "./customer.service";
+import type { CashCustomerSnapshot } from "@/lib/cash-customer";
+
 import type { z } from "zod";
 import type { adminBookingUpdateSchema } from "@/lib/validators/booking-admin";
 import type { RecordBookingPaymentInput } from "@/lib/validators/payment";
 
 type AdminBookingUpdateInput = z.infer<typeof adminBookingUpdateSchema>;
+
+function buildCustomerSnapshot(input: NonNullable<AdminBookingUpdateInput["customer"]>): CashCustomerSnapshot {
+  return {
+    name: formatCustomerName(input.title, input.name.trim()),
+    phone: input.phone,
+    email: input.email?.trim() || null,
+    pan: input.pan?.trim().toUpperCase() || null,
+    gstin: input.gstin?.trim() || null,
+    address: input.address?.trim() || null,
+    city: input.city?.trim() || null,
+    state: input.state?.trim() || null,
+    pincode: input.pincode?.trim() || null,
+  };
+}
 
 export type { AdminBookingUpdateInput };
 
@@ -43,6 +61,29 @@ export async function updateBookingAsAdmin(
   };
   if (input.pnr !== undefined) bookingData.pnr = input.pnr || null;
   if (input.internalNotes !== undefined) bookingData.internalNotes = input.internalNotes;
+
+  if (input.customer) {
+    const snapshot = buildCustomerSnapshot(input.customer);
+    if (booking.billingType === "CASH") {
+      const existingMeta =
+        booking.metadata && typeof booking.metadata === "object"
+          ? (booking.metadata as Record<string, unknown>)
+          : {};
+      bookingData.metadata = { ...existingMeta, cashCustomer: snapshot };
+    } else {
+      await updateExistingCustomerFromBooking(booking.customerId, {
+        name: snapshot.name,
+        phone: snapshot.phone,
+        email: snapshot.email || undefined,
+        pan: snapshot.pan || undefined,
+        gstin: snapshot.gstin || undefined,
+        address: snapshot.address || undefined,
+        city: snapshot.city || undefined,
+        state: snapshot.state || undefined,
+        pincode: snapshot.pincode || undefined,
+      });
+    }
+  }
 
   const markablePaidStatuses = ["PENDING", "FAILED", "ON_CREDIT", "PARTIAL"];
   const markingPaid =

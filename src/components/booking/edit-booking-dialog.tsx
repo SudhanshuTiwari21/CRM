@@ -23,6 +23,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FlightBookingFields } from "@/components/booking/flight-booking-fields";
 import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields";
 import {
+  CustomerEditFields,
+  CustomerEditFieldsControlled,
+  type CustomerEditFieldValues,
+} from "@/components/booking/customer-edit-fields";
+import {
   EditDialogFooter,
   EditFormSection,
   FormSettingToggle,
@@ -30,11 +35,13 @@ import {
 } from "@/components/booking/edit-form-section";
 import type { WizardForm } from "@/components/booking/offline-booking-wizard";
 import {
+  buildCustomerEditFormValues,
   buildFlightEditFormValues,
   flightEditFormSchema,
   normalizeFlightEditPayload,
   type FlightEditFormValues,
 } from "@/lib/flight-edit-form";
+import type { BookingCustomerContact } from "@/lib/cash-customer";
 import { getFirstFormErrorMessage } from "@/lib/form-errors";
 
 type FlightEditWizardForm = Omit<WizardForm, "billingType" | "ledgerMode" | "customerId"> &
@@ -115,27 +122,48 @@ interface EditBookingDialogProps {
   bookingId: string;
   productType: string;
   paymentStatus: string;
+  billingType: string;
+  customerContact: BookingCustomerContact;
   pnr?: string | null;
   internalNotes?: string | null;
   totalAmount: number;
-  customer?: { gstin?: string | null; state?: string | null };
   flight?: FlightBooking | null;
+}
+
+function buildCustomerPayload(customer: CustomerEditFieldValues) {
+  return {
+    title: customer.title,
+    name: customer.name.trim(),
+    phone: customer.phone,
+    email: customer.email?.trim() || undefined,
+    pan: customer.pan?.trim().toUpperCase() || undefined,
+    gstin: customer.gstin?.trim() || undefined,
+    address: customer.address?.trim() || undefined,
+    city: customer.city?.trim() || undefined,
+    state: customer.state?.trim() || undefined,
+    pincode: customer.pincode?.trim() || undefined,
+  };
 }
 
 function SimpleEditForm({
   bookingId,
   productType,
   paymentStatus,
+  billingType,
+  customerContact,
   pnr,
   internalNotes,
   totalAmount,
   flight,
   onClose,
-}: Omit<EditBookingDialogProps, "customer"> & { onClose: () => void }) {
+}: EditBookingDialogProps & { onClose: () => void }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [markAsPaid, setMarkAsPaid] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
+  const [customer, setCustomer] = useState<CustomerEditFieldValues>(() =>
+    buildCustomerEditFormValues(customerContact)
+  );
   const [form, setForm] = useState({
     pnr: pnr || "",
     internalNotes: internalNotes || "",
@@ -158,6 +186,7 @@ function SimpleEditForm({
       const payload: Record<string, unknown> = {
         pnr: form.pnr.trim() || undefined,
         internalNotes: form.internalNotes,
+        customer: buildCustomerPayload(customer),
         regenerateDocuments: true,
         ...buildPaymentPayload(markAsPaid, paymentMethod),
       };
@@ -204,6 +233,14 @@ function SimpleEditForm({
               className="font-mono tracking-wide"
             />
           </div>
+        </EditFormSection>
+
+        <EditFormSection title="Customer" description="Contact and billing details on invoice and voucher">
+          <CustomerEditFieldsControlled
+            value={customer}
+            onChange={setCustomer}
+            billingType={billingType}
+          />
         </EditFormSection>
 
         {productType === "FLIGHT" && (
@@ -308,7 +345,8 @@ function SimpleEditForm({
 function FlightEditForm({
   bookingId,
   flight,
-  customer,
+  billingType,
+  customerContact,
   paymentStatus,
   pnr,
   internalNotes,
@@ -317,7 +355,8 @@ function FlightEditForm({
 }: {
   bookingId: string;
   flight: FlightBooking;
-  customer: { gstin?: string | null; state?: string | null };
+  billingType: string;
+  customerContact: BookingCustomerContact;
   paymentStatus: string;
   pnr?: string | null;
   internalNotes?: string | null;
@@ -331,7 +370,7 @@ function FlightEditForm({
 
   const form = useForm<FlightEditWizardForm>({
     resolver: zodResolver(flightEditFormSchema) as Resolver<FlightEditWizardForm>,
-    defaultValues: buildFlightEditFormValues(flight, customer, { pnr, internalNotes, totalAmount }) as FlightEditWizardForm,
+    defaultValues: buildFlightEditFormValues(flight, customerContact, { pnr, internalNotes, totalAmount }) as FlightEditWizardForm,
   });
 
   const {
@@ -400,6 +439,10 @@ function FlightEditForm({
           </div>
         </EditFormSection>
 
+        <EditFormSection title="Customer" description="Contact and billing details on invoice and voucher">
+          <CustomerEditFields form={form} billingType={billingType} />
+        </EditFormSection>
+
         <EditFormSection title="Flight Itinerary" description="Segments, passengers, and travel options">
           <FlightBookingFields
             form={form as unknown as ReturnType<typeof useForm<WizardForm>>}
@@ -450,10 +493,11 @@ export function EditBookingDialog({
   bookingId,
   productType,
   paymentStatus,
+  billingType,
+  customerContact,
   pnr,
   internalNotes,
   totalAmount,
-  customer,
   flight,
 }: EditBookingDialogProps) {
   const [open, setOpen] = useState(false);
@@ -471,7 +515,7 @@ export function EditBookingDialog({
         className={
           isFlightEdit
             ? "flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
-            : "flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
+            : "flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
         }
       >
         <DialogHeader className="shrink-0 space-y-3 border-b bg-muted/20 px-6 py-5 pr-12">
@@ -510,7 +554,8 @@ export function EditBookingDialog({
             <FlightEditForm
               bookingId={bookingId}
               flight={flight}
-              customer={customer || {}}
+              billingType={billingType}
+              customerContact={customerContact}
               paymentStatus={paymentStatus}
               pnr={pnr}
               internalNotes={internalNotes}
@@ -522,6 +567,8 @@ export function EditBookingDialog({
               bookingId={bookingId}
               productType={productType}
               paymentStatus={paymentStatus}
+              billingType={billingType}
+              customerContact={customerContact}
               pnr={pnr}
               internalNotes={internalNotes}
               totalAmount={totalAmount}

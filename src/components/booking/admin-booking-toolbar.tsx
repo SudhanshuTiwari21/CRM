@@ -1,7 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import type { BookingStatus, CancellationCategory, Customer, FlightBooking, ProductType } from "@prisma/client";
+import type { BookingStatus, CancellationCategory, FlightBooking, ProductType } from "@prisma/client";
+import type { BookingCustomerContact } from "@/lib/cash-customer";
 import { BookingActions } from "@/components/booking/booking-actions";
 import { EditBookingDialog } from "@/components/booking/edit-booking-dialog";
 import { DeleteBookingDialog } from "@/components/booking/delete-booking-dialog";
@@ -18,7 +19,8 @@ interface AdminBookingToolbarProps {
   totalAmount: number;
   cancellationCategory?: CancellationCategory;
   creditEnabled?: boolean;
-  customer?: Pick<Customer, "gstin" | "state">;
+  billingType: string;
+  customerContact: BookingCustomerContact;
   flight?: FlightBooking | null;
 }
 
@@ -38,10 +40,11 @@ export function AdminBookingToolbar(props: AdminBookingToolbarProps) {
             bookingId={props.bookingId}
             productType={props.productType}
             paymentStatus={props.paymentStatus}
+            billingType={props.billingType}
+            customerContact={props.customerContact}
             pnr={props.pnr}
             internalNotes={props.internalNotes}
             totalAmount={props.totalAmount}
-            customer={props.customer}
             flight={props.flight}
           />
           {showCancel && (

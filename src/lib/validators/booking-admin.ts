@@ -1,5 +1,23 @@
 import { z } from "zod";
-import { flightPassengerSchema, flightSegmentSchema } from "@/lib/validators/booking";
+import {
+  flightPassengerSchema,
+  flightSegmentSchema,
+  optionalPanSchema,
+  phoneSchema,
+} from "@/lib/validators/booking";
+
+export const adminCustomerUpdateSchema = z.object({
+  title: z.string().optional(),
+  name: z.string().min(2, "Customer name is required"),
+  email: z.string().email().optional().or(z.literal("")),
+  phone: phoneSchema,
+  pan: optionalPanSchema,
+  gstin: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  pincode: z.string().optional(),
+});
 
 export const adminBookingUpdateSchema = z.object({
   pnr: z.string().optional(),
@@ -33,6 +51,7 @@ export const adminBookingUpdateSchema = z.object({
   specialAssistanceUpdatedToAirline: z.boolean().optional(),
   paymentStatus: z.enum(["PAID"]).optional(),
   paymentMethod: z.string().min(1).optional(),
+  customer: adminCustomerUpdateSchema.optional(),
 }).superRefine((data, ctx) => {
   if (data.paymentStatus === "PAID" && !data.paymentMethod?.trim()) {
     ctx.addIssue({

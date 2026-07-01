@@ -125,7 +125,8 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               totalAmount={Number(booking.totalAmount)}
               cancellationCategory={cancellationCategory}
               creditEnabled={booking.customer.creditEnabled}
-              customer={{ gstin: booking.customer.gstin, state: booking.customer.state }}
+              billingType={booking.billingType}
+              customerContact={displayCustomer}
               flight={booking.flightBooking}
             />
           </div>

@@ -1,13 +1,17 @@
 import { z } from "zod";
 import type { FlightBooking } from "@prisma/client";
+import type { BookingCustomerContact } from "@/lib/cash-customer";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { BAGGAGE_PRESETS, CABIN_BAGGAGE_PRESETS } from "@/lib/constants/flight";
 import { buildAddonPlaceholderSegment, fromDbAddonType } from "@/lib/flight-addon";
 import { getReturnLegStartIndex } from "@/lib/flight-layover";
 import { normalizeFlightSegments, toDatetimeLocalValue } from "@/lib/flight-datetime";
+import { splitCustomerName } from "@/lib/utils";
 import {
   flightPassengerSchema,
   flightSegmentSchema,
+  optionalPanSchema,
+  phoneSchema,
   refineInternationalPassengers,
 } from "@/lib/validators/booking";
 
@@ -23,12 +27,15 @@ export const flightEditFormSchema = z.object({
   productType: z.literal("FLIGHT").optional(),
   customer: z.object({
     title: z.string().optional(),
-    name: z.string().optional(),
-    email: z.string().optional(),
-    phone: z.string().optional(),
+    name: z.string().min(2, "Customer name is required"),
+    email: z.string().email().optional().or(z.literal("")),
+    phone: phoneSchema,
+    pan: optionalPanSchema,
     gstin: z.string().optional(),
     address: z.string().optional(),
+    city: z.string().optional(),
     state: z.string().optional(),
+    pincode: z.string().optional(),
   }),
   airline: z.string().min(1, "Airline is required"),
   tripType: z.enum(["ONE_WAY", "ROUND_TRIP", "MULTI_CITY", "ADDON_SERVICES"]),
@@ -65,6 +72,22 @@ export const flightEditFormSchema = z.object({
 
 export type FlightEditFormValues = z.infer<typeof flightEditFormSchema>;
 
+export function buildCustomerEditFormValues(contact: BookingCustomerContact) {
+  const { title, name } = splitCustomerName(contact.name);
+  return {
+    title,
+    name,
+    phone: contact.phone,
+    email: contact.email || "",
+    pan: contact.pan || "",
+    gstin: contact.gstin || "",
+    address: contact.address || "",
+    city: contact.city || "",
+    state: contact.state || "",
+    pincode: contact.pincode || "",
+  };
+}
+
 function inferPreset(value: string | undefined, presets: readonly string[]): string {
   if (!value?.trim()) return presets.includes("7 KG") ? "7 KG" : "";
   return presets.includes(value) ? value : "Custom";
@@ -96,7 +119,7 @@ function mapSegmentForForm(seg: FlightSegment, airline: string) {
 
 export function buildFlightEditFormValues(
   flight: FlightBooking,
-  customer: { gstin?: string | null; state?: string | null },
+  customerContact: BookingCustomerContact,
   booking: { pnr?: string | null; internalNotes?: string | null; totalAmount: unknown }
 ): FlightEditFormValues {
   const segments = (flight.segments as unknown as FlightSegment[]) || [];
@@ -108,15 +131,7 @@ export function buildFlightEditFormValues(
     internalNotes: booking.internalNotes || "",
     totalAmount: Number(booking.totalAmount),
     productType: "FLIGHT",
-    customer: {
-      title: "Mr",
-      name: "—",
-      phone: "0000000000",
-      email: "",
-      address: "",
-      gstin: customer.gstin || "",
-      state: customer.state || "",
-    },
+    customer: buildCustomerEditFormValues(customerContact),
     airline,
     tripType: flight.tripType,
     addonType: fromDbAddonType(flight.addonType),
@@ -196,6 +211,18 @@ export function normalizeFlightEditPayload(data: FlightEditFormValues) {
     pnr: data.pnr?.trim() || undefined,
     internalNotes: data.internalNotes,
     totalAmount: data.totalAmount,
+    customer: {
+      title: data.customer.title,
+      name: data.customer.name.trim(),
+      phone: data.customer.phone,
+      email: data.customer.email?.trim() || undefined,
+      pan: data.customer.pan?.trim().toUpperCase() || undefined,
+      gstin: data.customer.gstin?.trim() || undefined,
+      address: data.customer.address?.trim() || undefined,
+      city: data.customer.city?.trim() || undefined,
+      state: data.customer.state?.trim() || undefined,
+      pincode: data.customer.pincode?.trim() || undefined,
+    },
     airline,
     tripType: data.tripType,
     addonType: data.addonType,
