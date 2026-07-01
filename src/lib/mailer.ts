@@ -11,6 +11,8 @@ export type EmailAttachment = {
   filename: string;
   content: Buffer;
   contentType: string;
+  /** Content-ID for inline images — reference in HTML as src="cid:..." */
+  cid?: string;
 };
 
 interface SendEmailParams {
@@ -20,6 +22,7 @@ interface SendEmailParams {
   bookingId?: string;
   template: string;
   attachments?: EmailAttachment[];
+  inlineAttachments?: EmailAttachment[];
 }
 
 function renderTemplate(template: string, vars: Record<string, string>) {
@@ -99,6 +102,7 @@ export async function sendTemplatedEmail(params: {
   vars: Record<string, string>;
   bookingId?: string;
   attachments?: EmailAttachment[];
+  inlineAttachments?: EmailAttachment[];
   htmlOverride?: string;
 }) {
   const template = await prisma.emailTemplate.findUnique({
@@ -124,6 +128,7 @@ export async function sendTemplatedEmail(params: {
     bookingId: params.bookingId,
     template: params.templateKey,
     attachments: params.attachments,
+    inlineAttachments: params.inlineAttachments,
   });
 }
 
@@ -146,7 +151,7 @@ export async function sendEmail(params: SendEmailParams) {
       to: params.to,
       subject: params.subject,
       html: params.html,
-      attachments: params.attachments,
+      attachments: [...(params.inlineAttachments || []), ...(params.attachments || [])],
     });
 
     await prisma.emailLog.update({

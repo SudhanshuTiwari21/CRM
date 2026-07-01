@@ -10,8 +10,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { FlightTicketPDF } from "../src/templates/pdf/flight-ticket";
 import { getAirlineLogoDataUri } from "../src/lib/airline-logo-pdf";
 import { getPdfLogoDataUri } from "../src/lib/pdf-logo";
-import { buildWingieConfirmedEmailHtml } from "../src/lib/wingie-voucher-html";
-import { buildItineraryVoucherEmailHtml } from "../src/lib/tripcom-itinerary-email-html";
+import { buildItineraryVoucherEmailHtml, buildTripcomConfirmedEmailHtml } from "../src/lib/tripcom-itinerary-email-html";
 import type { FlightPassenger, FlightSegment } from "../src/types/booking";
 
 const outDir = path.join(process.cwd(), "storage", "documents");
@@ -203,11 +202,23 @@ async function main() {
   const pdfPath = path.join(outDir, "sample-flight-voucher-wingie.pdf");
   await fs.writeFile(pdfPath, buffer);
 
-  const emailHtml = await buildWingieConfirmedEmailHtml({ agency, booking, customer, flight });
-  const htmlPath = path.join(outDir, "sample-wingie-confirmation-email.html");
+  const emailHtml = await buildTripcomConfirmedEmailHtml({
+    agency,
+    booking,
+    customer,
+    flight,
+    logoSrc: (await getPdfLogoDataUri()) ?? undefined,
+  });
+  const htmlPath = path.join(outDir, "sample-tripcom-confirmed-email.html");
   await fs.writeFile(htmlPath, emailHtml);
 
-  const itineraryHtml = await buildItineraryVoucherEmailHtml({ agency, booking, customer, flight });
+  const itineraryHtml = await buildItineraryVoucherEmailHtml({
+    agency,
+    booking,
+    customer,
+    flight,
+    logoSrc: (await getPdfLogoDataUri()) ?? undefined,
+  });
   const itineraryPath = path.join(outDir, "sample-tripcom-itinerary-email.html");
   await fs.writeFile(itineraryPath, itineraryHtml);
 

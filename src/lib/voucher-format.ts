@@ -135,6 +135,11 @@ export function formatVoucherInr(amount: number, useRupeeSymbol = true) {
   return useRupeeSymbol ? `₹ ${formatted}` : `Rs. ${formatted}`;
 }
 
+/** PDF-safe INR — Helvetica in @react-pdf renders ₹ as a superscript "1". */
+export function formatPdfInr(amount: number) {
+  return formatVoucherInr(amount, false);
+}
+
 export const WINGIE_COLORS = {
   navy: "#1a2d3e",
   text: "#2a3a4a",

@@ -1,6 +1,6 @@
 import type { AgencySettings, Booking, Customer, FlightBooking } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
-import { getPdfLogoDataUri } from "@/lib/pdf-logo";
+import { getEmailLogoSrc, emailResponsiveStyles } from "@/lib/email-logo";
 import { getVoucherTermsContent } from "@/templates/pdf/voucher-terms";
 import { formatPassportDate } from "@/lib/passport-dates";
 import {
@@ -43,8 +43,8 @@ function agencyHeaderHtml(agency: AgencySettings, logoSrc: string | null) {
   return `
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
       <tr>
-        <td valign="top" style="width:50%;">${logo}</td>
-        <td valign="top" align="right" style="font-size:8.5px;line-height:1.55;color:${C.label};font-family:Arial,Helvetica,sans-serif;">
+        <td valign="top" class="header-logo-cell" style="width:50%;">${logo}</td>
+        <td valign="top" align="right" class="header-contact" style="font-size:8.5px;line-height:1.55;color:${C.label};font-family:Arial,Helvetica,sans-serif;">
           <div>${escapeHtml(agency.companyName)}</div>
           ${agency.address ? `<div>${escapeHtml(agency.address)}</div>` : ""}
           ${cityLine ? `<div>${escapeHtml(cityLine)}</div>` : ""}
@@ -61,19 +61,19 @@ function travelerDetailsHtml(pax: FlightPassenger, pnr: string, showInternationa
     showInternationalDetails || pax.passportNumber
       ? `
       <tr>
-        <td valign="top" width="25%" style="padding-right:8px;padding-bottom:8px;">
+        <td valign="top" width="25%" class="col-quarter" style="padding-right:8px;padding-bottom:8px;">
           <div style="${labelStyle}">Passport No</div>
           <div style="${valueStyle}">${escapeHtml(pax.passportNumber || "—")}</div>
         </td>
-        <td valign="top" width="25%" style="padding-right:8px;padding-bottom:8px;">
+        <td valign="top" width="25%" class="col-quarter" style="padding-right:8px;padding-bottom:8px;">
           <div style="${labelStyle}">Passport Country</div>
           <div style="${valueStyle}">${escapeHtml(pax.passportIssuingCountry || "—")}</div>
         </td>
-        <td valign="top" width="25%" style="padding-right:8px;padding-bottom:8px;">
+        <td valign="top" width="25%" class="col-quarter" style="padding-right:8px;padding-bottom:8px;">
           <div style="${labelStyle}">Passport Issue</div>
           <div style="${valueStyle}">${escapeHtml(formatPassportDate(pax.passportIssueDate))}</div>
         </td>
-        <td valign="top" width="25%" align="right" style="padding-bottom:8px;">
+        <td valign="top" width="25%" align="right" class="col-quarter text-right-sm" style="padding-bottom:8px;">
           <div style="${labelStyle}text-align:right;">Passport Expiry</div>
           <div style="${valueStyle}text-align:right;">${escapeHtml(formatPassportDate(pax.passportExpiryDate))}</div>
         </td>
@@ -84,19 +84,19 @@ function travelerDetailsHtml(pax: FlightPassenger, pnr: string, showInternationa
     ${sectionTitle("Traveler Details")}
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;font-family:Arial,Helvetica,sans-serif;">
       <tr>
-        <td valign="top" width="25%" style="padding-right:8px;padding-bottom:8px;">
+        <td valign="top" width="25%" class="col-quarter" style="padding-right:8px;padding-bottom:8px;">
           <div style="${labelStyle}">Traveler</div>
           <div style="${valueStyle}">${name} (${paxTypeLabel(pax.paxType)})</div>
         </td>
-        <td valign="top" width="25%" style="padding-right:8px;padding-bottom:8px;">
+        <td valign="top" width="25%" class="col-quarter" style="padding-right:8px;padding-bottom:8px;">
           <div style="${labelStyle}">Ticket Number</div>
           <div style="${valueStyle}">${escapeHtml(pax.ticketNumber || "—")}</div>
         </td>
-        <td valign="top" width="25%" style="padding-right:8px;padding-bottom:8px;">
+        <td valign="top" width="25%" class="col-quarter" style="padding-right:8px;padding-bottom:8px;">
           <div style="${labelStyle}">Airline (PNR)</div>
           <div style="${valueStyle}">${escapeHtml(pnr)}</div>
         </td>
-        <td valign="top" width="25%" align="right" style="padding-bottom:8px;">
+        <td valign="top" width="25%" align="right" class="col-quarter text-right-sm" style="padding-bottom:8px;">
           <div style="${labelStyle}text-align:right;">Date of Birth</div>
           <div style="${valueStyle}text-align:right;">${escapeHtml(formatVoucherDob(pax.dateOfBirth))}</div>
         </td>
@@ -110,15 +110,15 @@ function flightSegmentHtml(seg: FlightSegment, airline: string, cabinClass: stri
   return `
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;font-family:Arial,Helvetica,sans-serif;">
       <tr>
-        <td width="33%" valign="top" style="padding-bottom:6px;">
+        <td width="33%" valign="top" class="col-third" style="padding-bottom:6px;">
           <div style="${labelStyle}">Airline</div>
           <div style="${valueStyle}">${segAirline}</div>
         </td>
-        <td width="33%" valign="top" style="padding-bottom:6px;">
+        <td width="33%" valign="top" class="col-third" style="padding-bottom:6px;">
           <div style="${labelStyle}">Flight Number</div>
           <div style="${valueStyle}">${escapeHtml(seg.flightNumber || "—")}</div>
         </td>
-        <td width="33%" valign="top" style="padding-bottom:6px;">
+        <td width="33%" valign="top" class="col-third" style="padding-bottom:6px;">
           <div style="${labelStyle}">Class</div>
           <div style="${valueStyle}">${escapeHtml(cabinClassDisplay(cabinClass))}</div>
         </td>
@@ -178,13 +178,13 @@ function baggageDetailsHtml(pax: FlightPassenger) {
     ${sectionTitle("Baggage Details")}
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:14px;font-family:Arial,Helvetica,sans-serif;">
       <tr>
-        <td width="50%" valign="top" style="padding-right:12px;">
+        <td width="50%" valign="top" class="col-half" style="padding-right:12px;">
           <div style="${labelStyle}">Traveler Name Surname</div>
           <div style="${valueStyle}">
             ${escapeHtml(travelerDisplayName(pax))} (${paxTypeLabel(pax.paxType)})
           </div>
         </td>
-        <td width="50%" valign="top">
+        <td width="50%" valign="top" class="col-half">
           <div style="${labelStyle}">Departure Baggage Allowance</div>
           ${lines}
         </td>
@@ -272,12 +272,14 @@ export async function buildWingieConfirmedEmailHtml(params: {
   booking: Booking;
   customer: Customer;
   flight: FlightBooking;
+  /** Override for local HTML preview (e.g. data: URI). Emails use CID via getEmailLogoSrc(). */
+  logoSrc?: string;
 }) {
-  const { agency, booking, flight } = params;
+  const { agency, booking, flight, logoSrc: logoOverride } = params;
   const segments = flight.segments as unknown as FlightSegment[];
   const passengers = flight.passengers as unknown as FlightPassenger[];
   const pnr = booking.pnr || "—";
-  const logoSrc = await getPdfLogoDataUri();
+  const logoSrc = logoOverride ?? getEmailLogoSrc();
   const totalAmount = Number(booking.totalAmount);
 
   const showInternationalDetails = Boolean(flight.showEticket);
@@ -299,12 +301,13 @@ export async function buildWingieConfirmedEmailHtml(params: {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${escapeHtml(agency.companyName)} — E-Ticket</title>
+  ${emailResponsiveStyles()}
 </head>
-<body style="margin:0;padding:0;background:#ffffff;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:32px 16px;">
+<body style="margin:0;padding:0;background:#ffffff;width:100%;">
+  <table width="100%" cellpadding="0" cellspacing="0" class="email-outer-pad" style="background:#ffffff;padding:16px 12px;width:100%;">
     <tr>
       <td align="center">
-        <table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;padding:32px 40px 36px;">
+        <table cellpadding="0" cellspacing="0" class="email-container" style="max-width:600px;width:100%;background:#ffffff;padding:20px 16px 28px;">
           <tr>
             <td style="font-family:Arial,Helvetica,sans-serif;color:${C.navy};">
               ${agencyHeaderHtml(agency, logoSrc)}

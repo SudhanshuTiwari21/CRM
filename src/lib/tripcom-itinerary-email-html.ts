@@ -1,6 +1,6 @@
 import type { AgencySettings, Booking, Customer, FlightBooking } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
-import { getPdfLogoDataUri } from "@/lib/pdf-logo";
+import { getEmailLogoSrc, emailResponsiveStyles } from "@/lib/email-logo";
 import { getAirportDisplay } from "@/lib/airport-names";
 import { cabinLabel, groupSegments, voucherPaymentBreakdown } from "@/lib/voucher-format";
 import { formatFlightWallClock } from "@/lib/flight-datetime";
@@ -218,9 +218,12 @@ function paymentFlightCard(params: {
     </table>`;
 }
 
-function helpSectionHtml(companyName: string) {
+function helpSectionPendingHtml() {
   return `
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;font-family:Arial,Helvetica,sans-serif;">
+      <tr>
+        <td style="padding-bottom:6px;font-size:15px;font-weight:700;color:${TEXT};">Name is incorrect?</td>
+      </tr>
       <tr>
         <td style="padding-bottom:14px;font-size:14px;color:${TEXT};line-height:1.65;">
           Direct name or travel document changes aren&apos;t available before tickets are issued. Please contact us to cancel and rebook with the correct details.
@@ -248,6 +251,155 @@ function helpSectionHtml(companyName: string) {
         </td>
       </tr>
     </table>`;
+}
+
+function helpSectionConfirmedHtml(agency: AgencySettings) {
+  const phone = agency.phone?.trim();
+  const email = agency.email?.trim();
+  const contact =
+    phone && email
+      ? `call <strong>${escapeHtml(phone)}</strong> or email <strong>${escapeHtml(email)}</strong>`
+      : phone
+        ? `call <strong>${escapeHtml(phone)}</strong>`
+        : email
+          ? `email <strong>${escapeHtml(email)}</strong>`
+          : "contact our support team";
+
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;font-family:Arial,Helvetica,sans-serif;">
+      <tr>
+        <td style="padding-bottom:6px;font-size:15px;font-weight:700;color:${TEXT};">Name is incorrect?</td>
+      </tr>
+      <tr>
+        <td style="padding-bottom:14px;font-size:14px;color:${TEXT};line-height:1.65;">
+          Please ${contact} as soon as possible. Name changes after ticketing are subject to airline rules and fees.
+        </td>
+      </tr>
+      <tr>
+        <td style="padding-bottom:6px;font-size:15px;font-weight:700;color:${TEXT};">Need to change dates or itinerary?</td>
+      </tr>
+      <tr>
+        <td style="padding-bottom:14px;font-size:14px;color:${TEXT};line-height:1.65;">
+          Date or route changes depend on your fare rules. Please contact us and we&apos;ll help you with the airline.
+        </td>
+      </tr>
+      <tr>
+        <td style="padding-bottom:6px;font-size:15px;font-weight:700;color:${TEXT};">Where is my full itinerary?</td>
+      </tr>
+      <tr>
+        <td style="padding-bottom:20px;font-size:14px;color:${TEXT};line-height:1.65;">
+          Your complete e-ticket, baggage details, and invoice are in the <strong>PDF attachments</strong> to this email — not repeated in this message.
+        </td>
+      </tr>
+    </table>`;
+}
+
+function manageBookingButtonHtml(agency: AgencySettings) {
+  const phone = agency.phone?.trim();
+  const email = agency.email?.trim();
+  const href = phone
+    ? `tel:${phone.replace(/[^\d+]/g, "")}`
+    : email
+      ? `mailto:${encodeURIComponent(email)}`
+      : "";
+  if (!href) return "";
+
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;">
+      <tr>
+        <td align="center" style="padding:16px 0 8px;">
+          <a href="${href}" style="display:inline-block;padding:11px 36px;border:1px solid ${BLUE};border-radius:4px;color:${BLUE};font-size:15px;font-weight:600;text-decoration:none;font-family:Arial,Helvetica,sans-serif;">
+            Manage My Booking
+          </a>
+        </td>
+      </tr>
+    </table>`;
+}
+
+function confirmedInfoBoxHtml(params: {
+  route: string;
+  date: string;
+  pnr: string;
+  secondaryPnr?: string | null;
+  passengers: FlightPassenger[];
+}) {
+  const paxRows = params.passengers
+    .map(
+      (p) => `
+      <tr>
+        <td style="padding-top:10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:${TEXT};line-height:1.6;">
+          <span style="color:${TEXT};font-size:16px;margin-right:6px;">&#128100;</span>
+          ${passengerTripLine(p)}
+        </td>
+      </tr>`
+    )
+    .join("");
+
+  const pnrBlock = params.secondaryPnr?.trim()
+    ? `<tr>
+        <td style="padding-top:8px;font-size:14px;color:${TEXT};line-height:1.6;">
+          Outbound PNR: <strong>${escapeHtml(params.pnr)}</strong>
+          &nbsp;&middot;&nbsp;
+          Return PNR: <strong>${escapeHtml(params.secondaryPnr.trim())}</strong>
+        </td>
+      </tr>`
+    : `<tr>
+        <td style="padding-top:8px;font-size:14px;color:${TEXT};line-height:1.6;">
+          Airline (PNR): <strong>${escapeHtml(params.pnr)}</strong>
+        </td>
+      </tr>`;
+
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border:1px solid ${TEAL};border-radius:8px;">
+      <tr>
+        <td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="padding-bottom:10px;font-size:14px;font-weight:600;color:${TEAL};">
+                <span style="display:inline-block;width:18px;height:18px;border-radius:9px;background:${TEAL};color:#fff;text-align:center;line-height:18px;font-size:11px;margin-right:6px;">&#10003;</span>
+                Your tickets have been issued
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:20px;font-weight:700;color:${TEXT};line-height:1.35;">
+                ${escapeHtml(params.route)}${params.date ? ` | ${escapeHtml(params.date)}` : ""}
+              </td>
+            </tr>
+            ${pnrBlock}
+            <tr>
+              <td style="padding-top:14px;border-top:1px solid #d4f1f6;">
+                <table width="100%" cellpadding="0" cellspacing="0">${paxRows}</table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>`;
+}
+
+function wrapTripcomEmail(title: string, body: string) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title}</title>
+  ${emailResponsiveStyles()}
+</head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;width:100%;">
+  <table width="100%" cellpadding="0" cellspacing="0" class="email-outer-pad" style="background:#ffffff;padding:16px 12px;width:100%;">
+    <tr>
+      <td align="center">
+        <table cellpadding="0" cellspacing="0" class="email-container" style="max-width:600px;width:100%;background:#ffffff;padding:8px 16px 28px;">
+          <tr>
+            <td>${body}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
 function tripcomFooterHtml(agency: AgencySettings) {
@@ -294,28 +446,16 @@ export async function buildItineraryVoucherEmailHtml(params: {
   booking: Booking;
   customer: Customer;
   flight: FlightBooking;
+  logoSrc?: string;
 }) {
-  const { agency, booking, customer, flight } = params;
+  const { agency, booking, customer, flight, logoSrc: logoOverride } = params;
   const segments = flight.segments as unknown as FlightSegment[];
   const passengers = flight.passengers as unknown as FlightPassenger[];
   const { route, date } = primaryRoute(segments);
   const customerName = escapeHtml(customer.name.toUpperCase());
-  const logoSrc = await getPdfLogoDataUri();
+  const logoSrc = logoOverride ?? getEmailLogoSrc();
 
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(agency.companyName)} — Booking Confirmed</title>
-</head>
-<body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;padding:24px 12px;">
-    <tr>
-      <td align="center">
-        <table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;padding:8px 20px 28px;">
-          <tr>
-            <td>
+  const body = `
               ${headerHtml(agency, logoSrc, booking.publicRef)}
 
               <h1 style="margin:0 0 18px;font-size:28px;font-weight:700;color:${TEXT};line-height:1.25;font-family:Arial,Helvetica,sans-serif;">
@@ -338,7 +478,9 @@ export async function buildItineraryVoucherEmailHtml(params: {
 
               ${infoBoxHtml({ companyName: agency.companyName, route, date, passengers })}
 
-              ${helpSectionHtml(agency.companyName)}
+              ${manageBookingButtonHtml(agency)}
+
+              ${helpSectionPendingHtml()}
 
               ${paymentFlightCard({
                 flight,
@@ -346,13 +488,64 @@ export async function buildItineraryVoucherEmailHtml(params: {
                 totalAmount: Number(booking.totalAmount),
               })}
 
-              ${tripcomFooterHtml(agency)}
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+              ${tripcomFooterHtml(agency)}`;
+
+  return wrapTripcomEmail(`${escapeHtml(agency.companyName)} — Booking Confirmed`, body);
+}
+
+/** Trip.com-style confirmation after PNR — message only; full ticket is in PDF attachment. */
+export async function buildTripcomConfirmedEmailHtml(params: {
+  agency: AgencySettings;
+  booking: Booking;
+  customer: Customer;
+  flight: FlightBooking;
+  logoSrc?: string;
+}) {
+  const { agency, booking, customer, flight, logoSrc: logoOverride } = params;
+  const segments = flight.segments as unknown as FlightSegment[];
+  const passengers = flight.passengers as unknown as FlightPassenger[];
+  const { route, date } = primaryRoute(segments);
+  const customerName = escapeHtml(customer.name.toUpperCase());
+  const logoSrc = logoOverride ?? getEmailLogoSrc();
+  const pnr = booking.pnr || "—";
+
+  const body = `
+              ${headerHtml(agency, logoSrc, booking.publicRef)}
+
+              <h1 style="margin:0 0 18px;font-size:28px;font-weight:700;color:${TEXT};line-height:1.25;font-family:Arial,Helvetica,sans-serif;">
+                Payment Successful
+              </h1>
+
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${TEXT};">
+                Dear <strong>${customerName}</strong>,
+              </p>
+              <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${TEXT};">
+                We&apos;ve received your payment. <strong>Your ticket has been issued</strong> by the airline.
+                Your complete e-ticket and invoice are <strong>attached to this email</strong>.
+              </p>
+              <p style="margin:0 0 4px;font-size:15px;line-height:1.65;color:${TEXT};">
+                Please open the PDF attachment for traveler details, flight times, baggage allowance, and terms.
+              </p>
+
+              ${confirmedInfoBoxHtml({
+                route,
+                date,
+                pnr,
+                secondaryPnr: flight.secondaryPnr,
+                passengers,
+              })}
+
+              ${manageBookingButtonHtml(agency)}
+
+              ${helpSectionConfirmedHtml(agency)}
+
+              ${paymentFlightCard({
+                flight,
+                segments,
+                totalAmount: Number(booking.totalAmount),
+              })}
+
+              ${tripcomFooterHtml(agency)}`;
+
+  return wrapTripcomEmail(`${escapeHtml(agency.companyName)} — E-Ticket Ready`, body);
 }

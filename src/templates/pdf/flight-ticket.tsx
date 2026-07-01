@@ -1,5 +1,17 @@
 import React from "react";
-import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import {
+  Document,
+  Defs,
+  Image,
+  LinearGradient,
+  Page,
+  Rect,
+  Stop,
+  Svg,
+  Text,
+  View,
+  StyleSheet,
+} from "@react-pdf/renderer";
 import type { AgencySettings, Booking, Customer, FlightBooking } from "@prisma/client";
 import type { CabinClass } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
@@ -12,8 +24,8 @@ import {
   baggageLines,
   cabinClassDisplay,
   formatEndpoint,
+  formatPdfInr,
   formatVoucherDob,
-  formatVoucherInr,
   groupSegments,
   layoverLabel,
   paxTypeLabel,
@@ -23,6 +35,7 @@ import {
 } from "@/lib/voucher-format";
 
 const C = WINGIE_COLORS;
+const HEADER_BG = "#eef2f6";
 
 const styles = StyleSheet.create({
   page: {
@@ -35,13 +48,33 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     lineHeight: 1.45,
   },
+  headerBand: {
+    marginHorizontal: -40,
+    marginTop: -32,
+    marginBottom: 16,
+    backgroundColor: HEADER_BG,
+    paddingHorizontal: 40,
+    paddingTop: 26,
+    paddingBottom: 0,
+  },
+  headerFade: {
+    height: 16,
+    width: "100%",
+  },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 20,
+    paddingBottom: 10,
   },
   agencyBlock: { alignItems: "flex-end", maxWidth: 220, flexShrink: 0 },
+  agencyName: {
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+    color: C.navy,
+    lineHeight: 1.55,
+    textAlign: "right",
+  },
   agencyLine: { fontSize: 6.5, color: C.label, lineHeight: 1.55, textAlign: "right" },
   sectionTitle: {
     fontSize: 11.5,
@@ -112,19 +145,39 @@ const styles = StyleSheet.create({
   termsClosing: { fontFamily: "Helvetica-Bold", fontSize: 8.5, marginTop: 14, color: C.navy },
 });
 
-function AgencyHeader({ agency, logoSrc }: { agency: AgencySettings; logoSrc?: string | null }) {
+function VoucherHeaderBand({
+  agency,
+  logoSrc,
+  fadeId,
+}: {
+  agency: AgencySettings;
+  logoSrc?: string | null;
+  fadeId: string;
+}) {
   const cityLine = [agency.city, agency.state, agency.pincode].filter(Boolean).join(", ");
 
   return (
-    <View style={styles.headerRow}>
-      <PdfLogo src={logoSrc} variant="voucher" />
-      <View style={styles.agencyBlock}>
-        <Text style={styles.agencyLine}>{agency.companyName}</Text>
-        {agency.address ? <Text style={styles.agencyLine}>{agency.address}</Text> : null}
-        {cityLine ? <Text style={styles.agencyLine}>{cityLine}</Text> : null}
-        {agency.phone ? <Text style={styles.agencyLine}>{agency.phone}</Text> : null}
-        {agency.email ? <Text style={styles.agencyLine}>{agency.email}</Text> : null}
+    <View style={styles.headerBand}>
+      <View style={styles.headerRow}>
+        <PdfLogo src={logoSrc} variant="voucher" />
+        <View style={styles.agencyBlock}>
+          <Text style={styles.agencyName}>{agency.companyName}</Text>
+          {agency.address ? <Text style={styles.agencyLine}>{agency.address}</Text> : null}
+          {cityLine ? <Text style={styles.agencyLine}>{cityLine}</Text> : null}
+          {agency.phone ? <Text style={styles.agencyLine}>{agency.phone}</Text> : null}
+          {agency.email ? <Text style={styles.agencyLine}>{agency.email}</Text> : null}
+        </View>
       </View>
+      <Svg style={styles.headerFade} viewBox="0 0 515 16">
+        <Defs>
+          <LinearGradient id={fadeId}>
+            <Stop offset="0%" stopColor={HEADER_BG} />
+            <Stop offset="55%" stopColor="#f7f9fb" />
+            <Stop offset="100%" stopColor="#ffffff" />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="515" height="16" fill={`url(#${fadeId})`} />
+      </Svg>
     </View>
   );
 }
@@ -179,7 +232,7 @@ function FlightSegmentBlock({
 }
 
 function PaymentAmount({ amount, negative }: { amount: number; negative?: boolean }) {
-  const text = negative ? `-${formatVoucherInr(amount)}` : formatVoucherInr(amount);
+  const text = negative ? `-${formatPdfInr(amount)}` : formatPdfInr(amount);
   return <Text style={styles.paymentAmount}>{text}</Text>;
 }
 
@@ -215,7 +268,7 @@ export function FlightTicketPDF({
       {passengers.map((pax, pIdx) => (
         <React.Fragment key={`pax-${pIdx}`}>
           <Page size="A4" style={styles.page}>
-            <AgencyHeader agency={agency} logoSrc={logoSrc} />
+            <VoucherHeaderBand agency={agency} logoSrc={logoSrc} fadeId={`hdr-fade-${pIdx}-main`} />
 
             <Text style={styles.sectionTitle}>Traveler Details</Text>
             <View style={styles.detailGrid}>
@@ -362,7 +415,7 @@ export function FlightTicketPDF({
                 </View>
               ) : null}
               <View style={styles.paymentTotalRow}>
-                <Text style={styles.paymentTotal}>Total {formatVoucherInr(payment.total)}</Text>
+                <Text style={styles.paymentTotal}>Total {formatPdfInr(payment.total)}</Text>
               </View>
             </View>
 
@@ -377,7 +430,7 @@ export function FlightTicketPDF({
           </Page>
 
           <Page size="A4" style={styles.page}>
-            <AgencyHeader agency={agency} logoSrc={logoSrc} />
+            <VoucherHeaderBand agency={agency} logoSrc={logoSrc} fadeId={`hdr-fade-${pIdx}-terms`} />
             <View style={styles.termsBorder}>
               <Text style={styles.termsTitle}>{terms.title}</Text>
               <Text style={styles.termsIntro}>{terms.intro}</Text>

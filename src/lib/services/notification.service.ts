@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getEmailLogoInlineAttachment } from "@/lib/email-logo";
 import { sendTemplatedEmail, getEmailAttachments } from "@/lib/mailer";
 import { generateBookingDocuments, getBookingDocumentPaths } from "./document.service";
 import { getBookingCustomerContact } from "@/lib/cash-customer";
@@ -6,8 +7,7 @@ import { sendWhatsAppText } from "@/lib/whatsapp";
 import {
   buildHotelConfirmedEmailHtml,
 } from "@/lib/booking-email-html";
-import { buildItineraryVoucherEmailHtml } from "@/lib/tripcom-itinerary-email-html";
-import { buildWingieConfirmedEmailHtml } from "@/lib/wingie-voucher-html";
+import { buildItineraryVoucherEmailHtml, buildTripcomConfirmedEmailHtml } from "@/lib/tripcom-itinerary-email-html";
 import {
   buildBusConfirmedMessage,
   buildFlightConfirmedMessage,
@@ -56,7 +56,7 @@ async function sendBookingEmail(
     });
   } else if (templateKey === "booking_confirmed" && agency) {
     if (booking.productType === "FLIGHT" && booking.flightBooking) {
-      htmlOverride = await buildWingieConfirmedEmailHtml({
+      htmlOverride = await buildTripcomConfirmedEmailHtml({
         agency,
         booking,
         customer: customerForEmail,
@@ -93,12 +93,22 @@ async function sendBookingEmail(
     }
   }
 
+  let inlineAttachments;
+  if (
+    htmlOverride &&
+    booking.productType === "FLIGHT" &&
+    (templateKey === "booking_confirmed" || templateKey === "itinerary_voucher")
+  ) {
+    inlineAttachments = [await getEmailLogoInlineAttachment()];
+  }
+
   return sendTemplatedEmail({
     templateKey,
     to: contact.email!,
     vars,
     bookingId,
     attachments,
+    inlineAttachments,
     htmlOverride,
   });
 }
