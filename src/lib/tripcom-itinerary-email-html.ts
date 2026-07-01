@@ -4,6 +4,11 @@ import { getEmailLogoSrc, emailResponsiveStyles } from "@/lib/email-logo";
 import { getAirportDisplay } from "@/lib/airport-names";
 import { cabinLabel, groupSegments, voucherPaymentBreakdown } from "@/lib/voucher-format";
 import { formatFlightWallClock } from "@/lib/flight-datetime";
+import { passengerDisplayName } from "@/lib/flight-fare-breakup";
+import { toTitleCase } from "@/lib/utils";
+import { buildEmailCopyrightHtml, buildEmailSocialButtonsHtml } from "@/lib/email-footer";
+
+const BOOKTOROAM_SITE_URL = "https://booktoroam.in";
 
 const BLUE = "#2346dc";
 const TEAL = "#00b2d1";
@@ -52,15 +57,13 @@ function primaryRoute(segments: FlightSegment[]) {
   const first = segments[0];
   const last = segments[segments.length - 1];
   return {
-    route: `${first.fromCity} - ${last.toCity}`,
+    route: `${toTitleCase(first.fromCity)} - ${toTitleCase(last.toCity)}`,
     date: formatTripDateShort(first.departureAt),
   };
 }
 
 function passengerTripLine(p: FlightPassenger) {
-  const first = escapeHtml(p.firstName.toUpperCase());
-  const last = escapeHtml((p.lastName || "").toUpperCase());
-  return `<strong>${first}</strong> <span style="color:${MUTED};font-weight:400;">(First name)</span> <strong>${last || "—"}</strong> <span style="color:${MUTED};font-weight:400;">(Last name)</span>`;
+  return `<strong>${escapeHtml(toTitleCase(passengerDisplayName(p)))}</strong>`;
 }
 
 function headerHtml(agency: AgencySettings, logoSrc: string | null, publicRef: string) {
@@ -153,7 +156,7 @@ function paymentFlightCard(params: {
   const flightLegs = groups
     .flatMap((group) =>
       group.segments.map((seg) => {
-        const route = `${escapeHtml(seg.fromCity)} - ${escapeHtml(seg.toCity)}`;
+        const route = `${escapeHtml(toTitleCase(seg.fromCity))} - ${escapeHtml(toTitleCase(seg.toCity))}`;
         const airline = escapeHtml(seg.airline || params.flight.airline);
         const flightNo = escapeHtml(seg.flightNumber || "—");
         const cabin = escapeHtml(cabinLabel(params.flight.cabinClass));
@@ -294,21 +297,12 @@ function helpSectionConfirmedHtml(agency: AgencySettings) {
     </table>`;
 }
 
-function manageBookingButtonHtml(agency: AgencySettings) {
-  const phone = agency.phone?.trim();
-  const email = agency.email?.trim();
-  const href = phone
-    ? `tel:${phone.replace(/[^\d+]/g, "")}`
-    : email
-      ? `mailto:${encodeURIComponent(email)}`
-      : "";
-  if (!href) return "";
-
+function manageBookingButtonHtml() {
   return `
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;">
       <tr>
         <td align="center" style="padding:16px 0 8px;">
-          <a href="${href}" style="display:inline-block;padding:11px 36px;border:1px solid ${BLUE};border-radius:4px;color:${BLUE};font-size:15px;font-weight:600;text-decoration:none;font-family:Arial,Helvetica,sans-serif;">
+          <a href="${BOOKTOROAM_SITE_URL}" style="display:inline-block;padding:11px 36px;border:1px solid ${BLUE};border-radius:4px;color:${BLUE};font-size:15px;font-weight:600;text-decoration:none;font-family:Arial,Helvetica,sans-serif;">
             Manage My Booking
           </a>
         </td>
@@ -403,7 +397,6 @@ function wrapTripcomEmail(title: string, body: string) {
 }
 
 function tripcomFooterHtml(agency: AgencySettings) {
-  const year = new Date().getFullYear();
   const phone = agency.phone ? escapeHtml(agency.phone) : "";
   const email = agency.email ? escapeHtml(agency.email) : "";
 
@@ -421,15 +414,14 @@ function tripcomFooterHtml(agency: AgencySettings) {
             &#10003; Travel worry-free with our service guarantee &rsaquo;
           </p>
           <p style="margin:0 0 6px;font-size:15px;font-weight:700;color:${TEXT};text-align:left;">Service you can rely on</p>
-          <p style="margin:0 0 16px;font-size:13px;color:${MUTED};line-height:1.6;text-align:left;">
+          <p style="margin:0 0 0;font-size:13px;color:${MUTED};line-height:1.6;text-align:left;">
             Reach our customer support team for booking assistance and ticket updates.
           </p>
-          <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px dashed ${BORDER};margin-top:8px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px dashed ${BORDER};margin-top:16px;">
             <tr>
               <td style="padding:14px 0 0;font-size:12px;color:${MUTED};line-height:1.7;text-align:left;">
                 Please do not reply to this message. This email was sent from a notification-only email address that cannot accept incoming emails.<br />
-                Do not forward this mail as it contains your personal information and booking details.<br /><br />
-                Copyright &copy; ${year} ${escapeHtml(agency.companyName)}. All rights reserved.
+                Do not forward this mail as it contains your personal information and booking details.
               </td>
             </tr>
           </table>
@@ -438,7 +430,9 @@ function tripcomFooterHtml(agency: AgencySettings) {
     </table>
     <p style="margin:20px 0 0;text-align:center;font-size:13px;color:${RED};line-height:1.6;font-family:Arial,Helvetica,sans-serif;">
       Please be cautious when forwarding this email as it contains personal information and booking details that could be modified or canceled by the recipient.
-    </p>`;
+    </p>
+    ${buildEmailSocialButtonsHtml({ headingColor: TEXT })}
+    ${buildEmailCopyrightHtml(agency.companyName, { mutedColor: MUTED })}`;
 }
 
 export async function buildItineraryVoucherEmailHtml(params: {
@@ -452,7 +446,7 @@ export async function buildItineraryVoucherEmailHtml(params: {
   const segments = flight.segments as unknown as FlightSegment[];
   const passengers = flight.passengers as unknown as FlightPassenger[];
   const { route, date } = primaryRoute(segments);
-  const customerName = escapeHtml(customer.name.toUpperCase());
+  const customerName = escapeHtml(toTitleCase(customer.name));
   const logoSrc = logoOverride ?? getEmailLogoSrc();
 
   const body = `
@@ -478,7 +472,7 @@ export async function buildItineraryVoucherEmailHtml(params: {
 
               ${infoBoxHtml({ companyName: agency.companyName, route, date, passengers })}
 
-              ${manageBookingButtonHtml(agency)}
+              ${manageBookingButtonHtml()}
 
               ${helpSectionPendingHtml()}
 
@@ -505,7 +499,7 @@ export async function buildTripcomConfirmedEmailHtml(params: {
   const segments = flight.segments as unknown as FlightSegment[];
   const passengers = flight.passengers as unknown as FlightPassenger[];
   const { route, date } = primaryRoute(segments);
-  const customerName = escapeHtml(customer.name.toUpperCase());
+  const customerName = escapeHtml(toTitleCase(customer.name));
   const logoSrc = logoOverride ?? getEmailLogoSrc();
   const pnr = booking.pnr || "—";
 
@@ -535,7 +529,7 @@ export async function buildTripcomConfirmedEmailHtml(params: {
                 passengers,
               })}
 
-              ${manageBookingButtonHtml(agency)}
+              ${manageBookingButtonHtml()}
 
               ${helpSectionConfirmedHtml(agency)}
 

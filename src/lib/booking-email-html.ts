@@ -3,6 +3,9 @@ import type { AgencySettings, Booking, Customer, FlightBooking, HotelBooking } f
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { CABIN_CLASS_OPTIONS } from "@/lib/constants/flight";
 import { formatInr } from "@/lib/gst-calculator";
+import { passengerDisplayName } from "@/lib/flight-fare-breakup";
+import { toTitleCase } from "@/lib/utils";
+import { buildEmailCopyrightHtml, buildEmailSocialButtonsHtml } from "@/lib/email-footer";
 
 function escapeHtml(value: string) {
   return value
@@ -35,17 +38,13 @@ function primaryRoute(segments: FlightSegment[]) {
   if (!segments.length) return { route: "—", date: "" };
   const first = segments[0];
   const last = segments[segments.length - 1];
-  const route = `${first.fromCity} - ${last.toCity}`;
+  const route = `${toTitleCase(first.fromCity)} - ${toTitleCase(last.toCity)}`;
   const date = first.departureAt ? format(new Date(first.departureAt), "MMM d, yyyy") : "";
   return { route, date };
 }
 
 function passengerLines(passengers: FlightPassenger[]) {
-  return passengers.map((p) => {
-    const first = escapeHtml(p.firstName.toUpperCase());
-    const last = escapeHtml((p.lastName || "").toUpperCase());
-    return `${first} <span style="color:#6b7280;font-weight:400;">(First name)</span> ${last || "—"} <span style="color:#6b7280;font-weight:400;">(Last name)</span>`;
-  });
+  return passengers.map((p) => escapeHtml(toTitleCase(passengerDisplayName(p))));
 }
 
 function paymentRows(flight: FlightBooking, totalAmount: number) {
@@ -71,7 +70,7 @@ function paymentRows(flight: FlightBooking, totalAmount: number) {
 function flightLegsHtml(segments: FlightSegment[], airline: string, cabinClass: string) {
   return segments
     .map((seg) => {
-      const route = `${escapeHtml(seg.fromCity)} - ${escapeHtml(seg.toCity)}`;
+      const route = `${escapeHtml(toTitleCase(seg.fromCity))} - ${escapeHtml(toTitleCase(seg.toCity))}`;
       const flightInfo = `${escapeHtml(seg.airline || airline)} · ${escapeHtml(seg.flightNumber)} (${cabinLabel(cabinClass)})`;
       return `
         <tr>
@@ -95,7 +94,6 @@ function flightLegsHtml(segments: FlightSegment[], airline: string, cabinClass: 
 }
 
 function emailShell(content: string, companyName: string, companyPhone?: string | null) {
-  const year = new Date().getFullYear();
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -115,12 +113,20 @@ function emailShell(content: string, companyName: string, companyPhone?: string 
             </td>
           </tr>
           <tr>
-            <td style="padding:8px 32px 32px;color:#9ca3af;font-size:12px;line-height:1.7;">
+            <td style="padding:8px 32px 0;color:#9ca3af;font-size:12px;line-height:1.7;">
               Please do not reply to this message. This email was sent from a notification-only email address, and replies are not monitored.
               Do not forward this mail as it contains your personal information and booking details.
-              <br /><br />
-              Copyright © ${year} ${escapeHtml(companyName)}. All rights reserved.
-              ${companyPhone ? `<br />Support: ${escapeHtml(companyPhone)}` : ""}
+              ${companyPhone ? `<br /><br />Support: ${escapeHtml(companyPhone)}` : ""}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px;">
+              ${buildEmailSocialButtonsHtml({ headingColor: "#111827" })}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px 32px;">
+              ${buildEmailCopyrightHtml(companyName, { mutedColor: "#9ca3af", paddingBottom: "0" })}
             </td>
           </tr>
         </table>
@@ -259,7 +265,7 @@ export function buildHotelConfirmedEmailHtml(params: {
   hotel: HotelBooking;
 }) {
   const { agency, booking, customer, hotel } = params;
-  const customerName = escapeHtml(customer.name);
+  const customerName = escapeHtml(toTitleCase(customer.name));
   const confirmation = escapeHtml(booking.pnr || hotel.confirmationNo || "Pending");
 
   const body = `

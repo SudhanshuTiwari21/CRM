@@ -38,6 +38,7 @@ async function main() {
       smtpUser: smtpUser || undefined,
       smtpFrom: process.env.SMTP_FROM || (smtpUser ? `Book to Roam <${smtpUser}>` : undefined),
       companyName: "Book to Roam",
+      email: "Sales@techrecoil.in",
     },
     create: {
       id: "default",
@@ -48,7 +49,7 @@ async function main() {
       pincode: "700055",
       gstin: "19BNRPA5295C1ZS",
       phone: "9874133113",
-      email: "techrecoil@yahoo.in",
+      email: "Sales@techrecoil.in",
       invoicePrefix: "INV",
       webhookApiKey: process.env.WEBHOOK_API_KEY || "dev-webhook-key-change-me",
       holdModeEnabled: false,

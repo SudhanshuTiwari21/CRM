@@ -67,7 +67,7 @@ async function main() {
     state: "West Bengal",
     pincode: "700001",
     phone: "+91 9876543210",
-    email: "info@booktoroam.com",
+    email: "Sales@techrecoil.in",
     gstin: "19AAAAA0000A1Z5",
     pan: "AAAAA0000A",
     tan: null,

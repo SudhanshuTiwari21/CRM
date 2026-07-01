@@ -64,3 +64,13 @@ export function formatCustomerName(title: string | undefined, name: string) {
   }
   return `${t} ${trimmed}`;
 }
+
+/** Capitalize the first letter of each word (e.g. "kolkata" → "Kolkata", "MR JOHN" → "Mr John"). */
+export function toTitleCase(text: string) {
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
