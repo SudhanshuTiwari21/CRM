@@ -29,8 +29,14 @@ export function BookingActions({ bookingId, status }: BookingActionsProps) {
       if (!res.ok) throw new Error(data.error);
 
       if (action === "resend") {
+        const email = data.email as { success?: boolean; skipped?: boolean; error?: string } | undefined;
         const wa = data.whatsapp as { success?: boolean; skipped?: boolean; error?: string; reason?: string } | undefined;
-        if (wa?.success) {
+
+        if (email?.skipped) {
+          toast.error("Email not sent", { description: "Customer has no email address on file." });
+        } else if (email && email.success === false) {
+          toast.error("Email failed", { description: email.error || "Could not send email." });
+        } else if (wa?.success) {
           toast.success("Email & WhatsApp sent");
         } else if (wa?.skipped && wa.reason) {
           toast.success("Email sent");
@@ -39,7 +45,7 @@ export function BookingActions({ bookingId, status }: BookingActionsProps) {
           toast.success("Email sent");
           toast.error("WhatsApp failed", { description: wa.error });
         } else {
-          toast.success("Email & WhatsApp resent");
+          toast.success("Email resent with ticket & invoice attachments");
         }
       } else {
         toast.success("Documents regenerated");

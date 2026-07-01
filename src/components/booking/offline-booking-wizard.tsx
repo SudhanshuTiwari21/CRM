@@ -19,9 +19,12 @@ import { FlightBookingFields } from "@/components/booking/flight-booking-fields"
 import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields";
 import { parseApiResponse } from "@/lib/parse-api-response";
 import { formatCustomerName } from "@/lib/utils";
+import { getFirstFormErrorMessage } from "@/lib/form-errors";
+import { flightPassengerSchema, flightSegmentSchema } from "@/lib/validators/booking";
 import { buildAddonPlaceholderSegment, validateAddonBooking } from "@/lib/flight-addon";
+import { getReturnLegStartIndex } from "@/lib/flight-layover";
 import { CustomerBillingSection } from "@/components/booking/customer-billing-section";
-import { refineOfflineBilling } from "@/lib/validators/booking";
+import { refineInternationalPassengers, refineOfflineBilling } from "@/lib/validators/booking";
 import { normalizePhone } from "@/lib/phone";
 
 const baseCustomer = {
@@ -80,53 +83,11 @@ const wizardSchema = z
   showPassengerName: z.boolean().optional(),
   checkInAssistance: z.boolean().optional(),
   stopCount: z.coerce.number().min(0).max(3).optional(),
+  returnStopCount: z.coerce.number().min(0).max(3).optional(),
   // Flight
   airline: z.string().optional(),
-  segments: z.array(z.object({
-    flightNumber: z.string(),
-    airline: z.string(),
-    fromAirport: z.string(),
-    fromCity: z.string(),
-    toAirport: z.string(),
-    toCity: z.string(),
-    departureAt: z.string(),
-    arrivalAt: z.string(),
-    terminal: z.string().optional(),
-    departureTerminal: z.string().optional(),
-    aircraft: z.string().optional(),
-    duration: z.string().optional(),
-    direction: z.enum(["outbound", "return"]).optional(),
-    pnr: z.string().optional(),
-    layoverDuration: z.string().optional(),
-    layoverAirport: z.string().optional(),
-    layoverCity: z.string().optional(),
-    layoverTerminal: z.string().optional(),
-    layoverType: z.enum(["connection", "plane_change", "technical"]).optional(),
-    layoverNote: z.string().optional(),
-  })).optional(),
-  passengers: z.array(z.object({
-    title: z.string(),
-    firstName: z.string(),
-    lastName: z.string().optional(),
-    gender: z.string(),
-    paxType: z.enum(["adult", "child", "infant"]).optional(),
-    ticketNumber: z.string().optional(),
-    seat: z.string().optional(),
-    meal: z.enum(["veg", "nonveg", "none"]).optional(),
-    handBaggage: z.string().optional(),
-    checkInBaggage: z.string().optional(),
-    baggagePreset: z.string().optional(),
-    cabinBaggagePreset: z.string().optional(),
-    baseFare: z.coerce.number().min(0).optional(),
-    frequentFlyerAirline: z.string().optional(),
-    frequentFlyerNumber: z.string().optional(),
-    wheelchairAssistance: z.boolean().optional(),
-    dateOfBirth: z.string().optional(),
-    passportNumber: z.string().optional(),
-    passportIssuingCountry: z.string().optional(),
-    passportIssueDate: z.string().optional(),
-    passportExpiryDate: z.string().optional(),
-  })).optional(),
+  segments: z.array(flightSegmentSchema).optional(),
+  passengers: z.array(flightPassengerSchema).optional(),
   // Hotel
   propertyName: z.string().optional(),
   propertyAddress: z.string().optional(),
@@ -155,7 +116,8 @@ const wizardSchema = z
   busPassengers: z.array(z.object({ name: z.string(), seat: z.string(), gender: z.string().optional() })).optional(),
   seats: z.array(z.object({ seatNumber: z.string() })).optional(),
   })
-  .superRefine(refineOfflineBilling);
+  .superRefine(refineOfflineBilling)
+  .superRefine(refineInternationalPassengers);
 
 type WizardForm = z.infer<typeof wizardSchema>;
 
@@ -194,6 +156,7 @@ export function OfflineBookingWizard() {
       paymentGatewayCharge: 0,
       flightInvoiceSubtotal: 0,
       stopCount: 0,
+      returnStopCount: 0,
       showEticket: false,
       showPassengerName: true,
       checkInAssistance: false,
@@ -244,21 +207,24 @@ export function OfflineBookingWizard() {
         throw new Error("Total amount must be greater than 0");
       }
       const { title: _title, ...customerRest } = data.customer;
+      const formattedCustomer = {
+        ...customerRest,
+        name: formatCustomerName(data.customer.title, data.customer.name),
+        phone: normalizePhone(customerRest.phone),
+        email: data.customer.email?.trim() || undefined,
+        pan: data.customer.pan?.trim().toUpperCase() || undefined,
+        gstin: data.customer.gstin?.trim() || undefined,
+        address: data.customer.address?.trim() || undefined,
+        city: data.customer.city?.trim() || undefined,
+        state: data.customer.state?.trim() || undefined,
+        pincode: data.customer.pincode?.trim() || undefined,
+      };
       const customerPayload =
         data.billingType === "LEDGER" && data.ledgerMode === "EXISTING"
-          ? undefined
-          : {
-              ...customerRest,
-              name: formatCustomerName(data.customer.title, data.customer.name),
-              phone: normalizePhone(customerRest.phone),
-              email: data.customer.email?.trim() || undefined,
-              pan: data.customer.pan?.trim().toUpperCase() || undefined,
-              gstin: data.customer.gstin?.trim() || undefined,
-              address: data.customer.address?.trim() || undefined,
-              city: data.customer.city?.trim() || undefined,
-              state: data.customer.state?.trim() || undefined,
-              pincode: data.customer.pincode?.trim() || undefined,
-            };
+          ? data.customerId
+            ? formattedCustomer
+            : undefined
+          : formattedCustomer;
 
       const billingPayload = {
         billingType: data.billingType,
@@ -316,7 +282,12 @@ export function OfflineBookingWizard() {
           cabinClass: data.cabinClass || "ECONOMY",
           fareType: data.fareType || "NORMAL",
           paymentGatewayCharge: data.paymentGatewayCharge ?? 0,
-          secondaryPnr: data.segments?.[1]?.pnr?.trim() || data.secondaryPnr?.trim() || undefined,
+          secondaryPnr:
+            data.tripType === "ROUND_TRIP"
+              ? data.segments?.[getReturnLegStartIndex(data.segments)]?.pnr?.trim() ||
+                data.secondaryPnr?.trim() ||
+                undefined
+              : data.segments?.[1]?.pnr?.trim() || data.secondaryPnr?.trim() || undefined,
           showEticket: isAddon ? false : data.showEticket || false,
           showPassengerName: data.showPassengerName !== false,
           checkInAssistance: isAddon ? false : data.checkInAssistance || false,
@@ -396,11 +367,7 @@ export function OfflineBookingWizard() {
   return (
     <form
       onSubmit={form.handleSubmit(onSubmit, (errors) => {
-        const first = Object.values(errors)[0];
-        const msg =
-          (first as { message?: string })?.message ||
-          "Please fill all required fields correctly.";
-        toast.error(msg);
+        toast.error(getFirstFormErrorMessage(errors));
       })}
       noValidate
       className="space-y-6"

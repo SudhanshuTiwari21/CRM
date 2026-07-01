@@ -11,6 +11,7 @@ import { AdminBookingToolbar } from "@/components/booking/admin-booking-toolbar"
 import { BookingQuickActions } from "@/components/booking/booking-quick-actions";
 import { CHANNEL_LABELS, PRODUCT_LABELS } from "@/lib/constants";
 import { formatCurrency, formatDateTime, formatDate } from "@/lib/utils";
+import { formatFlightWallClock } from "@/lib/flight-datetime";
 import type { FlightSegment, FlightPassenger, HotelGuest, BusPassenger } from "@/types/booking";
 import { buildAdultBaseFareLines, passengerDisplayName } from "@/lib/flight-fare-breakup";
 import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
@@ -105,6 +106,12 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 resume={booking.status === "CONFIRMED" && booking.documents.length === 0}
                 isHotel={isHotel}
                 hotelPendingSupplier={isHotel && !booking.hotelBooking?.confirmationNo}
+                showEticket={booking.flightBooking?.showEticket}
+                passengers={flightPassengers.map((p) => ({
+                  firstName: p.firstName,
+                  lastName: p.lastName,
+                  ticketNumber: p.ticketNumber,
+                }))}
               />
             )}
             <AdminBookingToolbar
@@ -261,7 +268,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                         {seg.fromCity} ({seg.fromAirport}) → {seg.toCity} ({seg.toAirport})
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {formatDateTime(seg.departureAt)} — {formatDateTime(seg.arrivalAt)}
+                        {formatFlightWallClock(seg.departureAt, "display")} — {formatFlightWallClock(seg.arrivalAt, "display")}
                       </p>
                       {(seg.departureTerminal || seg.terminal) && (
                         <p className="text-xs text-muted-foreground mt-1">
@@ -274,10 +281,10 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                     {i < arr.length - 1 && (
                       <div className="ml-6 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-4 py-3 text-sm dark:border-amber-700 dark:bg-amber-950/20">
                         <p className="font-medium text-amber-900 dark:text-amber-100">
-                          {connectionGapTitle(booking.flightBooking!.tripType, i)}
+                          {connectionGapTitle(booking.flightBooking!.tripType, i, arr)}
                         </p>
                         <p className="text-muted-foreground">
-                          {connectionGapText(seg, arr[i + 1], booking.flightBooking!.tripType, i)}
+                          {connectionGapText(seg, arr[i + 1], booking.flightBooking!.tripType, i, arr)}
                         </p>
                       </div>
                     )}

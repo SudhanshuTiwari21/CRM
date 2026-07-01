@@ -30,6 +30,49 @@ export async function findCustomerByPhone(phone: string) {
   });
 }
 
+export async function updateExistingCustomerFromBooking(
+  customerId: string,
+  customer: {
+    name: string;
+    email?: string;
+    phone: string;
+    pan?: string;
+    gstin?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  }
+) {
+  const existing = await prisma.customer.findUnique({ where: { id: customerId } });
+  if (!existing) throw new Error("Selected customer not found");
+
+  const normalizedPhone = normalizePhone(customer.phone);
+  if (normalizedPhone !== existing.phone) {
+    const conflict = await findCustomerByPhone(customer.phone);
+    if (conflict && conflict.id !== customerId) {
+      throw new Error(
+        `Another customer already uses this phone number (${conflict.name}).`
+      );
+    }
+  }
+
+  return prisma.customer.update({
+    where: { id: customerId },
+    data: {
+      name: customer.name.trim(),
+      phone: normalizedPhone,
+      email: customer.email?.trim() || null,
+      pan: customer.pan?.trim().toUpperCase() || null,
+      gstin: customer.gstin?.trim() || null,
+      address: customer.address?.trim() || null,
+      city: customer.city?.trim() || null,
+      state: customer.state?.trim() || null,
+      pincode: customer.pincode?.trim() || null,
+    },
+  });
+}
+
 export async function upsertCustomerFromBooking(customer: {
   name: string;
   email?: string;

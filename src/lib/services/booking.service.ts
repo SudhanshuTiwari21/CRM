@@ -9,8 +9,9 @@ import { upsertHotelProfile } from "./hotel.service";
 import { upsertAirlineProfile } from "./airline.service";
 import { getAirlineLogoUrl, resolveAirlineIata } from "@/lib/airline-logo";
 import { toDbAddonType, validateAddonBooking } from "@/lib/flight-addon";
+import { normalizeFlightSegments } from "@/lib/flight-datetime";
 import { assertCreditAvailable, recordCreditTransaction } from "./credit.service";
-import { upsertCustomerFromBooking, getOrCreateCashWalkInCustomer } from "./customer.service";
+import { upsertCustomerFromBooking, getOrCreateCashWalkInCustomer, updateExistingCustomerFromBooking } from "./customer.service";
 import type { CashCustomerSnapshot } from "@/lib/cash-customer";
 import type {
   BookingChannel,
@@ -29,6 +30,7 @@ import {
   getStateCodeFromGstin,
 } from "@/lib/gst-calculator";
 import { applyCardGatewayCharge } from "@/lib/payment-gateway";
+import type { FlightPassenger } from "@/types/booking";
 
 type OfflineBookingInput = z.infer<typeof offlineBookingSchema>;
 type OfflineFlightBookingInput = z.infer<typeof offlineFlightBookingSchema>;
@@ -72,6 +74,14 @@ async function resolveBookingCustomer(input: {
   }
 
   if (input.ledgerMode === "EXISTING" && input.customerId) {
+    if (input.customer) {
+      const customer = await updateExistingCustomerFromBooking(input.customerId, input.customer);
+      return {
+        customer,
+        billingType: "LEDGER" as const,
+        metadata: undefined,
+      };
+    }
     const existing = await prisma.customer.findUnique({ where: { id: input.customerId } });
     if (!existing) throw new Error("Selected customer not found");
     return {
@@ -160,13 +170,14 @@ function buildFlightTaxData(
   );
 
   const airlineLogoUrl = getAirlineLogoUrl(input.airline) || undefined;
+  const segments = normalizeFlightSegments(input.segments);
 
   return {
     totalAmount,
     flightData: flightFieldsWithDeparture({
       airline: input.airline,
       airlineLogoUrl,
-      segments: input.segments,
+      segments,
       passengers: input.passengers,
       tripType: input.tripType || "ONE_WAY",
       addonType: toDbAddonType(input.addonType),
@@ -430,8 +441,11 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
   }
 
   if (input.productType === "HOTEL") {
-    await generateBookingDocuments(booking.id, userId);
-    await sendBookingNotifications(booking.id, "booking_confirmed");
+    const documents = await generateBookingDocuments(booking.id, userId);
+    await sendBookingNotifications(booking.id, "booking_confirmed", {
+      documentPaths: documents.map((doc) => doc.storagePath),
+      userId,
+    });
     await prisma.booking.update({
       where: { id: booking.id },
       data: { status: "TICKET_SENT" },
@@ -469,8 +483,11 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
   if (input.productType === "FLIGHT") {
     const flightInput = input as OfflineFlightBookingInput;
     try {
-      await generateBookingDocuments(booking.id, userId);
-      await sendBookingNotifications(booking.id, "itinerary_voucher");
+      const documents = await generateBookingDocuments(booking.id, userId);
+      await sendBookingNotifications(booking.id, "itinerary_voucher", {
+        documentPaths: documents.map((doc) => doc.storagePath),
+        userId,
+      });
       await logActivity({
         bookingId: booking.id,
         userId: userId && userId !== "bypass" ? userId : undefined,
@@ -547,12 +564,14 @@ export async function createLiveBooking(input: WebhookBookingInput) {
     metadata,
   });
 
-  await generateBookingDocuments(booking.id);
+  const documents = await generateBookingDocuments(booking.id);
   await prisma.booking.update({
     where: { id: booking.id },
     data: { status: "TICKET_SENT" },
   });
-  await sendBookingNotifications(booking.id, "booking_confirmed");
+  await sendBookingNotifications(booking.id, "booking_confirmed", {
+    documentPaths: documents.map((doc) => doc.storagePath),
+  });
 
   await logActivity({
     bookingId: booking.id,
@@ -663,12 +682,45 @@ async function createBookingFromWebhook(params: {
   throw new Error("Invalid booking payload for product type");
 }
 
+async function applyFlightPassengerTicketNumbers(
+  bookingId: string,
+  ticketNumbers?: string[]
+) {
+  const flight = await prisma.flightBooking.findUnique({ where: { bookingId } });
+  if (!flight) return;
+
+  const passengers = flight.passengers as unknown as FlightPassenger[];
+  const hasIncoming = Boolean(ticketNumbers?.length);
+
+  const merged = passengers.map((p, i) => ({
+    ...p,
+    ticketNumber: hasIncoming
+      ? ticketNumbers?.[i]?.trim() || p.ticketNumber?.trim() || ""
+      : p.ticketNumber?.trim() || "",
+  }));
+
+  if (flight.showEticket) {
+    const missing = merged.find((p) => !p.ticketNumber);
+    if (missing) {
+      throw new Error("E-ticket number is required for all passengers on international e-ticket bookings");
+    }
+  }
+
+  if (hasIncoming) {
+    await prisma.flightBooking.update({
+      where: { bookingId },
+      data: { passengers: merged },
+    });
+  }
+}
+
 export async function confirmBookingPnr(
   bookingId: string,
   pnr: string,
   supplierRef: string | undefined,
   userId: string,
-  secondaryPnr?: string
+  secondaryPnr?: string,
+  ticketNumbers?: string[]
 ) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
@@ -737,12 +789,19 @@ export async function confirmBookingPnr(
     });
   }
 
-  await generateBookingDocuments(bookingId, userId);
+  if (booking.productType === "FLIGHT") {
+    await applyFlightPassengerTicketNumbers(bookingId, ticketNumbers);
+  }
+
+  const documents = await generateBookingDocuments(bookingId, userId);
   await prisma.booking.update({
     where: { id: bookingId },
     data: { status: "TICKET_SENT" },
   });
-  await sendBookingNotifications(bookingId, "booking_confirmed");
+  await sendBookingNotifications(bookingId, "booking_confirmed", {
+    documentPaths: documents.map((doc) => doc.storagePath),
+    userId,
+  });
 
   return prisma.booking.findUnique({
     where: { id: bookingId },
@@ -754,7 +813,8 @@ export async function sendItineraryWithPnr(
   bookingId: string,
   pnr: string,
   userId: string,
-  secondaryPnr?: string
+  secondaryPnr?: string,
+  ticketNumbers?: string[]
 ) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
@@ -784,12 +844,17 @@ export async function sendItineraryWithPnr(
     });
   }
 
-  await generateBookingDocuments(bookingId, userId);
+  await applyFlightPassengerTicketNumbers(bookingId, ticketNumbers);
+
+  const documents = await generateBookingDocuments(bookingId, userId);
   await prisma.booking.update({
     where: { id: bookingId },
     data: { status: "TICKET_SENT", confirmedAt: new Date() },
   });
-  await sendBookingNotifications(bookingId, "booking_confirmed");
+  await sendBookingNotifications(bookingId, "booking_confirmed", {
+    documentPaths: documents.map((doc) => doc.storagePath),
+    userId,
+  });
 
   await logActivity({
     bookingId,
@@ -806,14 +871,27 @@ export async function resendBookingEmail(bookingId: string, userId: string) {
   });
   if (!booking) throw new Error("Booking not found");
 
+  const documents = await generateBookingDocuments(bookingId, userId);
+
   const templateKey =
     ["CONFIRMED", "TICKET_SENT"].includes(booking.status) || booking.pnr
       ? "booking_confirmed"
-      : booking.documents.length > 0 && booking.productType === "FLIGHT"
+      : booking.productType === "FLIGHT"
         ? "itinerary_voucher"
         : "held_processing";
 
-  const results = await sendBookingNotifications(bookingId, templateKey);
+  const results = await sendBookingNotifications(bookingId, templateKey, {
+    documentPaths: documents.map((doc) => doc.storagePath),
+    userId,
+  });
+
+  const email = results.email as { success?: boolean; skipped?: boolean; error?: string } | undefined;
+  if (email?.skipped) {
+    throw new Error("Customer has no email address — add an email on the customer profile.");
+  }
+  if (email && email.success === false) {
+    throw new Error(email.error || "Failed to send email");
+  }
 
   await logActivity({
     bookingId,

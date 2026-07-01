@@ -21,7 +21,7 @@ import {
   STOP_COUNT_OPTIONS,
   TRIP_TYPE_OPTIONS,
 } from "@/lib/constants/flight";
-import { computeLayoverDuration } from "@/lib/flight-layover";
+import { computeLayoverDuration, getReturnLegStartIndex, isRoundTripLegBoundary } from "@/lib/flight-layover";
 import { FormSettingToggle } from "@/components/booking/edit-form-section";
 import { passportExpiryFromIssueDate } from "@/lib/passport-dates";
 import { PASSPORT_ISSUING_COUNTRIES } from "@/lib/constants/passport";
@@ -77,6 +77,18 @@ export function FlightBookingFields({
   const airline = form.watch("airline");
   const segments = form.watch("segments") || [];
   const stopCount = form.watch("stopCount") ?? Math.max(0, segmentFields.length - 1);
+  const returnStopCount = form.watch("returnStopCount") ?? 0;
+
+  function returnLegStartIndex() {
+    return getReturnLegStartIndex(segments);
+  }
+
+  function shouldShowLayoverAfter(i: number) {
+    if (i >= segmentFields.length - 1) return false;
+    if (tripType !== "ROUND_TRIP") return true;
+    const splitAt = returnLegStartIndex();
+    return i < splitAt - 1 || i >= splitAt;
+  }
 
   useEffect(() => {
     fetch("/api/crm/airlines")
@@ -110,10 +122,10 @@ export function FlightBookingFields({
     });
   }, [airline, form]);
 
-  // Auto-calculate layover duration between connected segments (not between round-trip legs)
+  // Auto-calculate layover duration between connected segments (skip round-trip leg boundary)
   useEffect(() => {
-    if (tripType === "ROUND_TRIP") return;
     for (let i = 0; i < segments.length - 1; i++) {
+      if (tripType === "ROUND_TRIP" && isRoundTripLegBoundary(segments, i)) continue;
       const seg = segments[i];
       const next = segments[i + 1];
       if (!seg?.arrivalAt || !next?.departureAt) continue;
@@ -131,35 +143,24 @@ export function FlightBookingFields({
   }, [segments, form, tripType]);
 
   function handleTripTypeChange(value: string) {
+    const wasRoundTrip = tripType === "ROUND_TRIP";
     form.setValue("tripType", value as WizardForm["tripType"]);
     if (value === "ADDON_SERVICES") {
       form.setValue("addonType", form.getValues("addonType") || "seat");
       form.setValue("checkInAssistance", false);
       form.setValue("stopCount", 0);
+      form.setValue("returnStopCount", 0);
       return;
     }
     if (value === "ROUND_TRIP") {
-      form.setValue("stopCount", 0);
-      if (segmentFields.length < 2) {
-        const first = form.getValues("segments.0");
-        appendSegment(
-          emptySegment(form.getValues("airline") || "", {
-            airport: first?.toAirport || "",
-            city: first?.toCity || "",
-          })
-        );
-        form.setValue("segments.0.direction", "outbound");
-        form.setValue("segments.1.direction", "return");
+      if (!wasRoundTrip) {
+        form.setValue("stopCount", 0);
+        form.setValue("returnStopCount", 0);
       }
-      const segs = form.getValues("segments") || [];
-      segs.forEach((_, idx) => {
-        form.setValue(`segments.${idx}.layoverDuration`, "");
-        form.setValue(`segments.${idx}.layoverCity`, "");
-        form.setValue(`segments.${idx}.layoverAirport`, "");
-        form.setValue(`segments.${idx}.layoverTerminal`, "");
-        form.setValue(`segments.${idx}.layoverNote`, "");
-        form.setValue(`segments.${idx}.layoverType`, "connection");
-      });
+      resizeRoundTripSegments(
+        form.getValues("stopCount") ?? 0,
+        form.getValues("returnStopCount") ?? 0
+      );
     } else if (value === "ONE_WAY") {
       const target = (form.getValues("stopCount") ?? 0) + 1;
       resizeSegments(target);
@@ -184,14 +185,55 @@ export function FlightBookingFields({
     }
   }
 
+  function resizeRoundTripSegments(outboundStops: number, returnStops: number) {
+    const outboundCount = outboundStops + 1;
+    const returnCount = returnStops + 1;
+    const targetTotal = outboundCount + returnCount;
+    const al = form.getValues("airline") || "";
+    const current = form.getValues("segments") || [];
+
+    if (current.length < targetTotal) {
+      for (let i = current.length; i < targetTotal; i++) {
+        const prev = form.getValues(`segments.${i - 1}`);
+        appendSegment(
+          emptySegment(al, prev ? { airport: prev.toAirport, city: prev.toCity } : undefined)
+        );
+      }
+    } else if (current.length > targetTotal) {
+      for (let i = current.length - 1; i >= targetTotal; i--) {
+        removeSegment(i);
+      }
+    }
+
+    for (let i = 0; i < targetTotal; i++) {
+      form.setValue(`segments.${i}.direction`, i < outboundCount ? "outbound" : "return");
+    }
+  }
+
   function handleStopCountChange(stops: number) {
+    if (tripType === "ROUND_TRIP") {
+      form.setValue("stopCount", stops);
+      resizeRoundTripSegments(stops, returnStopCount);
+      return;
+    }
     form.setValue("stopCount", stops);
     resizeSegments(stops + 1);
   }
 
+  function handleReturnStopCountChange(stops: number) {
+    form.setValue("returnStopCount", stops);
+    resizeRoundTripSegments(stopCount, stops);
+  }
+
   function segmentLabel(i: number) {
     if (tripType === "ROUND_TRIP") {
-      return i === 0 ? "Outbound Flight" : "Return Flight";
+      const splitAt = returnLegStartIndex();
+      const isReturn = i >= splitAt;
+      const legIndex = isReturn ? i - splitAt + 1 : i + 1;
+      const legCount = isReturn ? segmentFields.length - splitAt : splitAt;
+      const prefix = isReturn ? "Return" : "Outbound";
+      if (legCount === 1) return `${prefix} Flight`;
+      return `${prefix} Flight ${legIndex} of ${legCount}`;
     }
     if (segmentFields.length === 1) return "Flight";
     return `Flight ${i + 1} of ${segmentFields.length}`;
@@ -353,6 +395,45 @@ export function FlightBookingFields({
         </div>
       )}
 
+      {!isAddonTrip && tripType === "ROUND_TRIP" && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Outbound Stops / Layovers</Label>
+            <Select
+              value={String(stopCount)}
+              onValueChange={(v) => handleStopCountChange(Number(v))}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {STOP_COUNT_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {stopCount === 0 ? "Direct outbound" : `${stopCount} outbound connection(s)`}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Return Stops / Layovers</Label>
+            <Select
+              value={String(returnStopCount)}
+              onValueChange={(v) => handleReturnStopCountChange(Number(v))}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {STOP_COUNT_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {returnStopCount === 0 ? "Direct return" : `${returnStopCount} return connection(s)`}
+            </p>
+          </div>
+        </div>
+      )}
+
       {!isAddonTrip && (
       <div className="grid gap-3 sm:grid-cols-2">
         <FormSettingToggle
@@ -372,6 +453,14 @@ export function FlightBookingFields({
 
       {!isAddonTrip && segmentFields.map((field, i) => (
         <div key={field.id} className="space-y-3">
+          {tripType === "ROUND_TRIP" && i === returnLegStartIndex() && (
+            <div className="rounded-lg border border-dashed border-sky-300 bg-sky-50/50 px-4 py-3 text-sm dark:border-sky-700 dark:bg-sky-950/20">
+              <p className="font-medium text-sky-900 dark:text-sky-100">Return Journey</p>
+              <p className="text-xs text-muted-foreground">
+                Outbound complete — enter return flight details below
+              </p>
+            </div>
+          )}
           <div className="space-y-3 rounded-lg border p-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium">{segmentLabel(i)}</p>
@@ -426,7 +515,7 @@ export function FlightBookingFields({
                 <Label className="text-xs">Duration</Label>
                 <Input {...form.register(`segments.${i}.duration`)} placeholder="2h 15m" />
               </div>
-              {tripType === "ROUND_TRIP" && (
+              {tripType === "ROUND_TRIP" && (i === 0 || i === returnLegStartIndex()) && (
                 <div className="space-y-2">
                   <Label className="text-xs">{i === 0 ? "Outbound PNR" : "Return PNR"}</Label>
                   <Input
@@ -438,7 +527,7 @@ export function FlightBookingFields({
             </div>
           </div>
 
-          {i < segmentFields.length - 1 && tripType !== "ROUND_TRIP" && (
+          {shouldShowLayoverAfter(i) && (
             <div className="ml-4 space-y-3 rounded-lg border-2 border-dashed border-amber-300 bg-amber-50/50 p-4 dark:border-amber-700 dark:bg-amber-950/20">
               <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
                 Layover after {segments[i]?.toCity || "this flight"}
@@ -521,6 +610,8 @@ export function FlightBookingFields({
             <div key={field.id} className="space-y-3 rounded-lg border p-4">
               <div className="flex flex-wrap items-start gap-2">
                 <div className="flex flex-wrap flex-1 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">{showEticket ? "Title *" : "Title"}</Label>
                 <Select
                   value={form.watch(`passengers.${i}.title`)}
                   onValueChange={(v) => form.setValue(`passengers.${i}.title`, v)}
@@ -534,16 +625,21 @@ export function FlightBookingFields({
                     <SelectItem value="Miss">Miss</SelectItem>
                   </SelectContent>
                 </Select>
+                </div>
+                <div className="space-y-1 min-w-[120px] flex-1">
+                  <Label className="text-xs">{showEticket ? "First & Middle Name *" : "First Name"}</Label>
                 <Input
                   {...form.register(`passengers.${i}.firstName`)}
-                  placeholder={showEticket ? "First & Middle Name" : "First Name"}
-                  className="min-w-[120px] flex-1"
+                  placeholder={showEticket ? "As on passport" : "First Name"}
                 />
+                </div>
+                <div className="space-y-1 min-w-[120px] flex-1">
+                  <Label className="text-xs">{showEticket ? "Last Name (optional)" : "Last Name"}</Label>
                 <Input
                   {...form.register(`passengers.${i}.lastName`)}
-                  placeholder={showEticket ? "Last Name (optional)" : "Last Name"}
-                  className="min-w-[120px] flex-1"
+                  placeholder={showEticket ? "Leave empty if not on passport" : "Last Name"}
                 />
+                </div>
                 <Select
                   value={form.watch(`passengers.${i}.gender`)}
                   onValueChange={(v) => form.setValue(`passengers.${i}.gender`, v)}
@@ -659,23 +755,24 @@ export function FlightBookingFields({
                     <p className="text-sm font-medium text-blue-950 dark:text-blue-100">International traveller details</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label className="text-xs">Date of Birth</Label>
-                        <Input {...form.register(`passengers.${i}.dateOfBirth`)} type="date" />
+                        <Label className="text-xs">Date of Birth *</Label>
+                        <Input {...form.register(`passengers.${i}.dateOfBirth`)} type="date" required={showEticket} />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs">E-Ticket Number</Label>
                         <Input {...form.register(`passengers.${i}.ticketNumber`)} placeholder="176-1234567890" />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs">Passport No</Label>
+                        <Label className="text-xs">Passport No *</Label>
                         <Input
                           {...form.register(`passengers.${i}.passportNumber`)}
                           placeholder="Passport number"
                           className="uppercase"
+                          required={showEticket}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs">Passport Issuing Country</Label>
+                        <Label className="text-xs">Passport Issuing Country *</Label>
                         <Select
                           value={form.watch(`passengers.${i}.passportIssuingCountry`) || undefined}
                           onValueChange={(v) => form.setValue(`passengers.${i}.passportIssuingCountry`, v)}
@@ -693,7 +790,7 @@ export function FlightBookingFields({
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs">Passport Issue Date</Label>
+                        <Label className="text-xs">Passport Issue Date *</Label>
                         <Input
                           type="date"
                           value={form.watch(`passengers.${i}.passportIssueDate`) || ""}
@@ -707,8 +804,8 @@ export function FlightBookingFields({
                         <p className="text-xs text-muted-foreground">Expiry auto-fills as issue date + 15 years</p>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs">Passport Expiry</Label>
-                        <Input {...form.register(`passengers.${i}.passportExpiryDate`)} type="date" />
+                        <Label className="text-xs">Passport Expiry *</Label>
+                        <Input {...form.register(`passengers.${i}.passportExpiryDate`)} type="date" required={showEticket} />
                       </div>
                     </div>
                   </div>

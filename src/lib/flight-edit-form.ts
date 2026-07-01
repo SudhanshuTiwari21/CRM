@@ -3,53 +3,18 @@ import type { FlightBooking } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { BAGGAGE_PRESETS, CABIN_BAGGAGE_PRESETS } from "@/lib/constants/flight";
 import { buildAddonPlaceholderSegment, fromDbAddonType } from "@/lib/flight-addon";
+import { getReturnLegStartIndex } from "@/lib/flight-layover";
+import { normalizeFlightSegments, toDatetimeLocalValue } from "@/lib/flight-datetime";
+import {
+  flightPassengerSchema,
+  flightSegmentSchema,
+  refineInternationalPassengers,
+} from "@/lib/validators/booking";
 
-const segmentEditSchema = z.object({
-  flightNumber: z.string(),
-  airline: z.string(),
-  fromAirport: z.string(),
-  fromCity: z.string(),
-  toAirport: z.string(),
-  toCity: z.string(),
-  departureAt: z.string(),
-  arrivalAt: z.string(),
-  terminal: z.string().optional(),
-  departureTerminal: z.string().optional(),
-  aircraft: z.string().optional(),
-  duration: z.string().optional(),
-  direction: z.enum(["outbound", "return"]).optional(),
-  pnr: z.string().optional(),
-  layoverDuration: z.string().optional(),
-  layoverAirport: z.string().optional(),
-  layoverCity: z.string().optional(),
-  layoverTerminal: z.string().optional(),
-  layoverType: z.enum(["connection", "plane_change", "technical"]).optional(),
-  layoverNote: z.string().optional(),
-});
+export { toDatetimeLocalValue };
 
-const passengerEditSchema = z.object({
-  title: z.string(),
-  firstName: z.string(),
-  lastName: z.string().optional(),
-  gender: z.string(),
-  paxType: z.enum(["adult", "child", "infant"]).optional(),
-  ticketNumber: z.string().optional(),
-  seat: z.string().optional(),
-  meal: z.enum(["veg", "nonveg", "none"]).optional(),
-  handBaggage: z.string().optional(),
-  checkInBaggage: z.string().optional(),
-  baggagePreset: z.string().optional(),
-  cabinBaggagePreset: z.string().optional(),
-  baseFare: z.coerce.number().min(0).optional(),
-  frequentFlyerAirline: z.string().optional(),
-  frequentFlyerNumber: z.string().optional(),
-  wheelchairAssistance: z.boolean().optional(),
-  dateOfBirth: z.string().optional(),
-  passportNumber: z.string().optional(),
-  passportIssuingCountry: z.string().optional(),
-  passportIssueDate: z.string().optional(),
-  passportExpiryDate: z.string().optional(),
-});
+const segmentEditSchema = flightSegmentSchema;
+const passengerEditSchema = flightPassengerSchema;
 
 export const flightEditFormSchema = z.object({
   pnr: z.string().optional(),
@@ -81,6 +46,7 @@ export const flightEditFormSchema = z.object({
   showPassengerName: z.boolean(),
   checkInAssistance: z.boolean(),
   stopCount: z.coerce.number().min(0).max(3).optional(),
+  returnStopCount: z.coerce.number().min(0).max(3).optional(),
   segments: z.array(segmentEditSchema).min(1, "At least one flight segment is required"),
   passengers: z.array(passengerEditSchema).min(1, "At least one passenger is required"),
   invoiceTaxType: z.enum(["ITC", "NON_ITC"]),
@@ -94,18 +60,10 @@ export const flightEditFormSchema = z.object({
   includeCancellationPolicy: z.boolean().optional(),
   freqFlyerUpdatedToAirline: z.boolean().optional(),
   specialAssistanceUpdatedToAirline: z.boolean().optional(),
-});
+})
+  .superRefine(refineInternationalPassengers);
 
 export type FlightEditFormValues = z.infer<typeof flightEditFormSchema>;
-
-export function toDatetimeLocalValue(value?: string | null): string {
-  if (!value?.trim()) return "";
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value.trim())) return value.trim();
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 function inferPreset(value: string | undefined, presets: readonly string[]): string {
   if (!value?.trim()) return presets.includes("7 KG") ? "7 KG" : "";
@@ -176,9 +134,23 @@ export function buildFlightEditFormValues(
     showEticket: flight.showEticket,
     showPassengerName: flight.showPassengerName,
     checkInAssistance: flight.checkInAssistance,
-    stopCount: Math.max(0, segments.length - 1),
+    stopCount:
+      flight.tripType === "ROUND_TRIP"
+        ? Math.max(0, getReturnLegStartIndex(segments) - 1)
+        : Math.max(0, segments.length - 1),
+    returnStopCount:
+      flight.tripType === "ROUND_TRIP"
+        ? Math.max(0, segments.length - getReturnLegStartIndex(segments) - 1)
+        : 0,
     segments: segments.length
-      ? segments.map((s) => mapSegmentForForm(s, airline))
+      ? segments.map((s, i) => {
+          const mapped = mapSegmentForForm(s, airline);
+          if (flight.tripType === "ROUND_TRIP") {
+            const splitAt = getReturnLegStartIndex(segments);
+            mapped.direction = i < splitAt ? "outbound" : "return";
+          }
+          return mapped;
+        })
       : [mapSegmentForForm({ flightNumber: "", airline, fromAirport: "", fromCity: "", toAirport: "", toCity: "", departureAt: "", arrivalAt: "" }, airline)],
     passengers: passengers.length
       ? passengers.map(mapPassengerForForm)
@@ -202,15 +174,17 @@ export function normalizeFlightEditPayload(data: FlightEditFormValues) {
   const isAddon = data.tripType === "ADDON_SERVICES";
   const segments = isAddon
     ? [buildAddonPlaceholderSegment(airline, data.addonFlightNumber, data.addonTravelDate)]
-    : data.segments.map((s) => ({
-        ...s,
-        airline,
-        flightNumber: s.flightNumber?.trim() || "",
-        fromAirport: s.fromAirport?.trim() || "",
-        fromCity: s.fromCity?.trim() || "",
-        toAirport: s.toAirport?.trim() || "",
-        toCity: s.toCity?.trim() || "",
-      }));
+    : normalizeFlightSegments(
+        data.segments.map((s) => ({
+          ...s,
+          airline,
+          flightNumber: s.flightNumber?.trim() || "",
+          fromAirport: s.fromAirport?.trim() || "",
+          fromCity: s.fromCity?.trim() || "",
+          toAirport: s.toAirport?.trim() || "",
+          toCity: s.toCity?.trim() || "",
+        }))
+      );
 
   const passengers = data.passengers.map(({ baggagePreset, cabinBaggagePreset, ...p }) => {
     void baggagePreset;
@@ -230,7 +204,12 @@ export function normalizeFlightEditPayload(data: FlightEditFormValues) {
     cabinClass: data.cabinClass,
     fareType: data.fareType || "NORMAL",
     paymentGatewayCharge: data.paymentGatewayCharge ?? 0,
-    secondaryPnr: data.segments?.[1]?.pnr?.trim() || data.secondaryPnr?.trim() || undefined,
+    secondaryPnr:
+      data.tripType === "ROUND_TRIP"
+        ? data.segments?.[getReturnLegStartIndex(data.segments)]?.pnr?.trim() ||
+          data.secondaryPnr?.trim() ||
+          undefined
+        : data.segments?.[1]?.pnr?.trim() || data.secondaryPnr?.trim() || undefined,
     showEticket: isAddon ? false : data.showEticket,
     showPassengerName: data.showPassengerName,
     checkInAssistance: isAddon ? false : data.checkInAssistance,

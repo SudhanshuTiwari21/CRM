@@ -3,28 +3,35 @@ import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/render
 import type { AgencySettings, Booking, Customer, FlightBooking } from "@prisma/client";
 import type { CabinClass } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
-import { getAirportDisplay } from "@/lib/airport-names";
 import { resolveSegmentAirline } from "@/lib/airline-logo";
-import { computeLayoverDuration } from "@/lib/flight-layover";
-import { formatBillingAddress } from "@/lib/cash-customer";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
 import { getVoucherTermsContent } from "@/templates/pdf/voucher-terms";
 import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
 import { formatPassportDate } from "@/lib/passport-dates";
+import {
+  baggageLines,
+  cabinClassDisplay,
+  formatEndpoint,
+  formatVoucherDob,
+  formatVoucherInr,
+  groupSegments,
+  layoverLabel,
+  paxTypeLabel,
+  travelerDisplayName,
+  voucherPaymentBreakdown,
+  WINGIE_COLORS,
+} from "@/lib/voucher-format";
 
-const NAVY = "#1a2d3e";
-const MUTED = "#5c6b7a";
-const BORDER = "#d8dee6";
-const FLIGHT_TZ = "Asia/Kolkata";
+const C = WINGIE_COLORS;
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 36,
-    paddingBottom: 40,
-    paddingHorizontal: 42,
-    fontSize: 9.5,
+    paddingTop: 32,
+    paddingBottom: 36,
+    paddingHorizontal: 40,
+    fontSize: 8,
     fontFamily: "Helvetica",
-    color: NAVY,
+    color: C.navy,
     backgroundColor: "#fff",
     lineHeight: 1.45,
   },
@@ -32,156 +39,78 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 22,
+    marginBottom: 20,
   },
-  agencyBlock: { alignItems: "flex-end", maxWidth: 240, flexShrink: 0 },
-  agencyLine: { fontSize: 8.5, color: NAVY, lineHeight: 1.5, textAlign: "right" },
-  agencyName: {
+  agencyBlock: { alignItems: "flex-end", maxWidth: 220, flexShrink: 0 },
+  agencyLine: { fontSize: 6.5, color: C.label, lineHeight: 1.55, textAlign: "right" },
+  sectionTitle: {
+    fontSize: 11.5,
     fontFamily: "Helvetica-Bold",
-    fontSize: 9.5,
-    marginBottom: 2,
-    textAlign: "right",
-    color: NAVY,
+    color: C.navy,
+    marginBottom: 10,
+    marginTop: 2,
   },
-  sectionTitle: { fontSize: 13, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 12, marginTop: 4 },
-  detailGrid: { flexDirection: "row", flexWrap: "wrap", marginBottom: 18 },
-  detailCell: { width: "25%", marginBottom: 10, paddingRight: 8 },
-  detailLabel: { fontFamily: "Helvetica-Bold", fontSize: 9.5, marginBottom: 4 },
-  detailValue: { fontSize: 9.5, color: "#2a3a4a" },
-  departureHeading: { fontFamily: "Helvetica-Bold", fontSize: 10, marginBottom: 10 },
-  flightRow: { flexDirection: "row", marginBottom: 8 },
+  detailGrid: { flexDirection: "row", flexWrap: "wrap", marginBottom: 16 },
+  detailCell: { width: "25%", marginBottom: 8, paddingRight: 6 },
+  detailCellRight: { width: "25%", marginBottom: 8, paddingRight: 6, alignItems: "flex-end" },
+  detailLabel: { fontSize: 7.5, color: C.label, marginBottom: 3 },
+  detailLabelRight: { fontSize: 7.5, color: C.label, marginBottom: 3, textAlign: "right" },
+  detailValue: { fontSize: 8, color: C.text },
+  detailValueRight: { fontSize: 8, color: C.text, textAlign: "right" },
+  departureHeading: { fontFamily: "Helvetica-Bold", fontSize: 8, marginBottom: 8, color: C.navy },
+  flightRow: { flexDirection: "row", marginBottom: 6 },
   flightCol: { width: "33%" },
-  flightColLabel: { fontFamily: "Helvetica-Bold", fontSize: 9.5, marginBottom: 3 },
-  flightColValue: { fontSize: 9.5 },
-  airlineRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  airlineLogo: { width: 14, height: 14, objectFit: "contain" as const },
-  legBlock: { marginBottom: 14 },
-  timeLine: { fontSize: 9.5, marginBottom: 4, color: "#2a3a4a" },
-  layoverRow: { flexDirection: "row", alignItems: "center", marginVertical: 10, gap: 8 },
-  layoverLine: { flex: 1, borderTopWidth: 1, borderTopColor: BORDER },
-  layoverText: { fontSize: 8.5, color: MUTED, paddingHorizontal: 4 },
-  baggageGrid: { flexDirection: "row", marginBottom: 16 },
+  flightColLabel: { fontSize: 7.5, color: C.label, marginBottom: 3 },
+  flightColValue: { fontSize: 8, color: C.text },
+  airlineRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  airlineLogo: { width: 16, height: 16, objectFit: "contain" as const },
+  legBlock: { marginBottom: 10 },
+  timeLine: { fontSize: 8, marginBottom: 3, color: C.text },
+  layoverRow: { flexDirection: "row", alignItems: "center", marginVertical: 8, gap: 6 },
+  layoverLine: { flex: 1, borderTopWidth: 1, borderTopColor: C.border, borderStyle: "dashed" },
+  layoverText: { fontSize: 7, color: C.muted, paddingHorizontal: 4 },
+  baggageGrid: { flexDirection: "row", marginBottom: 14 },
   baggageCol: { width: "50%", paddingRight: 12 },
-  paymentBox: { borderWidth: 1, borderColor: BORDER, borderRadius: 2, padding: 14, marginTop: 4, marginBottom: 20 },
-  paymentRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6, fontSize: 9.5 },
-  paymentTotalRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: BORDER,
+  baggageLine: { fontSize: 8, color: C.text, marginBottom: 2 },
+  paymentBox: {
+    backgroundColor: C.paymentBg,
+    padding: 12,
+    paddingBottom: 10,
+    marginTop: 2,
+    marginBottom: 10,
   },
-  paymentTotal: { fontSize: 12, fontFamily: "Helvetica-Bold" },
-  footerNote: { fontSize: 8, color: MUTED, marginTop: 8 },
-  termsTitle: { fontSize: 16, fontFamily: "Helvetica-Bold", marginBottom: 10, color: NAVY },
-  termsIntro: { fontSize: 9.5, marginBottom: 14, color: "#2a3a4a" },
-  termsSectionHeading: { fontFamily: "Helvetica-Bold", fontSize: 9.5, marginTop: 12, marginBottom: 6, color: NAVY },
-  termsParagraph: { fontSize: 9, marginBottom: 8, color: "#2a3a4a", lineHeight: 1.5 },
-  policyText: { fontSize: 9, color: "#4b5563", lineHeight: 1.45, marginBottom: 12 },
-  termsItem: { fontSize: 9, marginBottom: 6, color: "#2a3a4a", lineHeight: 1.5 },
+  paymentRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 5, fontSize: 8, color: C.text },
+  paymentAmount: { fontFamily: "Times-Roman", fontSize: 8, color: C.text },
+  paymentTotalRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 4 },
+  paymentTotal: { fontSize: 11.5, fontFamily: "Helvetica-Bold", color: C.navy },
+  footerNoteRow: { flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 4 },
+  footerIcon: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: C.muted,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  footerIconText: { fontSize: 5.5, color: C.muted },
+  footerNote: { fontSize: 6.5, color: C.muted, flex: 1, lineHeight: 1.4 },
+  termsBorder: {
+    borderWidth: 1,
+    borderColor: C.termsBorder,
+    padding: 18,
+    marginTop: 4,
+  },
+  termsTitle: { fontSize: 13, fontFamily: "Helvetica-Bold", marginBottom: 8, color: C.navy },
+  termsIntro: { fontSize: 8, marginBottom: 12, color: C.text },
+  termsSectionHeading: { fontFamily: "Helvetica-Bold", fontSize: 8, marginTop: 10, marginBottom: 5, color: C.navy },
+  termsParagraph: { fontSize: 7.5, marginBottom: 6, color: C.text, lineHeight: 1.5, fontFamily: "Times-Roman" },
+  policyText: { fontSize: 7.5, color: "#4b5563", lineHeight: 1.45, marginBottom: 12 },
+  termsItem: { fontSize: 7.5, marginBottom: 5, color: C.text, lineHeight: 1.5, fontFamily: "Times-Roman" },
   termsItemLabel: { fontFamily: "Helvetica-Bold" },
-  termsClosing: { fontFamily: "Helvetica-Bold", fontSize: 10, marginTop: 16, color: NAVY },
+  termsClosing: { fontFamily: "Helvetica-Bold", fontSize: 8.5, marginTop: 14, color: C.navy },
 });
-
-function formatVoucherDateTime(date: Date | string) {
-  const d = new Date(date);
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: FLIGHT_TZ,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    weekday: "long",
-  }).formatToParts(d);
-  const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  return `${pick("hour")}:${pick("minute")} ${pick("day")} ${pick("month")} ${pick("year")}, ${pick("weekday")}`;
-}
-
-function airportLine(city: string, code: string, fallbackCity?: string, terminal?: string) {
-  const entry = getAirportDisplay(code, fallbackCity || city);
-  const name = entry.airportLine.includes(" - ")
-    ? entry.airportLine.split(" - ").slice(1).join(" - ")
-    : `${entry.city} Airport`;
-  return `${entry.city}, ${name}${terminal ? ` - ${terminal}` : ""}`;
-}
-
-function formatEndpoint(seg: FlightSegment, kind: "departure" | "arrival") {
-  const isDep = kind === "departure";
-  const at = isDep ? seg.departureAt : seg.arrivalAt;
-  if (!at) return "—";
-  const city = isDep ? seg.fromCity : seg.toCity;
-  const code = isDep ? seg.fromAirport : seg.toAirport;
-  const terminal = isDep ? seg.departureTerminal : seg.terminal;
-  return `${formatVoucherDateTime(at)} - ${airportLine(city, code, city, terminal)}`;
-}
-
-function paxTypeLabel(type?: string) {
-  if (type === "child") return "Child";
-  if (type === "infant") return "Infant";
-  return "Adult";
-}
-
-function cabinLabel(cabin?: CabinClass | null) {
-  if (cabin === "BUSINESS") return "Business";
-  if (cabin === "PREMIUM_ECONOMY") return "Premium Economy";
-  return "Economy";
-}
-
-function formatInr(amount: number) {
-  // Helvetica in react-pdf renders ₹ as a broken superscript — use Rs.
-  return `Rs. ${amount.toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}`;
-}
-
-function layoverLabel(seg: FlightSegment, next: FlightSegment) {
-  const raw = seg.layoverDuration || computeLayoverDuration(seg.arrivalAt, next.departureAt);
-  if (!raw) return "Stop : Layover";
-  return `Stop : ${raw} Layover`;
-}
-
-function formatCabinBaggageLine(handBaggage?: string) {
-  if (!handBaggage?.trim()) return null;
-  const preset = handBaggage.trim().match(/^(\d+)\s*KG$/i);
-  if (preset) return `1 piece X ${preset[1]} kg cabin baggage`;
-  return handBaggage.trim();
-}
-
-function baggageLines(pax: FlightPassenger) {
-  const lines: string[] = [];
-  const cabin = formatCabinBaggageLine(pax.handBaggage);
-  if (cabin) lines.push(cabin);
-  if (pax.checkInBaggage) lines.push(pax.checkInBaggage);
-  else lines.push("1 piece X 15 kg checked baggage");
-  return lines;
-}
-
-function groupSegments(segments: FlightSegment[], tripType?: string | null) {
-  if (tripType !== "ROUND_TRIP" || segments.length < 2) {
-    const from = segments[0]?.fromCity || segments[0]?.fromAirport || "";
-    const to = segments[segments.length - 1]?.toCity || segments[segments.length - 1]?.toAirport || "";
-    return [{ label: `Departure: ${from}-${to}`, segments }];
-  }
-  const outbound = segments.filter((s, i) => s.direction === "outbound" || i === 0);
-  const ret = segments.filter((s, i) => s.direction === "return" || (i > 0 && s.direction !== "outbound"));
-  const groups: { label: string; segments: FlightSegment[] }[] = [];
-  if (outbound.length) {
-    const o = outbound;
-    groups.push({
-      label: `Departure: ${o[0].fromCity || o[0].fromAirport}-${o[o.length - 1].toCity || o[o.length - 1].toAirport}`,
-      segments: o,
-    });
-  }
-  if (ret.length) {
-    const r = ret;
-    groups.push({
-      label: `Return: ${r[0].fromCity || r[0].fromAirport}-${r[r.length - 1].toCity || r[r.length - 1].toAirport}`,
-      segments: r,
-    });
-  }
-  return groups.length ? groups : [{ label: "Departure", segments }];
-}
 
 function AgencyHeader({ agency, logoSrc }: { agency: AgencySettings; logoSrc?: string | null }) {
   const cityLine = [agency.city, agency.state, agency.pincode].filter(Boolean).join(", ");
@@ -190,7 +119,7 @@ function AgencyHeader({ agency, logoSrc }: { agency: AgencySettings; logoSrc?: s
     <View style={styles.headerRow}>
       <PdfLogo src={logoSrc} variant="voucher" />
       <View style={styles.agencyBlock}>
-        <Text style={styles.agencyName}>{agency.companyName}</Text>
+        <Text style={styles.agencyLine}>{agency.companyName}</Text>
         {agency.address ? <Text style={styles.agencyLine}>{agency.address}</Text> : null}
         {cityLine ? <Text style={styles.agencyLine}>{cityLine}</Text> : null}
         {agency.phone ? <Text style={styles.agencyLine}>{agency.phone}</Text> : null}
@@ -240,43 +169,43 @@ function FlightSegmentBlock({
         </View>
         <View style={styles.flightCol}>
           <Text style={styles.flightColLabel}>Class</Text>
-          <Text style={styles.flightColValue}>{cabinLabel(cabinClass)}</Text>
+          <Text style={styles.flightColValue}>{cabinClassDisplay(cabinClass)}</Text>
         </View>
       </View>
-      <Text style={styles.timeLine}>
-        <Text style={{ fontFamily: "Helvetica-Bold" }}>Departure: </Text>
-        {formatEndpoint(seg, "departure")}
-      </Text>
-      <Text style={styles.timeLine}>
-        <Text style={{ fontFamily: "Helvetica-Bold" }}>Arrival: </Text>
-        {formatEndpoint(seg, "arrival")}
-      </Text>
+      <Text style={styles.timeLine}>Departure: {formatEndpoint(seg, "departure")}</Text>
+      <Text style={styles.timeLine}>Arrival: {formatEndpoint(seg, "arrival")}</Text>
     </View>
   );
+}
+
+function PaymentAmount({ amount, negative }: { amount: number; negative?: boolean }) {
+  const text = negative ? `-${formatVoucherInr(amount)}` : formatVoucherInr(amount);
+  return <Text style={styles.paymentAmount}>{text}</Text>;
 }
 
 export function FlightTicketPDF({
   agency,
   booking,
   flight,
-  customer,
+  customer: _customer,
   segments,
   passengers,
   logoSrc,
   airlineLogoSrc,
   segmentAirlineLogoSrcs,
 }: Props) {
+  void _customer;
   const pnr = booking.pnr || "—";
-  const billingAddress = formatBillingAddress(customer);
   const baseFare = Number(flight.baseFare || 0);
   const taxes = Number(flight.cgstAmount || 0) + Number(flight.sgstAmount || 0) + Number(flight.igstAmount || 0);
   const discount = Number(flight.discountAmount || 0);
   const total = Number(booking.totalAmount);
   const serviceCharge = Number(flight.serviceCharge || 0);
-  const priceBeforeTax = baseFare + serviceCharge;
+  const payment = voucherPaymentBreakdown({ baseFare, serviceCharge, taxes, discount, total });
   const segmentGroups = groupSegments(segments, flight.tripType);
   const terms = getVoucherTermsContent(agency.companyName);
   const isAddon = flight.tripType === "ADDON_SERVICES";
+  const showInternationalDetails = Boolean(flight.showEticket);
   const addonLines = isAddon
     ? addonDetailLines(flight.addonType, flight.addonCustomLabel, flight.addonCustomValue, passengers)
     : [];
@@ -287,24 +216,13 @@ export function FlightTicketPDF({
         <React.Fragment key={`pax-${pIdx}`}>
           <Page size="A4" style={styles.page}>
             <AgencyHeader agency={agency} logoSrc={logoSrc} />
-            {(billingAddress || customer.pan || customer.gstin) && (
-              <>
-                <Text style={styles.sectionTitle}>Billing Details</Text>
-                <View style={{ marginBottom: 14 }}>
-                  <Text style={styles.detailValue}>{customer.name}</Text>
-                  {billingAddress ? <Text style={styles.timeLine}>{billingAddress}</Text> : null}
-                  {customer.gstin ? <Text style={styles.timeLine}>GSTIN: {customer.gstin}</Text> : null}
-                  {customer.pan ? <Text style={styles.timeLine}>PAN: {customer.pan}</Text> : null}
-                  {customer.phone ? <Text style={styles.timeLine}>Contact: {customer.phone}</Text> : null}
-                </View>
-              </>
-            )}
+
             <Text style={styles.sectionTitle}>Traveler Details</Text>
             <View style={styles.detailGrid}>
               <View style={styles.detailCell}>
                 <Text style={styles.detailLabel}>Traveler</Text>
                 <Text style={styles.detailValue}>
-                  {pax.title} {pax.firstName} {pax.lastName} ({paxTypeLabel(pax.paxType)})
+                  {travelerDisplayName(pax)} ({paxTypeLabel(pax.paxType)})
                 </Text>
               </View>
               <View style={styles.detailCell}>
@@ -312,18 +230,18 @@ export function FlightTicketPDF({
                 <Text style={styles.detailValue}>{pax.ticketNumber || "—"}</Text>
               </View>
               <View style={styles.detailCell}>
-                <Text style={styles.detailLabel}>PNR Code</Text>
+                <Text style={styles.detailLabel}>Airline (PNR)</Text>
                 <Text style={styles.detailValue}>{pnr}</Text>
               </View>
-              <View style={styles.detailCell}>
-                <Text style={styles.detailLabel}>Date of Birth</Text>
-                <Text style={styles.detailValue}>{formatPassportDate(pax.dateOfBirth)}</Text>
+              <View style={styles.detailCellRight}>
+                <Text style={styles.detailLabelRight}>Date of Birth</Text>
+                <Text style={styles.detailValueRight}>{formatVoucherDob(pax.dateOfBirth)}</Text>
               </View>
-              {pax.passportNumber ? (
+              {showInternationalDetails || pax.passportNumber ? (
                 <>
                   <View style={styles.detailCell}>
                     <Text style={styles.detailLabel}>Passport No</Text>
-                    <Text style={styles.detailValue}>{pax.passportNumber}</Text>
+                    <Text style={styles.detailValue}>{pax.passportNumber || "—"}</Text>
                   </View>
                   <View style={styles.detailCell}>
                     <Text style={styles.detailLabel}>Passport Country</Text>
@@ -333,13 +251,14 @@ export function FlightTicketPDF({
                     <Text style={styles.detailLabel}>Passport Issue</Text>
                     <Text style={styles.detailValue}>{formatPassportDate(pax.passportIssueDate)}</Text>
                   </View>
-                  <View style={styles.detailCell}>
-                    <Text style={styles.detailLabel}>Passport Expiry</Text>
-                    <Text style={styles.detailValue}>{formatPassportDate(pax.passportExpiryDate)}</Text>
+                  <View style={styles.detailCellRight}>
+                    <Text style={styles.detailLabelRight}>Passport Expiry</Text>
+                    <Text style={styles.detailValueRight}>{formatPassportDate(pax.passportExpiryDate)}</Text>
                   </View>
                 </>
               ) : null}
             </View>
+
             <Text style={styles.sectionTitle}>{isAddon ? "Add-on Service Details" : "Flight Details"}</Text>
             {isAddon ? (
               <View style={{ marginBottom: 14 }}>
@@ -358,15 +277,9 @@ export function FlightTicketPDF({
                     </View>
                   ) : null}
                 </View>
-                <Text style={styles.timeLine}>
-                  <Text style={{ fontFamily: "Helvetica-Bold" }}>Service: </Text>
-                  {addonTypeLabel(flight.addonType, flight.addonCustomLabel)}
-                </Text>
+                <Text style={styles.timeLine}>Service: {addonTypeLabel(flight.addonType, flight.addonCustomLabel)}</Text>
                 {segments[0]?.flightNumber && segments[0].flightNumber !== "ADDON" ? (
-                  <Text style={styles.timeLine}>
-                    <Text style={{ fontFamily: "Helvetica-Bold" }}>Reference Flight: </Text>
-                    {segments[0].flightNumber}
-                  </Text>
+                  <Text style={styles.timeLine}>Reference Flight: {segments[0].flightNumber}</Text>
                 ) : null}
                 {addonLines.map((line) => (
                   <Text key={line} style={styles.timeLine}>
@@ -375,106 +288,117 @@ export function FlightTicketPDF({
                 ))}
               </View>
             ) : (
-            segmentGroups.map((group, gIdx) => (
-              <View key={`grp-${gIdx}`} style={{ marginBottom: 8 }}>
-                <Text style={styles.departureHeading}>{group.label}</Text>
-                {group.segments.map((seg, sIdx) => {
-                  const flatIdx = segments.indexOf(seg);
-                  const segLogo =
-                    segmentAirlineLogoSrcs?.[flatIdx >= 0 ? flatIdx : sIdx] ?? airlineLogoSrc;
-                  return (
-                  <React.Fragment key={`seg-${sIdx}`}>
-                    <FlightSegmentBlock
-                      seg={seg}
-                      airlineLogoSrc={segLogo}
-                      flightAirline={flight.airline}
-                      cabinClass={flight.cabinClass}
-                    />
-                    {sIdx < group.segments.length - 1 ? (
-                      <View style={styles.layoverRow}>
-                        <View style={styles.layoverLine} />
-                        <Text style={styles.layoverText}>{layoverLabel(seg, group.segments[sIdx + 1])}</Text>
-                        <View style={styles.layoverLine} />
-                      </View>
-                    ) : null}
-                  </React.Fragment>
-                  );
-                })}
-              </View>
-            ))
+              segmentGroups.map((group, gIdx) => (
+                <View key={`grp-${gIdx}`} style={{ marginBottom: 6 }}>
+                  <Text style={styles.departureHeading}>{group.label}</Text>
+                  {group.segments.map((seg, sIdx) => {
+                    const flatIdx = segments.indexOf(seg);
+                    const segLogo = segmentAirlineLogoSrcs?.[flatIdx >= 0 ? flatIdx : sIdx] ?? airlineLogoSrc;
+                    return (
+                      <React.Fragment key={`seg-${sIdx}`}>
+                        <FlightSegmentBlock
+                          seg={seg}
+                          airlineLogoSrc={segLogo}
+                          flightAirline={flight.airline}
+                          cabinClass={flight.cabinClass}
+                        />
+                        {sIdx < group.segments.length - 1 ? (
+                          <View style={styles.layoverRow}>
+                            <View style={styles.layoverLine} />
+                            <Text style={styles.layoverText}>{layoverLabel(seg, group.segments[sIdx + 1])}</Text>
+                            <View style={styles.layoverLine} />
+                          </View>
+                        ) : null}
+                      </React.Fragment>
+                    );
+                  })}
+                </View>
+              ))
             )}
+
             {!isAddon && (
-            <>
-            <Text style={styles.sectionTitle}>Baggage Details</Text>
-            <View style={styles.baggageGrid}>
-              <View style={styles.baggageCol}>
-                <Text style={styles.detailLabel}>Traveler Name Surname</Text>
-                <Text style={styles.detailValue}>
-                  {pax.firstName} {pax.lastName} ({paxTypeLabel(pax.paxType)})
-                </Text>
-              </View>
-              <View style={styles.baggageCol}>
-                <Text style={styles.detailLabel}>Departure Baggage Allowance</Text>
-                {baggageLines(pax).map((line, i) => (
-                  <Text key={`bag-${i}`} style={styles.detailValue}>
-                    {line}
-                  </Text>
-                ))}
-              </View>
-            </View>
-            </>
+              <>
+                <Text style={styles.sectionTitle}>Baggage Details</Text>
+                <View style={styles.baggageGrid}>
+                  <View style={styles.baggageCol}>
+                    <Text style={styles.detailLabel}>Traveler Name Surname</Text>
+                    <Text style={styles.detailValue}>
+                      {travelerDisplayName(pax)} ({paxTypeLabel(pax.paxType)})
+                    </Text>
+                  </View>
+                  <View style={styles.baggageCol}>
+                    <Text style={styles.detailLabel}>Departure Baggage Allowance</Text>
+                    {baggageLines(pax).map((line, i) => (
+                      <Text key={`bag-${i}`} style={styles.baggageLine}>
+                        • {line}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              </>
             )}
+
             {flight.includeCancellationPolicy && flight.cancellationPolicy && (
               <>
                 <Text style={styles.sectionTitle}>Cancellation Policy</Text>
                 <Text style={styles.policyText}>{flight.cancellationPolicy}</Text>
               </>
             )}
+
             <Text style={styles.sectionTitle}>Payment Information</Text>
             <View style={styles.paymentBox}>
               <View style={styles.paymentRow}>
                 <Text>Price</Text>
-                <Text>{formatInr(priceBeforeTax)}</Text>
+                <PaymentAmount amount={payment.price} />
               </View>
               <View style={styles.paymentRow}>
                 <Text>Taxes</Text>
-                <Text>{formatInr(taxes)}</Text>
+                <PaymentAmount amount={payment.taxes} />
               </View>
               {discount > 0 ? (
                 <View style={styles.paymentRow}>
                   <Text>Special Discount</Text>
-                  <Text>-{formatInr(discount)}</Text>
+                  <PaymentAmount amount={payment.discount} negative />
                 </View>
               ) : null}
               <View style={styles.paymentTotalRow}>
-                <Text style={styles.paymentTotal}>Total {formatInr(total)}</Text>
+                <Text style={styles.paymentTotal}>Total {formatVoucherInr(payment.total)}</Text>
               </View>
             </View>
-            <Text style={styles.footerNote}>
-              Note: This is not an invoice. Your invoice will be sent within 7 days.
-            </Text>
+
+            <View style={styles.footerNoteRow}>
+              <View style={styles.footerIcon}>
+                <Text style={styles.footerIconText}>i</Text>
+              </View>
+              <Text style={styles.footerNote}>
+                This is not an invoice. Your invoice will be sent within 7 days.
+              </Text>
+            </View>
           </Page>
+
           <Page size="A4" style={styles.page}>
             <AgencyHeader agency={agency} logoSrc={logoSrc} />
-            <Text style={styles.termsTitle}>{terms.title}</Text>
-            <Text style={styles.termsIntro}>{terms.intro}</Text>
-            {terms.sections.map((section, i) => (
-              <View key={`term-${i}`}>
-                <Text style={styles.termsSectionHeading}>{section.heading}</Text>
-                {section.paragraphs?.map((p, j) => (
-                  <Text key={`tp-${j}`} style={styles.termsParagraph}>
-                    {p}
-                  </Text>
-                ))}
-                {section.items?.map((item, j) => (
-                  <Text key={`ti-${j}`} style={styles.termsItem}>
-                    <Text style={styles.termsItemLabel}>{item.label} </Text>
-                    {item.text}
-                  </Text>
-                ))}
-              </View>
-            ))}
-            <Text style={styles.termsClosing}>{terms.closing}</Text>
+            <View style={styles.termsBorder}>
+              <Text style={styles.termsTitle}>{terms.title}</Text>
+              <Text style={styles.termsIntro}>{terms.intro}</Text>
+              {terms.sections.map((section, i) => (
+                <View key={`term-${i}`}>
+                  <Text style={styles.termsSectionHeading}>{section.heading}</Text>
+                  {section.paragraphs?.map((p, j) => (
+                    <Text key={`tp-${j}`} style={styles.termsParagraph}>
+                      {p}
+                    </Text>
+                  ))}
+                  {section.items?.map((item, j) => (
+                    <Text key={`ti-${j}`} style={styles.termsItem}>
+                      <Text style={styles.termsItemLabel}>{item.label} </Text>
+                      {item.text}
+                    </Text>
+                  ))}
+                </View>
+              ))}
+              <Text style={styles.termsClosing}>{terms.closing}</Text>
+            </View>
           </Page>
         </React.Fragment>
       ))}

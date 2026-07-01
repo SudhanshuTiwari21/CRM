@@ -85,7 +85,9 @@ Regards,
 
   await prisma.emailTemplate.upsert({
     where: { key: "booking_confirmed" },
-    update: {},
+    update: {
+      subject: "Booking Confirmed - {{publicRef}} | PNR: {{pnr}}",
+    },
     create: {
       key: "booking_confirmed",
       subject: "Booking Confirmed - {{publicRef}} | PNR: {{pnr}}",
@@ -107,21 +109,22 @@ Regards,
 
   await prisma.emailTemplate.upsert({
     where: { key: "itinerary_voucher" },
-    update: {},
+    update: {
+      subject: "Your Flight Booking - {{publicRef}}",
+    },
     create: {
       key: "itinerary_voucher",
-      subject: "Your Flight Itinerary - {{publicRef}}",
+      subject: "Your Flight Booking - {{publicRef}}",
       body: `Dear {{customerName}},
 
 Thank you for booking with {{companyName}}.
 
-Your flight itinerary and booking voucher are attached. Your PNR will be shared in a separate confirmation once the airline confirms your booking.
+Your flight booking has been confirmed. Your e-ticket number with PNR will be shared within a maximum of 24 hours.
 
 Booking ID: {{publicRef}}
-Product: {{productType}}
 Amount: {{amount}}
 
-Please find your booking voucher and invoice attached to this email.
+Your booking voucher and invoice are attached to this email.
 
 Regards,
 {{companyName}}

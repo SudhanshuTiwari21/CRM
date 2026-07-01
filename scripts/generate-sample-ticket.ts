@@ -1,5 +1,5 @@
 /**
- * Generate a sample Wingie-style flight voucher PDF (2 pages).
+ * Generate Wingie-style sample PDF + confirmation email HTML preview.
  * Run: npx tsx scripts/generate-sample-ticket.ts
  */
 import React from "react";
@@ -10,6 +10,8 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { FlightTicketPDF } from "../src/templates/pdf/flight-ticket";
 import { getAirlineLogoDataUri } from "../src/lib/airline-logo-pdf";
 import { getPdfLogoDataUri } from "../src/lib/pdf-logo";
+import { buildWingieConfirmedEmailHtml } from "../src/lib/wingie-voucher-html";
+import { buildItineraryVoucherEmailHtml } from "../src/lib/tripcom-itinerary-email-html";
 import type { FlightPassenger, FlightSegment } from "../src/types/booking";
 
 const outDir = path.join(process.cwd(), "storage", "documents");
@@ -49,7 +51,8 @@ const passengers: FlightPassenger[] = [
     gender: "Male",
     paxType: "adult",
     ticketNumber: "0984872349846",
-    handBaggage: "1 piece X 7 kg cabin baggage",
+    dateOfBirth: "2002-10-11",
+    handBaggage: "7 KG",
     checkInBaggage: "1 piece X 25 kg checked baggage",
   },
 ];
@@ -113,6 +116,25 @@ async function main() {
     updatedAt: new Date(),
   };
 
+  const customer = {
+    id: "c1",
+    title: "Mr",
+    name: "Shamshad Ali",
+    email: "shamshad@example.com",
+    phone: "9876543210",
+    pan: null,
+    gstin: null,
+    address: null,
+    city: null,
+    state: null,
+    pincode: null,
+    creditAllowed: false,
+    creditLimit: new Decimal(0),
+    creditBalance: new Decimal(0),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
   const flight = {
     id: "f1",
     bookingId: booking.id,
@@ -121,7 +143,12 @@ async function main() {
     segments,
     passengers,
     tripType: "ONE_WAY" as const,
+    addonType: null,
+    addonCustomLabel: null,
+    addonCustomValue: null,
     cabinClass: "ECONOMY" as const,
+    fareType: "NORMAL" as const,
+    paymentGatewayCharge: null,
     secondaryPnr: null,
     showEticket: true,
     showPassengerName: true,
@@ -145,28 +172,49 @@ async function main() {
     cgstAmount: new Decimal(0),
     sgstAmount: new Decimal(0),
     igstAmount: new Decimal(8784.37),
+    cancellationPolicy: null,
+    includeCancellationPolicy: false,
+    freqFlyerUpdatedToAirline: false,
+    specialAssistanceUpdatedToAirline: false,
   };
 
   const [logoSrc, airlineLogoSrc] = await Promise.all([
     getPdfLogoDataUri(),
     getAirlineLogoDataUri("Air India"),
   ]);
+  const segmentAirlineLogoSrcs = await Promise.all(
+    segments.map((seg) => getAirlineLogoDataUri(seg.airline || "Air India"))
+  );
 
   const buffer = await renderToBuffer(
     FlightTicketPDF({
       agency,
       booking,
       flight,
+      customer,
       segments,
       passengers,
       logoSrc,
       airlineLogoSrc,
+      segmentAirlineLogoSrcs,
     })
   );
 
-  const outPath = path.join(outDir, "sample-flight-voucher-wingie.pdf");
-  await fs.writeFile(outPath, buffer);
-  console.log("Sample voucher:", outPath);
+  const pdfPath = path.join(outDir, "sample-flight-voucher-wingie.pdf");
+  await fs.writeFile(pdfPath, buffer);
+
+  const emailHtml = await buildWingieConfirmedEmailHtml({ agency, booking, customer, flight });
+  const htmlPath = path.join(outDir, "sample-wingie-confirmation-email.html");
+  await fs.writeFile(htmlPath, emailHtml);
+
+  const itineraryHtml = await buildItineraryVoucherEmailHtml({ agency, booking, customer, flight });
+  const itineraryPath = path.join(outDir, "sample-tripcom-itinerary-email.html");
+  await fs.writeFile(itineraryPath, itineraryHtml);
+
+  console.log("Sample offline ticket PDF:", pdfPath);
+  console.log("Sample PNR confirmation email HTML:", htmlPath);
+  console.log("Sample first-booking (Trip.com) email HTML:", itineraryPath);
+  console.log("Open the PDF/HTML in your browser to preview.");
 }
 
 main().catch((e) => {

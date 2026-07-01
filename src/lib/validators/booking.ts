@@ -10,14 +10,14 @@ export const phoneSchema = z
   .refine(isValidIndianMobile, "Enter a valid 10-digit Indian mobile number");
 
 export const flightSegmentSchema = z.object({
-  flightNumber: z.string().min(1),
-  airline: z.string().min(1),
-  fromAirport: z.string().min(3),
-  fromCity: z.string().min(1),
-  toAirport: z.string().min(3),
-  toCity: z.string().min(1),
-  departureAt: z.string().min(1),
-  arrivalAt: z.string().min(1),
+  flightNumber: z.string().min(1, "Flight number is required"),
+  airline: z.string().min(1, "Airline is required"),
+  fromAirport: z.string().min(3, "Departure airport code is required (e.g. DEL)"),
+  fromCity: z.string().min(1, "Departure city is required"),
+  toAirport: z.string().min(3, "Arrival airport code is required (e.g. BOM)"),
+  toCity: z.string().min(1, "Arrival city is required"),
+  departureAt: z.string().min(1, "Departure date and time is required"),
+  arrivalAt: z.string().min(1, "Arrival date and time is required"),
   terminal: z.string().optional(),
   aircraft: z.string().optional(),
   duration: z.string().optional(),
@@ -34,10 +34,10 @@ export const flightSegmentSchema = z.object({
 });
 
 export const flightPassengerSchema = z.object({
-  title: z.string().min(1),
-  firstName: z.string().min(1),
+  title: z.string().min(1, "Title is required"),
+  firstName: z.string().min(1, "First name is required"),
   lastName: z.string().optional().or(z.literal("")),
-  gender: z.string().min(1),
+  gender: z.string().min(1, "Gender is required"),
   paxType: z.enum(["adult", "child", "infant"]).optional(),
   ticketNumber: z.string().optional(),
   seat: z.string().optional(),
@@ -53,6 +53,8 @@ export const flightPassengerSchema = z.object({
   passportIssuingCountry: z.string().optional(),
   passportIssueDate: z.string().optional(),
   passportExpiryDate: z.string().optional(),
+  baggagePreset: z.string().optional(),
+  cabinBaggagePreset: z.string().optional(),
 });
 
 export const hotelGuestSchema = z.object({
@@ -144,7 +146,19 @@ function refineOfflineBilling(
   if (data.ledgerMode === "EXISTING") {
     if (!data.customerId) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select a customer", path: ["customerId"] });
+      return;
     }
+    if (!data.customer?.name?.trim() || data.customer.name.trim().length < 2) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Customer name is required", path: ["customer", "name"] });
+    }
+    if (!data.customer?.phone || !isValidIndianMobile(normalizePhone(data.customer.phone))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Enter a valid 10-digit mobile number",
+        path: ["customer", "phone"],
+      });
+    }
+    validateOptionalPan(data.customer?.pan, ctx, ["customer", "pan"]);
     return;
   }
   if (!data.customer?.name?.trim() || data.customer.name.trim().length < 2) {
@@ -161,6 +175,75 @@ function refineOfflineBilling(
 }
 
 export { refineOfflineBilling };
+
+type InternationalPassengerInput = {
+  title?: string;
+  firstName?: string;
+  dateOfBirth?: string;
+  passportNumber?: string;
+  passportIssuingCountry?: string;
+  passportIssueDate?: string;
+  passportExpiryDate?: string;
+};
+
+export function refineInternationalPassengers(
+  data: { showEticket?: boolean; passengers?: InternationalPassengerInput[] },
+  ctx: z.RefinementCtx
+) {
+  if (!data.showEticket || !data.passengers?.length) return;
+
+  data.passengers.forEach((p, i) => {
+    if (!p.title?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Title is required for international bookings",
+        path: ["passengers", i, "title"],
+      });
+    }
+    if (!p.firstName?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Traveler name is required for international bookings",
+        path: ["passengers", i, "firstName"],
+      });
+    }
+    if (!p.dateOfBirth?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Date of birth is required for international bookings",
+        path: ["passengers", i, "dateOfBirth"],
+      });
+    }
+    if (!p.passportNumber?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Passport number is required for international bookings",
+        path: ["passengers", i, "passportNumber"],
+      });
+    }
+    if (!p.passportIssuingCountry?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Passport issuing country is required for international bookings",
+        path: ["passengers", i, "passportIssuingCountry"],
+      });
+    }
+    if (!p.passportIssueDate?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Passport issue date is required for international bookings",
+        path: ["passengers", i, "passportIssueDate"],
+      });
+    }
+    if (!p.passportExpiryDate?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Passport expiry date is required for international bookings",
+        path: ["passengers", i, "passportExpiryDate"],
+      });
+    }
+  });
+}
 
 export const offlineFlightBookingSchema = z
   .object({
@@ -203,7 +286,8 @@ export const offlineFlightBookingSchema = z
   cancellationPolicy: z.string().optional(),
   includeCancellationPolicy: z.boolean().optional(),
   })
-  .superRefine(refineOfflineBilling);
+  .superRefine(refineOfflineBilling)
+  .superRefine(refineInternationalPassengers);
 
 export const offlineHotelBookingSchema = z
   .object({
@@ -270,11 +354,13 @@ export const confirmPnrSchema = z.object({
   pnr: z.string().min(3, "PNR is required"),
   secondaryPnr: z.string().optional(),
   supplierRef: z.string().optional(),
+  ticketNumbers: z.array(z.string().min(1, "E-ticket number is required")).optional(),
 });
 
 export const sendItinerarySchema = z.object({
   pnr: z.string().min(3, "PNR is required"),
   secondaryPnr: z.string().optional(),
+  ticketNumbers: z.array(z.string().min(1, "E-ticket number is required")).optional(),
 });
 
 export const webhookLiveBookingSchema = z.object({

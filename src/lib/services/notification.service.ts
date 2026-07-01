@@ -1,8 +1,13 @@
 import { prisma } from "@/lib/db";
 import { sendTemplatedEmail, getEmailAttachments } from "@/lib/mailer";
-import { getBookingDocumentPaths } from "./document.service";
+import { generateBookingDocuments, getBookingDocumentPaths } from "./document.service";
 import { getBookingCustomerContact } from "@/lib/cash-customer";
 import { sendWhatsAppText } from "@/lib/whatsapp";
+import {
+  buildHotelConfirmedEmailHtml,
+} from "@/lib/booking-email-html";
+import { buildItineraryVoucherEmailHtml } from "@/lib/tripcom-itinerary-email-html";
+import { buildWingieConfirmedEmailHtml } from "@/lib/wingie-voucher-html";
 import {
   buildBusConfirmedMessage,
   buildFlightConfirmedMessage,
@@ -13,16 +18,23 @@ import {
 
 async function sendBookingEmail(
   bookingId: string,
-  templateKey: "held_processing" | "booking_confirmed" | "itinerary_voucher"
+  templateKey: "held_processing" | "booking_confirmed" | "itinerary_voucher",
+  options?: { documentPaths?: string[]; userId?: string }
 ) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    include: { customer: true },
+    include: {
+      customer: true,
+      flightBooking: true,
+      hotelBooking: true,
+    },
   });
   const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
 
   const contact = booking ? getBookingCustomerContact(booking) : null;
   if (!booking || !contact?.email) return { skipped: true as const };
+
+  const customerForEmail = { ...booking.customer, ...contact };
 
   const vars = {
     customerName: contact.name,
@@ -34,10 +46,51 @@ async function sendBookingEmail(
     companyPhone: agency?.phone || "",
   };
 
+  let htmlOverride: string | undefined;
+  if (templateKey === "itinerary_voucher" && booking.flightBooking && agency) {
+    htmlOverride = await buildItineraryVoucherEmailHtml({
+      agency,
+      booking,
+      customer: customerForEmail,
+      flight: booking.flightBooking,
+    });
+  } else if (templateKey === "booking_confirmed" && agency) {
+    if (booking.productType === "FLIGHT" && booking.flightBooking) {
+      htmlOverride = await buildWingieConfirmedEmailHtml({
+        agency,
+        booking,
+        customer: customerForEmail,
+        flight: booking.flightBooking,
+      });
+    } else if (booking.productType === "HOTEL" && booking.hotelBooking) {
+      htmlOverride = buildHotelConfirmedEmailHtml({
+        agency,
+        booking,
+        customer: customerForEmail,
+        hotel: booking.hotelBooking,
+      });
+    }
+  }
+
   let attachments;
   if (templateKey === "booking_confirmed" || templateKey === "itinerary_voucher") {
-    const paths = await getBookingDocumentPaths(bookingId);
+    let paths = options?.documentPaths ?? (await getBookingDocumentPaths(bookingId, options?.userId));
     attachments = await getEmailAttachments(paths);
+
+    if (paths.length > 0 && attachments.length === 0) {
+      const docs = await generateBookingDocuments(bookingId, options?.userId);
+      paths = await getBookingDocumentPaths(bookingId, options?.userId);
+      if (!paths.length) {
+        paths = docs.map((doc) => doc.storagePath);
+      }
+      attachments = await getEmailAttachments(paths);
+    }
+
+    if (attachments.length === 0) {
+      throw new Error(
+        `Could not attach booking PDFs for ${booking.publicRef}. Regenerate documents and try again.`
+      );
+    }
   }
 
   return sendTemplatedEmail({
@@ -46,6 +99,7 @@ async function sendBookingEmail(
     vars,
     bookingId,
     attachments,
+    htmlOverride,
   });
 }
 
@@ -128,9 +182,10 @@ async function sendBookingWhatsApp(
 /** Send email and WhatsApp. Flight itinerary voucher on create; PNR confirmation after confirm. */
 export async function sendBookingNotifications(
   bookingId: string,
-  templateKey: "held_processing" | "booking_confirmed" | "itinerary_voucher"
+  templateKey: "held_processing" | "booking_confirmed" | "itinerary_voucher",
+  options?: { documentPaths?: string[]; userId?: string }
 ) {
-  const emailResult = await sendBookingEmail(bookingId, templateKey);
+  const emailResult = await sendBookingEmail(bookingId, templateKey, options);
 
   let whatsappResult:
     | { success: boolean; skipped?: boolean; error?: string }

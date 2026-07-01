@@ -22,8 +22,51 @@ function getStorageDir() {
   return path.join(process.cwd(), "storage", "documents");
 }
 
+export { getStorageDir };
+
 async function ensureStorageDir() {
   await fs.mkdir(getStorageDir(), { recursive: true });
+}
+
+/** Resolve a stored path to a readable file (handles moved cwd or /tmp vs local storage). */
+export async function resolveDocumentPath(storagePath: string, fileName: string) {
+  const candidates = [
+    storagePath,
+    path.join(getStorageDir(), fileName),
+    path.isAbsolute(storagePath) ? null : path.join(process.cwd(), storagePath),
+  ].filter((value): value is string => Boolean(value));
+
+  for (const candidate of [...new Set(candidates)]) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
+export async function readDocumentBuffer(
+  doc: { storagePath: string; fileName: string; bookingId: string; type: DocumentType },
+  options?: { userId?: string }
+) {
+  let resolved = await resolveDocumentPath(doc.storagePath, doc.fileName);
+  if (resolved) return fs.readFile(resolved);
+
+  await generateBookingDocuments(doc.bookingId, options?.userId);
+  const refreshed = await prisma.document.findFirst({
+    where: { bookingId: doc.bookingId, type: doc.type },
+  });
+  if (!refreshed) {
+    throw new Error(`Document record not found for ${doc.fileName}`);
+  }
+
+  resolved = await resolveDocumentPath(refreshed.storagePath, refreshed.fileName);
+  if (!resolved) {
+    throw new Error(`Document file not found: ${refreshed.fileName}`);
+  }
+  return fs.readFile(resolved);
 }
 
 export async function generateBookingDocuments(bookingId: string, userId?: string) {
@@ -134,24 +177,47 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
   documents.push({ type: "INVOICE", fileName: invoiceFileName, storagePath: invoicePath });
 
   const existingDocs = await prisma.document.findMany({ where: { bookingId } });
-  for (const doc of existingDocs) {
-    try {
-      await fs.unlink(doc.storagePath);
-    } catch {
-      // file may already be missing
-    }
-  }
-  await prisma.document.deleteMany({ where: { bookingId } });
+  const generatedTypes = documents.map((doc) => doc.type);
 
   for (const doc of documents) {
-    await prisma.document.create({
-      data: {
-        bookingId,
-        type: doc.type,
-        fileName: doc.fileName,
-        storagePath: doc.storagePath,
-      },
-    });
+    const existing = existingDocs.find((row) => row.type === doc.type);
+    if (existing) {
+      if (existing.storagePath !== doc.storagePath) {
+        try {
+          await fs.unlink(existing.storagePath);
+        } catch {
+          // previous file may already be missing
+        }
+      }
+      await prisma.document.update({
+        where: { id: existing.id },
+        data: {
+          fileName: doc.fileName,
+          storagePath: doc.storagePath,
+          generatedAt: new Date(),
+        },
+      });
+    } else {
+      await prisma.document.create({
+        data: {
+          bookingId,
+          type: doc.type,
+          fileName: doc.fileName,
+          storagePath: doc.storagePath,
+        },
+      });
+    }
+  }
+
+  for (const stale of existingDocs) {
+    if (!generatedTypes.includes(stale.type)) {
+      try {
+        await fs.unlink(stale.storagePath);
+      } catch {
+        // file may already be missing
+      }
+      await prisma.document.delete({ where: { id: stale.id } });
+    }
   }
 
   await logActivity({
@@ -164,7 +230,22 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
   return documents;
 }
 
-export async function getBookingDocumentPaths(bookingId: string) {
-  const docs = await prisma.document.findMany({ where: { bookingId } });
-  return docs.map((d) => d.storagePath);
+export async function getBookingDocumentPaths(bookingId: string, userId?: string) {
+  let docs = await prisma.document.findMany({ where: { bookingId } });
+
+  const hasMissingFiles = await Promise.all(
+    docs.map(async (doc) => !(await resolveDocumentPath(doc.storagePath, doc.fileName)))
+  );
+
+  if (docs.length === 0 || hasMissingFiles.some(Boolean)) {
+    await generateBookingDocuments(bookingId, userId);
+    docs = await prisma.document.findMany({ where: { bookingId } });
+  }
+
+  const paths: string[] = [];
+  for (const doc of docs) {
+    const resolved = await resolveDocumentPath(doc.storagePath, doc.fileName);
+    if (resolved) paths.push(resolved);
+  }
+  return paths;
 }

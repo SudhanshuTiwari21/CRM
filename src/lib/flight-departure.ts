@@ -1,9 +1,10 @@
 import { addHours, differenceInHours } from "date-fns";
 import type { FlightSegment } from "@/types/booking";
+import { flightDateTimeToDate } from "@/lib/flight-datetime";
 
 export function getEarliestDeparture(segments: FlightSegment[]): Date | null {
   const times = segments
-    .map((s) => (s.departureAt ? new Date(s.departureAt) : null))
+    .map((s) => (s.departureAt ? flightDateTimeToDate(s.departureAt) : null))
     .filter((d): d is Date => d !== null && !Number.isNaN(d.getTime()));
 
   if (times.length === 0) return null;

@@ -1,8 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { generateBookingDocuments } from "@/lib/services/document.service";
+import { readDocumentBuffer } from "@/lib/services/document.service";
 import { handleApiError, jsonError } from "@/lib/api-utils";
-import fs from "fs/promises";
 
 export const runtime = "nodejs";
 
@@ -13,18 +12,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     const { id } = await params;
 
-    let document = await prisma.document.findUnique({ where: { id } });
+    const document = await prisma.document.findUnique({ where: { id } });
     if (!document) return jsonError("Document not found", 404);
 
-    let fileBuffer: Buffer;
-    try {
-      fileBuffer = await fs.readFile(document.storagePath);
-    } catch {
-      await generateBookingDocuments(document.bookingId, session.user.id);
-      document = await prisma.document.findUnique({ where: { id } });
-      if (!document) return jsonError("Document not found", 404);
-      fileBuffer = await fs.readFile(document.storagePath);
-    }
+    const fileBuffer = await readDocumentBuffer(document, { userId: session.user.id });
 
     return new Response(new Uint8Array(fileBuffer), {
       headers: {

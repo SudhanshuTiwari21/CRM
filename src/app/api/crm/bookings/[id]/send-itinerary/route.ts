@@ -12,9 +12,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { id } = await params;
     const body = await request.json();
-    const { pnr, secondaryPnr } = sendItinerarySchema.parse(body);
+    const { pnr, secondaryPnr, ticketNumbers } = sendItinerarySchema.parse(body);
 
-    await sendItineraryWithPnr(id, pnr, session.user.id, secondaryPnr);
+    await sendItineraryWithPnr(id, pnr, session.user.id, secondaryPnr, ticketNumbers);
     return jsonOk({ success: true });
   } catch (error) {
     return handleApiError(error);

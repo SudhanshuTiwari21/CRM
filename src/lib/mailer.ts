@@ -3,7 +3,15 @@ import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { prisma } from "@/lib/db";
 import type { EmailStatus } from "@prisma/client";
 import fs from "fs/promises";
+import path from "path";
+import { resolveDocumentPath } from "@/lib/services/document.service";
 import { getSmtpConfig } from "@/lib/smtp-config";
+
+export type EmailAttachment = {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+};
 
 interface SendEmailParams {
   to: string;
@@ -11,7 +19,7 @@ interface SendEmailParams {
   html: string;
   bookingId?: string;
   template: string;
-  attachments?: { filename: string; path: string }[];
+  attachments?: EmailAttachment[];
 }
 
 function renderTemplate(template: string, vars: Record<string, string>) {
@@ -90,7 +98,8 @@ export async function sendTemplatedEmail(params: {
   to: string;
   vars: Record<string, string>;
   bookingId?: string;
-  attachments?: { filename: string; path: string }[];
+  attachments?: EmailAttachment[];
+  htmlOverride?: string;
 }) {
   const template = await prisma.emailTemplate.findUnique({
     where: { key: params.templateKey },
@@ -104,8 +113,9 @@ export async function sendTemplatedEmail(params: {
   const companyName = agency?.companyName || params.vars.companyName || "Book to Roam";
 
   const subject = renderTemplate(template.subject, params.vars);
-  const bodyHtml = renderTemplate(template.body, params.vars).replace(/\n/g, "<br>");
-  const html = wrapHtmlEmail(bodyHtml, companyName);
+  const html =
+    params.htmlOverride ??
+    wrapHtmlEmail(renderTemplate(template.body, params.vars).replace(/\n/g, "<br>"), companyName);
 
   return sendEmail({
     to: params.to,
@@ -175,16 +185,23 @@ export async function sendTestEmail(to: string) {
 }
 
 export async function getEmailAttachments(documentPaths: string[]) {
-  const attachments = [];
+  const attachments: EmailAttachment[] = [];
   for (const docPath of documentPaths) {
     try {
-      await fs.access(docPath);
+      const fileName = path.basename(docPath) || "document.pdf";
+      const resolved = (await resolveDocumentPath(docPath, fileName)) ?? docPath;
+      const content = await fs.readFile(resolved);
+      if (!content.length) {
+        console.error(`Email attachment is empty: ${resolved}`);
+        continue;
+      }
       attachments.push({
-        filename: docPath.split("/").pop() || "document.pdf",
-        path: docPath,
+        filename: fileName,
+        content,
+        contentType: "application/pdf",
       });
-    } catch {
-      // skip missing files
+    } catch (error) {
+      console.error(`Email attachment missing: ${docPath}`, error);
     }
   }
   return attachments;

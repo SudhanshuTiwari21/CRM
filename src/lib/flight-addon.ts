@@ -1,5 +1,6 @@
 import type { AddonType } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
+import { normalizeFlightDateTime } from "@/lib/flight-datetime";
 import { ADDON_TYPE_OPTIONS } from "@/lib/constants/flight";
 
 export type AddonTypeForm = (typeof ADDON_TYPE_OPTIONS)[number]["value"];
@@ -29,7 +30,9 @@ export function buildAddonPlaceholderSegment(
   flightNumber?: string,
   travelDate?: string
 ): FlightSegment {
-  const when = travelDate?.trim() || new Date().toISOString();
+  const when = travelDate?.trim()
+    ? normalizeFlightDateTime(travelDate.trim())
+    : normalizeFlightDateTime(new Date().toISOString());
   return {
     flightNumber: flightNumber?.trim() || "ADDON",
     airline,

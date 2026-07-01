@@ -11,6 +11,7 @@ import {
 } from "@/lib/gst-calculator";
 import { applyCardGatewayCharge } from "@/lib/payment-gateway";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
+import { normalizeFlightSegments } from "@/lib/flight-datetime";
 import { logActivity } from "./activity.service";
 import { generateBookingDocuments } from "./document.service";
 import { recordBookingPayment } from "./booking-payment.service";
@@ -144,7 +145,7 @@ export async function updateBookingAsAdmin(
     if (input.fareType !== undefined) flightData.fareType = input.fareType;
 
     if (hasFlightItineraryUpdate) {
-      const normalizedSegments = segments.map((s) => ({ ...s, airline }));
+      const normalizedSegments = normalizeFlightSegments(segments.map((s) => ({ ...s, airline })));
       const airlineLogoUrl = getAirlineLogoUrl(airline) || undefined;
       Object.assign(
         flightData,

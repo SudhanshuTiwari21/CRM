@@ -1,5 +1,6 @@
-import { differenceInMinutes, format } from "date-fns";
+import { differenceInMinutes } from "date-fns";
 import type { FlightSegment } from "@/types/booking";
+import { flightDateTimeToDate, formatFlightWallClock } from "@/lib/flight-datetime";
 
 export function formatLayoverMinutes(totalMinutes: number) {
   if (totalMinutes <= 0) return "";
@@ -12,7 +13,10 @@ export function formatLayoverMinutes(totalMinutes: number) {
 
 export function computeLayoverDuration(arrivalAt: string, nextDepartureAt: string) {
   if (!arrivalAt || !nextDepartureAt) return "";
-  const mins = differenceInMinutes(new Date(nextDepartureAt), new Date(arrivalAt));
+  const mins = differenceInMinutes(
+    flightDateTimeToDate(nextDepartureAt),
+    flightDateTimeToDate(arrivalAt)
+  );
   if (mins <= 0) return "";
   return formatLayoverMinutes(mins);
 }
@@ -41,15 +45,34 @@ export function buildFullRoute(segments: FlightSegment[]) {
 }
 
 /** Sector string for invoices/tickets — all legs, grouped for round trip. */
+/** Index of the first return leg segment in a round-trip itinerary. */
+export function getReturnLegStartIndex(segments: FlightSegment[]) {
+  const idx = segments.findIndex((s) => s.direction === "return");
+  if (idx !== -1) return idx;
+  return segments.length >= 2 ? 1 : segments.length;
+}
+
+export function isRoundTripLegBoundary(segments: FlightSegment[], segmentIndex: number) {
+  const splitAt = getReturnLegStartIndex(segments);
+  return segmentIndex === splitAt - 1;
+}
+
 export function buildSectorSummary(segments: FlightSegment[], tripType?: string | null) {
   if (!segments.length) return "";
 
   if (tripType === "ROUND_TRIP" && segments.length >= 2) {
-    const parts = segments.map((s, i) => {
-      const label =
-        s.direction === "return" ? "Return" : s.direction === "outbound" ? "Outbound" : i === 0 ? "Outbound" : "Return";
-      return `${label}: ${s.fromAirport}-${s.toAirport}`;
-    });
+    const splitAt = getReturnLegStartIndex(segments);
+    const outbound = segments.slice(0, splitAt);
+    const ret = segments.slice(splitAt);
+    const parts: string[] = [];
+    if (outbound.length) {
+      parts.push(
+        `Outbound: ${outbound[0].fromAirport}-${outbound[outbound.length - 1].toAirport}`
+      );
+    }
+    if (ret.length) {
+      parts.push(`Return: ${ret[0].fromAirport}-${ret[ret.length - 1].toAirport}`);
+    }
     return parts.join(" | ");
   }
 
@@ -64,20 +87,31 @@ export function buildSectorSummary(segments: FlightSegment[], tripType?: string 
 export function buildSectorLegs(segments: FlightSegment[], tripType?: string | null) {
   if (!segments.length) return [];
 
+  if (tripType === "ROUND_TRIP") {
+    const splitAt = getReturnLegStartIndex(segments);
+    return segments.map((s, i) => {
+      const isReturn = i >= splitAt;
+      const legIndex = isReturn ? i - splitAt + 1 : i + 1;
+      const legCount = isReturn ? segments.length - splitAt : splitAt;
+      const prefix = isReturn ? "Return" : "Outbound";
+      const legLabel = legCount === 1 ? prefix : `${prefix} Leg ${legIndex}`;
+      return {
+        label: legLabel,
+        sector: `${s.fromAirport}-${s.toAirport}`,
+        cities: `${s.fromCity} → ${s.toCity}`,
+        date: s.departureAt ? formatFlightWallClock(s.departureAt, "display") : "",
+        flight: s.flightNumber,
+      };
+    });
+  }
+
   return segments.map((s, i) => {
-    const legLabel =
-      tripType === "ROUND_TRIP"
-        ? s.direction === "return" || i === 1
-          ? "Return"
-          : "Outbound"
-        : segments.length > 1
-          ? `Leg ${i + 1}`
-          : "Flight";
+    const legLabel = segments.length > 1 ? `Leg ${i + 1}` : "Flight";
     return {
       label: legLabel,
       sector: `${s.fromAirport}-${s.toAirport}`,
       cities: `${s.fromCity} → ${s.toCity}`,
-      date: s.departureAt ? format(new Date(s.departureAt), "dd MMM yyyy") : "",
+      date: s.departureAt ? formatFlightWallClock(s.departureAt, "display") : "",
       flight: s.flightNumber,
     };
   });
@@ -90,8 +124,18 @@ export function itineraryBadgeLabel(tripType?: string | null, segments: FlightSe
   return stopsLabel(segments);
 }
 
-export function connectionGapTitle(tripType: string | null | undefined, segmentIndex: number) {
-  if (tripType === "ROUND_TRIP" && segmentIndex === 0) return "Return Journey";
+export function connectionGapTitle(
+  tripType: string | null | undefined,
+  segmentIndex: number,
+  segments?: FlightSegment[]
+) {
+  if (
+    tripType === "ROUND_TRIP" &&
+    segments &&
+    isRoundTripLegBoundary(segments, segmentIndex)
+  ) {
+    return "Return Journey";
+  }
   return "Stop / Layover";
 }
 
@@ -99,10 +143,16 @@ export function connectionGapText(
   seg: FlightSegment,
   nextSeg: FlightSegment,
   tripType?: string | null,
-  segmentIndex?: number
+  segmentIndex?: number,
+  segments?: FlightSegment[]
 ) {
-  if (tripType === "ROUND_TRIP" && segmentIndex === 0) {
-    const dep = nextSeg.departureAt ? format(new Date(nextSeg.departureAt), "dd MMM yyyy, HH:mm") : "";
+  if (
+    tripType === "ROUND_TRIP" &&
+    segments &&
+    segmentIndex != null &&
+    isRoundTripLegBoundary(segments, segmentIndex)
+  ) {
+    const dep = nextSeg.departureAt ? formatFlightWallClock(nextSeg.departureAt, "display") : "";
     return [
       `Return departs ${nextSeg.fromCity} (${nextSeg.fromAirport})`,
       dep ? `Departure: ${dep}` : null,
@@ -145,15 +195,14 @@ export function layoverDisplay(seg: FlightSegment, nextSeg?: FlightSegment) {
 export function formatSegmentDuration(seg: FlightSegment) {
   if (seg.duration) return seg.duration;
   if (!seg.departureAt || !seg.arrivalAt) return "—";
-  const mins = differenceInMinutes(new Date(seg.arrivalAt), new Date(seg.departureAt));
+  const mins = differenceInMinutes(
+    flightDateTimeToDate(seg.arrivalAt),
+    flightDateTimeToDate(seg.departureAt)
+  );
   if (mins <= 0) return "—";
   return formatLayoverMinutes(mins);
 }
 
 export function formatFlightDateTime(iso: string) {
-  try {
-    return format(new Date(iso), "HH:mm, dd MMM yyyy");
-  } catch {
-    return iso;
-  }
+  return formatFlightWallClock(iso, "display");
 }

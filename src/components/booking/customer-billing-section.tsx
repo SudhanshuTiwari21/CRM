@@ -52,8 +52,9 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
   const [loadingCustomers, setLoadingCustomers] = useState(false);
 
   const showManualFields =
-    billingType === "CASH" || (billingType === "LEDGER" && ledgerMode === "NEW");
-  const fieldsReadOnly = billingType === "LEDGER" && ledgerMode === "EXISTING" && Boolean(customerId);
+    billingType === "CASH" ||
+    (billingType === "LEDGER" && ledgerMode === "NEW") ||
+    (billingType === "LEDGER" && ledgerMode === "EXISTING" && Boolean(customerId));
 
   const fetchCustomers = useCallback(async (search: string) => {
     setLoadingCustomers(true);
@@ -235,15 +236,19 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
           </div>
         )}
 
-        {(showManualFields || fieldsReadOnly) && (
+        {(showManualFields) && (
           <div className="grid gap-4 sm:grid-cols-2">
+            {billingType === "LEDGER" && ledgerMode === "EXISTING" && customerId && (
+              <p className="text-xs text-muted-foreground sm:col-span-2">
+                You can edit these details — changes are saved to the customer profile when the booking is created.
+              </p>
+            )}
             <div className="space-y-2 sm:col-span-2">
               <Label>Name *</Label>
               <div className="flex gap-2">
                 <Select
                   value={form.watch("customer.title") || "Mr"}
                   onValueChange={(v) => form.setValue("customer.title", v)}
-                  disabled={fieldsReadOnly}
                 >
                   <SelectTrigger className="w-[100px] shrink-0"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -256,7 +261,6 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
                   {...form.register("customer.name")}
                   placeholder="Full name (without title)"
                   className="flex-1"
-                  readOnly={fieldsReadOnly}
                 />
               </div>
             </div>
@@ -265,7 +269,6 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
               <Input
                 {...form.register("customer.phone")}
                 placeholder="10-digit mobile (leading 0 optional)"
-                readOnly={fieldsReadOnly}
               />
             </div>
             <div className="space-y-2">
@@ -276,12 +279,11 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
                 inputMode="email"
                 autoComplete="email"
                 placeholder="optional"
-                readOnly={fieldsReadOnly}
               />
             </div>
             <div className="space-y-2">
               <Label>GSTIN</Label>
-              <Input {...form.register("customer.gstin")} readOnly={fieldsReadOnly} />
+              <Input {...form.register("customer.gstin")} />
             </div>
             <div className="space-y-2">
               <Label>PAN</Label>
@@ -289,7 +291,6 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
                 value={form.watch("customer.pan") || ""}
                 onChange={(e) => form.setValue("customer.pan", e.target.value.toUpperCase())}
                 placeholder="optional — e.g. ABCDE1234F"
-                readOnly={fieldsReadOnly}
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
@@ -298,7 +299,6 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
                 {...form.register("customer.address")}
                 placeholder="Street, building, area..."
                 rows={2}
-                readOnly={fieldsReadOnly}
               />
             </div>
             <div className="space-y-2">
@@ -306,7 +306,6 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
               <Input
                 {...form.register("customer.city")}
                 placeholder="Kolkata"
-                readOnly={fieldsReadOnly}
               />
             </div>
             <div className="space-y-2">
@@ -314,7 +313,6 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
               <Input
                 {...form.register("customer.state")}
                 placeholder="West Bengal"
-                readOnly={fieldsReadOnly}
               />
             </div>
             <div className="space-y-2">
@@ -322,7 +320,6 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
               <Input
                 {...form.register("customer.pincode")}
                 placeholder="700001"
-                readOnly={fieldsReadOnly}
               />
             </div>
           </div>

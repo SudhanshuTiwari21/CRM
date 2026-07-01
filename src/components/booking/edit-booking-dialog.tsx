@@ -35,6 +35,7 @@ import {
   normalizeFlightEditPayload,
   type FlightEditFormValues,
 } from "@/lib/flight-edit-form";
+import { getFirstFormErrorMessage } from "@/lib/form-errors";
 
 type FlightEditWizardForm = Omit<WizardForm, "billingType" | "ledgerMode" | "customerId"> &
   Pick<FlightEditFormValues, "pnr" | "internalNotes">;
@@ -346,11 +347,15 @@ function FlightEditForm({
   } = useFieldArray({ control: form.control, name: "passengers" });
 
   async function handleSave() {
-    const valid = await form.trigger();
-    if (!valid) {
-      toast.error("Please fix the highlighted fields");
-      return;
-    }
+    let hasErrors = false;
+    await form.handleSubmit(
+      async () => {},
+      (errors) => {
+        hasErrors = true;
+        toast.error(getFirstFormErrorMessage(errors));
+      }
+    )();
+    if (hasErrors) return;
     if (markAsPaid && !paymentMethod) {
       toast.error("Select a payment method");
       return;
