@@ -2,8 +2,9 @@ import type { AgencySettings, Booking, Customer, FlightBooking } from "@prisma/c
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { getEmailLogoSrc, emailResponsiveStyles } from "@/lib/email-logo";
 import { getAirportDisplay } from "@/lib/airport-names";
-import { cabinLabel, groupSegments, voucherPaymentBreakdown } from "@/lib/voucher-format";
-import { formatFlightWallClock } from "@/lib/flight-datetime";
+import { groupSegments, voucherPaymentBreakdown, cabinClassDisplay } from "@/lib/voucher-format";
+import { formatFlightWallClock, parseFlightDateTime } from "@/lib/flight-datetime";
+import { formatSegmentDuration, computeLayoverDuration, layoverCityLabel } from "@/lib/flight-layover";
 import { passengerDisplayName } from "@/lib/flight-fare-breakup";
 import { toTitleCase } from "@/lib/utils";
 import { buildEmailCopyrightHtml, buildEmailSocialButtonsHtml } from "@/lib/email-footer";
@@ -32,24 +33,6 @@ function formatTripInr(amount: number) {
 function formatTripDateShort(iso?: string) {
   if (!iso?.trim()) return "";
   return formatFlightWallClock(iso, "short");
-}
-
-function formatTripFlightTime(iso?: string) {
-  if (!iso?.trim()) return "—";
-  return formatFlightWallClock(iso, "trip");
-}
-
-function tripAirportLine(city: string, code: string, fallbackCity?: string, terminal?: string) {
-  const entry = getAirportDisplay(code, fallbackCity || city);
-  const name = entry.airportLine.includes(" - ")
-    ? entry.airportLine.split(" - ").slice(1).join(" - ")
-    : `${entry.city} International Airport`;
-  const terminalSuffix = terminal
-    ? terminal.toLowerCase().startsWith("terminal")
-      ? ` ${terminal}`
-      : ` Terminal ${terminal.replace(/^T/i, "")}`
-    : "";
-  return `${name}${terminalSuffix}`;
 }
 
 function primaryRoute(segments: FlightSegment[]) {
@@ -132,9 +115,164 @@ function infoBoxHtml(params: {
     </table>`;
 }
 
-function paymentFlightCard(params: {
+function segmentTimeOnly(iso?: string) {
+  const parts = parseFlightDateTime(iso);
+  if (!parts) return "—";
+  return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
+}
+
+function segmentDateCard(iso?: string) {
+  if (!iso?.trim()) return "";
+  return formatFlightWallClock(iso, "emailCard");
+}
+
+function segmentAirportName(city: string, code: string, fallbackCity?: string) {
+  const entry = getAirportDisplay(code, fallbackCity || city);
+  const name = entry.airportLine.includes(" - ")
+    ? entry.airportLine.split(" - ").slice(1).join(" - ")
+    : `${entry.city} Airport`;
+  return name;
+}
+
+function visualSegmentCardHtml(seg: FlightSegment, flight: FlightBooking) {
+  const depCode = escapeHtml(seg.fromAirport || "");
+  const arrCode = escapeHtml(seg.toAirport || "");
+  const depTime = segmentTimeOnly(seg.departureAt);
+  const arrTime = segmentTimeOnly(seg.arrivalAt);
+  const depDate = escapeHtml(segmentDateCard(seg.departureAt));
+  const arrDate = escapeHtml(segmentDateCard(seg.arrivalAt));
+  const depCity = escapeHtml(toTitleCase(seg.fromCity));
+  const arrCity = escapeHtml(toTitleCase(seg.toCity));
+  const depAirport = escapeHtml(segmentAirportName(seg.fromCity, seg.fromAirport, seg.fromCity));
+  const arrAirport = escapeHtml(segmentAirportName(seg.toCity, seg.toAirport, seg.toCity));
+  const depTerminal = seg.departureTerminal ? escapeHtml(`Terminal ${seg.departureTerminal.replace(/^T/i, "")}`) : "";
+  const arrTerminal = seg.terminal ? escapeHtml(`Terminal ${seg.terminal.replace(/^T/i, "")}`) : "";
+  const duration = escapeHtml(formatSegmentDuration(seg));
+  const aircraft = escapeHtml(seg.aircraft || "—");
+  const cabin = escapeHtml(cabinClassDisplay(flight.cabinClass));
+  const airline = escapeHtml(seg.airline || flight.airline);
+  const flightNo = escapeHtml(seg.flightNumber || "—");
+
+  return `
+    <tr>
+      <td style="padding:16px 0;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif;">
+          <tr>
+            <!-- Departure -->
+            <td width="28%" valign="top" style="padding:0 4px 0 0;">
+              <div style="font-size:17px;font-weight:700;color:${BLUE};">${depCode} ${depTime}</div>
+              <div style="font-size:11px;color:${MUTED};padding-top:2px;">${depDate}</div>
+              <div style="font-size:12px;font-weight:600;color:${TEXT};padding-top:6px;">${depCity}</div>
+              <div style="font-size:11px;color:${MUTED};">${depAirport}</div>
+              ${depTerminal ? `<div style="font-size:11px;color:${MUTED};">${depTerminal}</div>` : ""}
+            </td>
+            <!-- Duration & path -->
+            <td width="18%" valign="top" align="center" style="padding-top:2px;">
+              <div style="font-size:12px;font-weight:600;color:${TEXT};">${duration}</div>
+              <div style="font-size:14px;color:${TEAL};letter-spacing:1px;padding:4px 0 2px;">&middot; &middot; &middot; &#9992; &middot; &middot; &middot;</div>
+              <div style="font-size:11px;color:${MUTED};">1 Stop</div>
+            </td>
+            <!-- Arrival -->
+            <td width="28%" valign="top" style="padding:0 4px;">
+              <div style="font-size:17px;font-weight:700;color:${BLUE};">${arrCode} ${arrTime}</div>
+              <div style="font-size:11px;color:${MUTED};padding-top:2px;">${arrDate}</div>
+              <div style="font-size:12px;font-weight:600;color:${TEXT};padding-top:6px;">${arrCity}</div>
+              <div style="font-size:11px;color:${MUTED};">${arrAirport}</div>
+              ${arrTerminal ? `<div style="font-size:11px;color:${MUTED};">${arrTerminal}</div>` : ""}
+            </td>
+            <!-- Flight info -->
+            <td width="26%" valign="top" style="padding-left:10px;border-left:1px solid ${BORDER};">
+              <table cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif;">
+                <tr>
+                  <td style="font-size:11px;color:${MUTED};padding:2px 6px 2px 0;white-space:nowrap;">Aircraft</td>
+                  <td style="font-size:11px;font-weight:600;color:${TEXT};padding:2px 0;">${aircraft}</td>
+                </tr>
+                <tr>
+                  <td style="font-size:11px;color:${MUTED};padding:2px 6px 2px 0;white-space:nowrap;">Class</td>
+                  <td style="font-size:11px;font-weight:600;color:${TEXT};padding:2px 0;">${cabin}</td>
+                </tr>
+                <tr>
+                  <td style="font-size:11px;color:${MUTED};padding:2px 6px 2px 0;white-space:nowrap;">Airline</td>
+                  <td style="font-size:11px;font-weight:600;color:${TEXT};padding:2px 0;">${airline}</td>
+                </tr>
+                <tr>
+                  <td style="font-size:11px;color:${MUTED};padding:2px 6px 2px 0;white-space:nowrap;">Flight</td>
+                  <td style="font-size:11px;font-weight:600;color:${BLUE};padding:2px 0;">&#9992; ${flightNo}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>`;
+}
+
+function layoverRowHtml(seg: FlightSegment, nextSeg: FlightSegment) {
+  const duration = seg.layoverDuration || computeLayoverDuration(seg.arrivalAt, nextSeg.departureAt);
+  const city = layoverCityLabel(seg);
+  const airport = seg.layoverAirport || seg.toAirport;
+  const label = duration
+    ? `${escapeHtml(duration)} Layover at ${escapeHtml(city)}${airport ? ` (${escapeHtml(airport)})` : ""}`
+    : `Layover at ${escapeHtml(city)}${airport ? ` (${escapeHtml(airport)})` : ""}`;
+
+  return `
+    <tr>
+      <td style="padding:0;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px dashed ${BORDER};border-bottom:1px dashed ${BORDER};">
+          <tr>
+            <td style="padding:8px 12px;font-size:12px;color:${MUTED};font-family:Arial,Helvetica,sans-serif;text-align:center;">
+              &#128337; ${label}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>`;
+}
+
+function visualFlightDetailsHtml(params: {
   flight: FlightBooking;
   segments: FlightSegment[];
+}) {
+  const groups = groupSegments(params.segments, params.flight.tripType);
+
+  const groupsHtml = groups.map((group) => {
+    const first = group.segments[0];
+    const last = group.segments[group.segments.length - 1];
+    const routeTitle = `${escapeHtml(toTitleCase(first?.fromCity || ""))} &#10148; ${escapeHtml(toTitleCase(last?.toCity || ""))}`;
+
+    const segmentCards = group.segments.map((seg, i) => {
+      const card = visualSegmentCardHtml(seg, params.flight);
+      if (i < group.segments.length - 1) {
+        return card + layoverRowHtml(seg, group.segments[i + 1]);
+      }
+      return card;
+    }).join("");
+
+    return `
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;border:1px solid ${BORDER};border-radius:8px;font-family:Arial,Helvetica,sans-serif;">
+        <tr>
+          <td style="padding:12px 16px;background:#f8fafc;border-bottom:1px solid ${BORDER};border-radius:8px 8px 0 0;">
+            <span style="font-size:15px;font-weight:700;color:${TEXT};">${routeTitle}</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 16px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              ${segmentCards}
+            </table>
+          </td>
+        </tr>
+      </table>`;
+  }).join("");
+
+  return `
+    <p style="margin:28px 0 12px;font-size:18px;font-weight:700;color:${TEXT};font-family:Arial,Helvetica,sans-serif;">Flight Details</p>
+    <p style="margin:0 0 8px;font-size:11px;color:${MUTED};font-family:Arial,Helvetica,sans-serif;">* All departure/arrival times are in local time.</p>
+    ${groupsHtml}`;
+}
+
+function paymentCardHtml(params: {
+  flight: FlightBooking;
   totalAmount: number;
 }) {
   const baseFare = Number(params.flight.baseFare ?? 0);
@@ -152,31 +290,6 @@ function paymentFlightCard(params: {
     total: params.totalAmount,
   });
 
-  const groups = groupSegments(params.segments, params.flight.tripType);
-  const flightLegs = groups
-    .flatMap((group) =>
-      group.segments.map((seg) => {
-        const route = `${escapeHtml(toTitleCase(seg.fromCity))} - ${escapeHtml(toTitleCase(seg.toCity))}`;
-        const airline = escapeHtml(seg.airline || params.flight.airline);
-        const flightNo = escapeHtml(seg.flightNumber || "—");
-        const cabin = escapeHtml(cabinLabel(params.flight.cabinClass));
-        const depTime = formatTripFlightTime(seg.departureAt);
-        const arrTime = formatTripFlightTime(seg.arrivalAt);
-        const depAirport = escapeHtml(
-          tripAirportLine(seg.fromCity, seg.fromAirport, seg.fromCity, seg.departureTerminal)
-        );
-        const arrAirport = escapeHtml(
-          tripAirportLine(seg.toCity, seg.toAirport, seg.toCity, seg.terminal)
-        );
-        return `
-          <tr><td colspan="2" style="padding:14px 0 6px;font-size:15px;font-weight:700;color:${TEXT};font-family:Arial,Helvetica,sans-serif;">${route}</td></tr>
-          <tr><td colspan="2" style="padding:0 0 10px;font-size:13px;color:${MUTED};font-family:Arial,Helvetica,sans-serif;">${airline} &middot; ${flightNo} (${cabin})</td></tr>
-          <tr><td colspan="2" style="padding:0 0 4px;font-size:13px;color:${TEXT};font-family:Arial,Helvetica,sans-serif;">Departing: ${depTime}, ${depAirport}</td></tr>
-          <tr><td colspan="2" style="padding:0 0 14px;font-size:13px;color:${TEXT};font-family:Arial,Helvetica,sans-serif;">Arrival: ${arrTime}, ${arrAirport}</td></tr>`;
-      })
-    )
-    .join("");
-
   const discountRow =
     breakdown.discount > 0
       ? `<tr>
@@ -186,7 +299,7 @@ function paymentFlightCard(params: {
       : "";
 
   return `
-    <p style="margin:28px 0 12px;font-size:18px;font-weight:700;color:${TEXT};font-family:Arial,Helvetica,sans-serif;">Payment &amp; Flight Info</p>
+    <p style="margin:28px 0 12px;font-size:18px;font-weight:700;color:${TEXT};font-family:Arial,Helvetica,sans-serif;">Payment Info</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${BORDER};border-radius:8px;">
       <tr>
         <td style="padding:18px 20px;">
@@ -208,17 +321,16 @@ function paymentFlightCard(params: {
           </table>
         </td>
       </tr>
-      <tr>
-        <td style="padding:0 20px 18px;border-top:1px solid ${BORDER};">
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr>
-              <td style="padding:12px 0 8px;font-size:11px;color:${MUTED};font-family:Arial,Helvetica,sans-serif;">* All departure/arrival times are in local time.</td>
-            </tr>
-            ${flightLegs}
-          </table>
-        </td>
-      </tr>
     </table>`;
+}
+
+function paymentFlightCard(params: {
+  flight: FlightBooking;
+  segments: FlightSegment[];
+  totalAmount: number;
+}) {
+  return visualFlightDetailsHtml({ flight: params.flight, segments: params.segments })
+    + paymentCardHtml({ flight: params.flight, totalAmount: params.totalAmount });
 }
 
 function helpSectionPendingHtml() {

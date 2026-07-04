@@ -139,11 +139,23 @@ export function HotelBookingFields({ form, guestFields, appendGuest }: HotelBook
         <Textarea {...form.register("inclusions")} placeholder="e.g. LIVE Singing on Weekend" rows={2} />
       </div>
 
+      <div className="space-y-2">
+        <Label>Adults *</Label>
+        <Input {...form.register("adultsCount")} type="number" min={1} />
+      </div>
+      <div className="space-y-2">
+        <Label>Children</Label>
+        <Input {...form.register("childrenCount")} type="number" min={0} />
+      </div>
+
       <div className="space-y-3 sm:col-span-2">
-        <Label>Guests *</Label>
+        <Label>Guest Names (optional)</Label>
+        <p className="text-xs text-muted-foreground">
+          Add names to display on the voucher. Leave blank if not needed.
+        </p>
         {guestFields.map((field, i) => (
           <div key={field.id} className="flex gap-2">
-            <Input {...form.register(`guests.${i}.name`)} placeholder="Guest Name" />
+            <Input {...form.register(`guests.${i}.name`)} placeholder={`Guest ${i + 1} name`} />
             <Select
               value={form.watch(`guests.${i}.type`)}
               onValueChange={(v) => form.setValue(`guests.${i}.type`, v as "adult" | "child")}
@@ -157,7 +169,7 @@ export function HotelBookingFields({ form, guestFields, appendGuest }: HotelBook
           </div>
         ))}
         <Button type="button" variant="outline" size="sm" onClick={() => appendGuest({ name: "", type: "adult" })}>
-          <Plus className="mr-2 h-4 w-4" /> Add Guest
+          <Plus className="mr-2 h-4 w-4" /> Add Guest Name
         </Button>
       </div>
 

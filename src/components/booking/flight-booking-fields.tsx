@@ -515,15 +515,18 @@ export function FlightBookingFields({
                 <Label className="text-xs">Duration</Label>
                 <Input {...form.register(`segments.${i}.duration`)} placeholder="2h 15m" />
               </div>
-              {tripType === "ROUND_TRIP" && (i === 0 || i === returnLegStartIndex()) && (
-                <div className="space-y-2">
-                  <Label className="text-xs">{i === 0 ? "Outbound PNR" : "Return PNR"}</Label>
-                  <Input
-                    {...form.register(`segments.${i}.pnr`)}
-                    placeholder="Optional"
-                  />
-                </div>
-              )}
+              {(() => {
+                if (tripType === "ROUND_TRIP") {
+                  if (i === 0) return <div className="space-y-2"><Label className="text-xs">Outbound PNR</Label><Input {...form.register(`segments.${i}.pnr`)} placeholder="Optional" /></div>;
+                  if (i === returnLegStartIndex()) return <div className="space-y-2"><Label className="text-xs">Return PNR</Label><Input {...form.register(`segments.${i}.pnr`)} placeholder="Optional" /></div>;
+                  return null;
+                }
+                const segCount = form.watch("segments")?.length ?? 1;
+                if (segCount <= 1) {
+                  return <div className="space-y-2"><Label className="text-xs">PNR</Label><Input {...form.register(`segments.${i}.pnr`)} placeholder="Optional" /></div>;
+                }
+                return <div className="space-y-2"><Label className="text-xs">Segment PNR</Label><Input {...form.register(`segments.${i}.pnr`)} placeholder="Optional" /></div>;
+              })()}
             </div>
           </div>
 

@@ -6,6 +6,7 @@ import { formatInr } from "@/lib/gst-calculator";
 import { passengerDisplayName } from "@/lib/flight-fare-breakup";
 import { toTitleCase } from "@/lib/utils";
 import { buildEmailCopyrightHtml, buildEmailSocialButtonsHtml } from "@/lib/email-footer";
+import { getEmailLogoSrc } from "@/lib/email-logo";
 
 function escapeHtml(value: string) {
   return value
@@ -138,12 +139,15 @@ function emailShell(content: string, companyName: string, companyPhone?: string 
 }
 
 function headerRow(companyName: string, publicRef: string) {
+  const logoSrc = getEmailLogoSrc();
+  const logo = `<img src="${logoSrc}" alt="${escapeHtml(companyName)}" width="140" height="26" style="display:block;max-width:140px;height:auto;" />`;
+
   return `
     <tr>
       <td style="padding:28px 32px 12px;border-bottom:1px solid #e5e7eb;">
         <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
-            <td style="font-size:28px;font-weight:700;color:#2563eb;letter-spacing:-0.5px;">${escapeHtml(companyName)}</td>
+            <td valign="middle">${logo}</td>
             <td align="right" style="font-size:13px;color:#6b7280;white-space:nowrap;">
               Booking No.<br />
               <span style="color:#2563eb;font-size:16px;font-weight:600;">${escapeHtml(publicRef)}</span>

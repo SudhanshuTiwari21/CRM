@@ -360,7 +360,13 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               )}
               {booking.hotelBooking && (
                 <div className="space-y-3">
-                  {(booking.hotelBooking.guests as unknown as HotelGuest[]).map((g, i) => (
+                  <div className="flex gap-4 text-sm">
+                    <span>{booking.hotelBooking.adultsCount} Adult{booking.hotelBooking.adultsCount !== 1 ? "s" : ""}</span>
+                    {booking.hotelBooking.childrenCount > 0 && (
+                      <span>{booking.hotelBooking.childrenCount} Child{booking.hotelBooking.childrenCount !== 1 ? "ren" : ""}</span>
+                    )}
+                  </div>
+                  {(booking.hotelBooking.guests as unknown as HotelGuest[]).filter((g) => g.name?.trim()).map((g, i) => (
                     <div key={i} className="rounded-lg border p-3">
                       <p className="font-medium">{g.name}</p>
                       <p className="text-sm text-muted-foreground capitalize">{g.type}</p>

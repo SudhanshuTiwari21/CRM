@@ -53,21 +53,24 @@ interface Props {
   logoSrc?: string | null;
 }
 
-function countGuests(guests: HotelGuest[]) {
+function countGuestsFromArray(guests: HotelGuest[]) {
   const adults = guests.filter((g) => g.type === "adult").length;
   const children = guests.filter((g) => g.type === "child").length;
-  return { adults, children };
+  return { adults: adults || 1, children };
 }
 
 function formatGuestList(guests: HotelGuest[]) {
-  if (!guests.length) return "N/A";
-  const lead = guests[0];
-  const others = guests.length - 1;
+  const named = guests.filter((g) => g.name?.trim());
+  if (!named.length) return null;
+  const lead = named[0];
+  const others = named.length - 1;
   return others > 0 ? `${lead.name} (Primary Guest) + ${others} Other(s)` : `${lead.name} (Primary Guest)`;
 }
 
 export function HotelVoucherPDF({ agency, booking, hotel, customer, guests, logoSrc }: Props) {
-  const { adults, children } = countGuests(guests);
+  const fallback = countGuestsFromArray(guests);
+  const adults = hotel.adultsCount > 0 ? hotel.adultsCount : fallback.adults;
+  const children = hotel.childrenCount > 0 ? hotel.childrenCount : fallback.children;
   const supplierConfirmation = hotel.confirmationNo || booking.pnr || "";
   const isConfirmed = Boolean(supplierConfirmation);
   const mealPlanLabel = MEAL_PLAN_LABELS[hotel.mealPlan] || hotel.mealPlan;
@@ -145,7 +148,9 @@ export function HotelVoucherPDF({ agency, booking, hotel, customer, guests, logo
         <Text style={styles.reservationLine}>
           Reservation for - {hotel.nights} Night{hotel.nights !== 1 ? "s" : ""} | {adults} Adult{adults !== 1 ? "s" : ""}, {children} Children | {hotel.roomsCount} Room{hotel.roomsCount !== 1 ? "s" : ""}
         </Text>
-        <Text style={styles.guestLine}>{formatGuestList(guests)}</Text>
+        {formatGuestList(guests) && (
+          <Text style={styles.guestLine}>{formatGuestList(guests)}</Text>
+        )}
 
         <View style={styles.roomBox}>
           <Text style={styles.roomTitle}>Room 1 - {hotel.roomType}</Text>

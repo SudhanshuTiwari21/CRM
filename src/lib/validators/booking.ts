@@ -58,7 +58,7 @@ export const flightPassengerSchema = z.object({
 });
 
 export const hotelGuestSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().optional().or(z.literal("")),
   type: z.enum(["adult", "child"]),
 });
 
@@ -311,7 +311,9 @@ export const offlineHotelBookingSchema = z
   roomsCount: z.coerce.number().int().positive().optional(),
   mealPlan: z.enum(["ROOM_ONLY", "WITH_BREAKFAST", "HALF_BOARD", "FULL_BOARD"]).optional(),
   roomAmenities: z.array(z.string()).optional(),
-  guests: z.array(hotelGuestSchema).min(1),
+  adultsCount: z.coerce.number().int().min(1).optional(),
+  childrenCount: z.coerce.number().int().min(0).optional(),
+  guests: z.array(hotelGuestSchema).optional(),
   inclusions: z.string().optional(),
   cancellationPolicy: z.string().optional(),
   includeCancellationPolicy: z.boolean().optional(),
@@ -383,7 +385,7 @@ export const webhookLiveBookingSchema = z.object({
       checkIn: z.string(),
       checkOut: z.string(),
       roomType: z.string(),
-      guests: z.array(hotelGuestSchema),
+      guests: z.array(hotelGuestSchema).optional(),
     })
     .optional(),
   bus: z

@@ -115,7 +115,7 @@ export function flightDateTimeToDate(value: string) {
 
 export function formatFlightWallClock(
   value?: string | null,
-  style: "voucher" | "display" | "trip" | "short" = "voucher"
+  style: "voucher" | "display" | "trip" | "short" | "emailCard" = "voucher"
 ) {
   const parts = parseFlightDateTime(value);
   if (!parts) return "—";
@@ -129,6 +129,8 @@ export function formatFlightWallClock(
       return `${pad2(parts.hour)}:${pad2(parts.minute)}, ${MONTH_NAMES[parts.month - 1]} ${parts.day}, ${parts.year}`;
     case "short":
       return `${MONTH_NAMES[parts.month - 1]?.slice(0, 3)} ${parts.day}`;
+    case "emailCard":
+      return `${weekday.slice(0, 3)},${pad2(parts.day)} ${MONTH_NAMES[parts.month - 1]?.slice(0, 3)} ${parts.year}`;
     case "display":
     default:
       return `${pad2(parts.day)}/${pad2(parts.month)}/${parts.year}, ${pad2(parts.hour)}:${pad2(parts.minute)}`;

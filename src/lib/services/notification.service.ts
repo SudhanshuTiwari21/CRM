@@ -96,7 +96,6 @@ async function sendBookingEmail(
   let inlineAttachments;
   if (
     htmlOverride &&
-    booking.productType === "FLIGHT" &&
     (templateKey === "booking_confirmed" || templateKey === "itinerary_voucher")
   ) {
     inlineAttachments = [await getEmailLogoInlineAttachment()];

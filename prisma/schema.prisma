@@ -437,6 +437,8 @@ model HotelBooking {
   roomType                  String
   mealPlan                  MealPlan  @default(ROOM_ONLY)
   roomAmenities             String[]  @default([])
+  adultsCount               Int       @default(1)
+  childrenCount             Int       @default(0)
   guests                    Json
   inclusions                String?
   cancellationPolicy        String?
