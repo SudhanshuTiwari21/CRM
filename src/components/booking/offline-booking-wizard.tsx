@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -20,11 +20,15 @@ import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields"
 import { parseApiResponse } from "@/lib/parse-api-response";
 import { formatCustomerName } from "@/lib/utils";
 import { getFirstFormErrorMessage } from "@/lib/form-errors";
-import { flightPassengerSchema, flightSegmentSchema } from "@/lib/validators/booking";
 import { buildAddonPlaceholderSegment, validateAddonBooking } from "@/lib/flight-addon";
 import { getReturnLegStartIndex } from "@/lib/flight-layover";
 import { CustomerBillingSection } from "@/components/booking/customer-billing-section";
-import { refineInternationalPassengers, refineOfflineBilling } from "@/lib/validators/booking";
+import {
+  flightPassengerSchema,
+  flightSegmentSchema,
+  refineInternationalPassengers,
+  refineOfflineBilling,
+} from "@/lib/validators/booking";
 import { normalizePhone } from "@/lib/phone";
 
 const baseCustomer = {
@@ -117,11 +121,39 @@ const wizardSchema = z
   seats: z.array(z.object({ seatNumber: z.string() })).optional(),
   })
   .superRefine(refineOfflineBilling)
-  .superRefine(refineInternationalPassengers);
+  .superRefine((data, ctx) => {
+    if (data.productType !== "FLIGHT") return;
+
+    const segResult = z.array(flightSegmentSchema).min(1, "At least one flight segment is required").safeParse(data.segments);
+    if (!segResult.success) {
+      for (const issue of segResult.error.issues) {
+        ctx.addIssue({ ...issue, path: ["segments", ...issue.path] });
+      }
+    }
+
+    const paxResult = z.array(flightPassengerSchema).min(1, "At least one passenger is required").safeParse(data.passengers);
+    if (!paxResult.success) {
+      for (const issue of paxResult.error.issues) {
+        ctx.addIssue({ ...issue, path: ["passengers", ...issue.path] });
+      }
+    }
+
+    refineInternationalPassengers(data, ctx);
+  });
 
 type WizardForm = z.infer<typeof wizardSchema>;
 
 export type { WizardForm };
+
+const baseZodResolver = zodResolver(wizardSchema);
+const wizardResolver: Resolver<WizardForm> = (values, context, options) => {
+  const cleaned = { ...values };
+  if (cleaned.productType !== "FLIGHT") {
+    cleaned.segments = undefined;
+    cleaned.passengers = undefined;
+  }
+  return baseZodResolver(cleaned, context, options);
+};
 
 export function OfflineBookingWizard() {
   const router = useRouter();
@@ -130,7 +162,7 @@ export function OfflineBookingWizard() {
   const [creditAvailable, setCreditAvailable] = useState(false);
 
   const form = useForm<WizardForm>({
-    resolver: zodResolver(wizardSchema),
+    resolver: wizardResolver,
     defaultValues: {
       productType: "FLIGHT",
       billingType: "LEDGER",
