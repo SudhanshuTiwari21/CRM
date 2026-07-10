@@ -137,7 +137,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                 </div>
                 {branch.gstin && <p className="text-sm text-muted-foreground">GSTIN: {branch.gstin}</p>}
                 <p className="text-sm text-muted-foreground">
-                  {[branch.address, branch.city, branch.state, branch.pincode].filter(Boolean).join(", ") || "—"}
+                  {[branch.address, branch.city, branch.state, branch.pincode].filter(Boolean).join(", ") || "-"}
                 </p>
               </div>
             ))}
@@ -157,7 +157,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                     {contact.isPrimary && <Badge variant="secondary">Primary</Badge>}
                   </div>
                   {contact.designation && <p className="text-sm text-muted-foreground">{contact.designation}</p>}
-                  <p className="text-sm">{contact.phone || "—"} · {contact.email || "—"}</p>
+                  <p className="text-sm">{contact.phone || "-"} · {contact.email || "-"}</p>
                 </div>
               </div>
             ))}

@@ -182,7 +182,7 @@ export function ConfirmPnrDialog({
               </p>
               {passengers.map((pax, i) => (
                 <div key={`${pax.firstName}-${i}`} className="space-y-2">
-                  <Label htmlFor={`ticket-${i}`}>E-Ticket — {passengerLabel(pax)}</Label>
+                  <Label htmlFor={`ticket-${i}`}>E-Ticket - {passengerLabel(pax)}</Label>
                   <Input
                     id={`ticket-${i}`}
                     value={ticketNumbers[i] || ""}

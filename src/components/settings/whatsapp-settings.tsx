@@ -171,7 +171,7 @@ export function WhatsAppSettings({
           <p className="font-medium text-foreground">Environment variable (server only)</p>
           <p>
             Set <code className="text-xs">WHATSAPP_ACCESS_TOKEN</code> in <code className="text-xs">.env</code> or
-            Vercel — never expose in the browser. Get it from Meta Business → WhatsApp → API Setup.
+            Vercel - never expose in the browser. Get it from Meta Business → WhatsApp → API Setup.
           </p>
           <p>
             For production outbound messages, Meta may require an approved message template if the customer

@@ -134,7 +134,7 @@ async function sendBookingWhatsApp(
   const contact = getBookingCustomerContact(booking);
 
   if (!contact.phone?.trim()) {
-    return { success: false, skipped: true, error: "Customer has no phone number — add it on the customer profile." };
+    return { success: false, skipped: true, error: "Customer has no phone number - add it on the customer profile." };
   }
 
   if (!agency) {

@@ -10,8 +10,8 @@ import { upsertAirlineProfile } from "./airline.service";
 import { getAirlineLogoUrl, resolveAirlineIata } from "@/lib/airline-logo";
 import { toDbAddonType, validateAddonBooking } from "@/lib/flight-addon";
 import { normalizeFlightSegments } from "@/lib/flight-datetime";
-import { assertCreditAvailable, recordCreditTransaction } from "./credit.service";
-import { upsertCustomerFromBooking, getOrCreateCashWalkInCustomer, updateExistingCustomerFromBooking } from "./customer.service";
+import { upsertCustomerFromBooking, getOrCreateCashWalkInCustomer, updateExistingCustomerFromBooking, createBusinessCustomerFromBooking } from "./customer.service";
+import { recordCreditTransaction } from "./credit.service";
 import type { CashCustomerSnapshot } from "@/lib/cash-customer";
 import type {
   BookingChannel,
@@ -29,7 +29,6 @@ import {
   FLIGHT_SERVICE_HSN,
   getStateCodeFromGstin,
 } from "@/lib/gst-calculator";
-import { applyCardGatewayCharge } from "@/lib/payment-gateway";
 import type { FlightPassenger } from "@/types/booking";
 
 type OfflineBookingInput = z.infer<typeof offlineBookingSchema>;
@@ -38,6 +37,8 @@ type WebhookBookingInput = z.infer<typeof webhookLiveBookingSchema>;
 
 async function resolveBookingCustomer(input: {
   billingType: "CASH" | "LEDGER";
+  cashBillTo?: "INDIVIDUAL" | "COMPANY";
+  ledgerBillTo?: "INDIVIDUAL" | "COMPANY";
   ledgerMode?: "EXISTING" | "NEW";
   customerId?: string;
   customer?: {
@@ -50,11 +51,13 @@ async function resolveBookingCustomer(input: {
     city?: string;
     state?: string;
     pincode?: string;
+    contactPerson?: string;
   };
 }) {
   if (input.billingType === "CASH") {
     if (!input.customer) throw new Error("Customer contact is required for cash bill");
     const walkIn = await getOrCreateCashWalkInCustomer();
+    const billTo = input.cashBillTo === "COMPANY" ? "COMPANY" : "INDIVIDUAL";
     const cashCustomer: CashCustomerSnapshot = {
       name: input.customer.name,
       phone: input.customer.phone,
@@ -65,6 +68,8 @@ async function resolveBookingCustomer(input: {
       city: input.customer.city || null,
       state: input.customer.state || null,
       pincode: input.customer.pincode || null,
+      billTo,
+      contactPerson: input.customer.contactPerson?.trim() || null,
     };
     return {
       customer: walkIn,
@@ -92,6 +97,14 @@ async function resolveBookingCustomer(input: {
   }
 
   if (!input.customer) throw new Error("Customer details are required");
+  if (input.ledgerBillTo === "COMPANY") {
+    const customer = await createBusinessCustomerFromBooking(input.customer);
+    return {
+      customer,
+      billingType: "LEDGER" as const,
+      metadata: undefined,
+    };
+  }
   const customer = await upsertCustomerFromBooking(input.customer);
   return {
     customer,
@@ -164,10 +177,8 @@ function buildFlightTaxData(
     tax,
     discountAmount
   );
-  const { paymentGatewayCharge, totalAmount } = applyCardGatewayCharge(
-    invoiceSubtotal,
-    input.paymentMethod
-  );
+  const paymentGatewayCharge = 0;
+  const totalAmount = invoiceSubtotal;
 
   const airlineLogoUrl = getAirlineLogoUrl(input.airline) || undefined;
   const segments = normalizeFlightSegments(input.segments);
@@ -214,29 +225,12 @@ function buildFlightTaxData(
 export async function createOfflineBooking(input: OfflineBookingInput, userId?: string) {
   const { customer, billingType, metadata } = await resolveBookingCustomer({
     billingType: input.billingType,
+    cashBillTo: input.cashBillTo,
+    ledgerBillTo: input.ledgerBillTo,
     ledgerMode: input.ledgerMode,
     customerId: input.customerId,
     customer: input.customer,
   });
-  const isCredit = input.paymentMethod === "CREDIT";
-  let totalForCredit = input.totalAmount;
-
-  if (input.productType === "FLIGHT") {
-    const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
-    const agencyHasGst = Boolean(agency?.gstin?.trim());
-    const flightInput = input as OfflineFlightBookingInput;
-    if (agencyHasGst) {
-      const agencyStateCode = getStateCodeFromGstin(agency?.gstin);
-      totalForCredit = buildFlightTaxData(flightInput, agencyStateCode, {
-        gstin: input.customer?.gstin ?? customer.gstin,
-        state: input.customer?.state ?? customer.state,
-      }).totalAmount;
-    }
-  }
-
-  if (isCredit) {
-    await assertCreditAvailable(customer.id, totalForCredit);
-  }
 
   let assignedAgentId: string | null = null;
   if (userId && userId !== "bypass") {
@@ -250,12 +244,6 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
   const booking = await prisma.$transaction(async (tx) => {
     const { publicRef, serialYear, serialNumber } = await allocatePublicRef(tx);
 
-    const paymentStatus: PaymentStatus = isCredit
-      ? "ON_CREDIT"
-      : input.paymentMethod
-        ? "PAID"
-        : "PENDING";
-
     const baseData = {
       publicRef,
       serialYear,
@@ -264,7 +252,7 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
       productType: input.productType as ProductType,
       billingType,
       status: "PROCESSING" as BookingStatus,
-      paymentStatus,
+      paymentStatus: "PENDING" as PaymentStatus,
       totalAmount: input.totalAmount,
       customerId: customer.id,
       assignedAgentId,
@@ -324,17 +312,6 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
           flightBooking: {
             create: flightData as Prisma.FlightBookingUncheckedCreateWithoutBookingInput,
           },
-          ...(input.paymentMethod
-            ? {
-                payments: {
-                  create: {
-                    amount: totalAmount,
-                    method: isCredit ? "Credit" : input.paymentMethod,
-                    status: isCredit ? "ON_CREDIT" : "PAID",
-                  },
-                },
-              }
-            : {}),
         },
         include: { customer: true, flightBooking: true },
       });
@@ -381,17 +358,6 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
               agentRemarks: input.agentRemarks,
             },
           },
-          ...(input.paymentMethod
-            ? {
-                payments: {
-                  create: {
-                    amount: input.totalAmount,
-                    method: isCredit ? "Credit" : input.paymentMethod,
-                    status: isCredit ? "ON_CREDIT" : "PAID",
-                  },
-                },
-              }
-            : {}),
         },
         include: { customer: true, hotelBooking: true },
       });
@@ -412,17 +378,6 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
               passengers: input.passengers,
             },
           },
-          ...(input.paymentMethod
-            ? {
-                payments: {
-                  create: {
-                    amount: input.totalAmount,
-                    method: isCredit ? "Credit" : input.paymentMethod,
-                    status: isCredit ? "ON_CREDIT" : "PAID",
-                  },
-                },
-              }
-            : {}),
         },
         include: { customer: true, busBooking: true },
       });
@@ -431,7 +386,7 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
     return created!;
   });
 
-  if (isCredit) {
+  if (billingType === "LEDGER") {
     await recordCreditTransaction({
       customerId: customer.id,
       bookingId: booking.id,
@@ -503,7 +458,7 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
       try {
         await maybeSendImmediateCheckInAssistanceAlert(booking.id);
       } catch {
-        // Non-critical — cron will retry.
+        // Non-critical - cron will retry.
       }
     }
   }
@@ -889,7 +844,7 @@ export async function resendBookingEmail(bookingId: string, userId: string) {
 
   const email = results.email as { success?: boolean; skipped?: boolean; error?: string } | undefined;
   if (email?.skipped) {
-    throw new Error("Customer has no email address — add an email on the customer profile.");
+    throw new Error("Customer has no email address - add an email on the customer profile.");
   }
   if (email && email.success === false) {
     throw new Error(email.error || "Failed to send email");

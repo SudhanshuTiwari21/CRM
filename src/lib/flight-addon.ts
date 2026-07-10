@@ -81,7 +81,7 @@ export function addonDetailLines(
   passengers.forEach((p) => {
     const name = `${p.title} ${p.firstName} ${p.lastName}`.trim();
     if (p.seat?.trim()) {
-      lines.push(`Seat${name ? ` — ${name}` : ""}: ${p.seat.trim()}`);
+      lines.push(`Seat${name ? ` - ${name}` : ""}: ${p.seat.trim()}`);
     }
   });
 
@@ -89,7 +89,7 @@ export function addonDetailLines(
     passengers.forEach((p) => {
       if (p.meal && p.meal !== "none") {
         const meal = p.meal === "veg" ? "Veg" : "Non-Veg";
-        lines.push(`Meal — ${p.title} ${p.firstName} ${p.lastName}: ${meal}`);
+        lines.push(`Meal - ${p.title} ${p.firstName} ${p.lastName}: ${meal}`);
       }
     });
   } else if (type === "CUSTOM") {

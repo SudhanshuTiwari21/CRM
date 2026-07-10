@@ -112,8 +112,8 @@ export function SmtpSettings({ smtpHost, smtpPort, smtpUser, smtpFrom, onSave }:
           {status && (
             <div className="rounded-lg bg-muted p-3 text-sm space-y-1">
               <p><span className="text-muted-foreground">Host:</span> {status.host}:{status.port}</p>
-              <p><span className="text-muted-foreground">User:</span> {status.user || "—"}</p>
-              <p><span className="text-muted-foreground">From:</span> {status.from || "—"}</p>
+              <p><span className="text-muted-foreground">User:</span> {status.user || "-"}</p>
+              <p><span className="text-muted-foreground">From:</span> {status.from || "-"}</p>
             </div>
           )}
         </CardContent>

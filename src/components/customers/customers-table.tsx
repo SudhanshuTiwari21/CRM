@@ -82,7 +82,7 @@ export function CustomersTable() {
                     <Link href={`/customers/${c.id}`} className="font-medium text-primary hover:underline">{c.name}</Link>
                   </TableCell>
                   <TableCell>{c.phone}</TableCell>
-                  <TableCell className="text-muted-foreground">{c.email || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{c.email || "-"}</TableCell>
                   <TableCell>{c.totalBookings}</TableCell>
                   <TableCell>{formatCurrency(c.lifetimeValue)}</TableCell>
                 </TableRow>

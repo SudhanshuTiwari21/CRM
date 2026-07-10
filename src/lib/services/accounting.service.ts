@@ -44,7 +44,7 @@ function num(v: unknown) {
 function sectorFromSegments(segments: unknown) {
   const list = segments as FlightSegment[];
   const seg = list?.[0];
-  if (!seg) return "—";
+  if (!seg) return "-";
   return `${seg.fromAirport}-${seg.toAirport}`;
 }
 
@@ -178,7 +178,7 @@ export function buildTallyXml(
       const vchNo = `${invoicePrefix}-${r.publicRef}`;
       const party = escapeXml(r.customerName);
       const narration = escapeXml(
-        `Flight ${r.segment} PNR ${r.pnr || "—"} Ref ${r.publicRef} (${r.invoiceTaxType === "ITC" ? "B2B ITC" : "B2C"})`
+        `Flight ${r.segment} PNR ${r.pnr || "-"} Ref ${r.publicRef} (${r.invoiceTaxType === "ITC" ? "B2B ITC" : "B2C"})`
       );
       const gstin = r.buyerGstin || r.customerGstin || "";
 

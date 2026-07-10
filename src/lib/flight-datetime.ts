@@ -118,7 +118,7 @@ export function formatFlightWallClock(
   style: "voucher" | "display" | "trip" | "short" | "emailCard" = "voucher"
 ) {
   const parts = parseFlightDateTime(value);
-  if (!parts) return "—";
+  if (!parts) return "-";
 
   const weekday = WEEKDAY_NAMES[new Date(parts.year, parts.month - 1, parts.day).getDay()];
 

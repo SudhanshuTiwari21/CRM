@@ -63,11 +63,11 @@ function travelerDetailsHtml(pax: FlightPassenger, pnr: string, showInternationa
       <tr>
         <td valign="top" width="25%" class="col-quarter" style="padding-right:8px;padding-bottom:8px;">
           <div style="${labelStyle}">Passport No</div>
-          <div style="${valueStyle}">${escapeHtml(pax.passportNumber || "—")}</div>
+          <div style="${valueStyle}">${escapeHtml(pax.passportNumber || "-")}</div>
         </td>
         <td valign="top" width="25%" class="col-quarter" style="padding-right:8px;padding-bottom:8px;">
           <div style="${labelStyle}">Passport Country</div>
-          <div style="${valueStyle}">${escapeHtml(pax.passportIssuingCountry || "—")}</div>
+          <div style="${valueStyle}">${escapeHtml(pax.passportIssuingCountry || "-")}</div>
         </td>
         <td valign="top" width="25%" class="col-quarter" style="padding-right:8px;padding-bottom:8px;">
           <div style="${labelStyle}">Passport Issue</div>
@@ -90,7 +90,7 @@ function travelerDetailsHtml(pax: FlightPassenger, pnr: string, showInternationa
         </td>
         <td valign="top" width="25%" class="col-quarter" style="padding-right:8px;padding-bottom:8px;">
           <div style="${labelStyle}">Ticket Number</div>
-          <div style="${valueStyle}">${escapeHtml(pax.ticketNumber || "—")}</div>
+          <div style="${valueStyle}">${escapeHtml(pax.ticketNumber || "-")}</div>
         </td>
         <td valign="top" width="25%" class="col-quarter" style="padding-right:8px;padding-bottom:8px;">
           <div style="${labelStyle}">Airline (PNR)</div>
@@ -116,7 +116,7 @@ function flightSegmentHtml(seg: FlightSegment, airline: string, cabinClass: stri
         </td>
         <td width="33%" valign="top" class="col-third" style="padding-bottom:6px;">
           <div style="${labelStyle}">Flight Number</div>
-          <div style="${valueStyle}">${escapeHtml(seg.flightNumber || "—")}</div>
+          <div style="${valueStyle}">${escapeHtml(seg.flightNumber || "-")}</div>
         </td>
         <td width="33%" valign="top" class="col-third" style="padding-bottom:6px;">
           <div style="${labelStyle}">Class</div>
@@ -278,7 +278,7 @@ export async function buildWingieConfirmedEmailHtml(params: {
   const { agency, booking, flight, logoSrc: logoOverride } = params;
   const segments = flight.segments as unknown as FlightSegment[];
   const passengers = flight.passengers as unknown as FlightPassenger[];
-  const pnr = booking.pnr || "—";
+  const pnr = booking.pnr || "-";
   const logoSrc = logoOverride ?? getEmailLogoSrc();
   const totalAmount = Number(booking.totalAmount);
 
@@ -300,7 +300,7 @@ export async function buildWingieConfirmedEmailHtml(params: {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(agency.companyName)} — E-Ticket</title>
+  <title>${escapeHtml(agency.companyName)} - E-Ticket</title>
   ${emailResponsiveStyles()}
 </head>
 <body style="margin:0;padding:0;background:#ffffff;width:100%;">

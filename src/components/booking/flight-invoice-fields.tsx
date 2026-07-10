@@ -16,11 +16,6 @@ import {
 } from "@/lib/gst-calculator";
 import { getAdultPassengers, passengerDisplayName, sumAdultBaseFares } from "@/lib/flight-fare-breakup";
 import { FormSettingToggle } from "@/components/booking/edit-form-section";
-import {
-  applyCardGatewayCharge,
-  CARD_PAYMENT_GATEWAY_RATE_LABEL,
-  isCardPaymentMethod,
-} from "@/lib/payment-gateway";
 
 interface FlightInvoiceFieldsProps {
   form: UseFormReturn<WizardForm>;
@@ -62,10 +57,6 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
   const serviceCharge = Number(form.watch("serviceCharge") || 0);
   const discountAmount = Number(form.watch("discountAmount") || 0);
   const passengers = form.watch("passengers") || [];
-  const paymentMethod = form.watch("paymentMethod") as string | undefined;
-  const storedGatewayCharge = Number(form.watch("paymentGatewayCharge") || 0);
-  const effectivePaymentMethod =
-    paymentMethod || (storedGatewayCharge > 0 ? "Card" : undefined);
   const adults = getAdultPassengers(passengers);
 
   function setAdultBaseFare(passengerIndex: number, raw: string) {
@@ -113,36 +104,16 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
     [baseFare, serviceCharge, tax, discountAmount]
   );
 
-  const { paymentGatewayCharge, totalAmount } = useMemo(
-    () => applyCardGatewayCharge(invoiceSubtotal, effectivePaymentMethod),
-    [invoiceSubtotal, effectivePaymentMethod]
-  );
-
   useEffect(() => {
-    form.setValue("totalAmount", totalAmount);
-    form.setValue("paymentGatewayCharge", paymentGatewayCharge);
+    form.setValue("totalAmount", invoiceSubtotal);
+    form.setValue("paymentGatewayCharge", 0);
     if (hasAgencyGst) {
       form.setValue("flightInvoiceSubtotal", invoiceSubtotal);
     }
-  }, [totalAmount, paymentGatewayCharge, invoiceSubtotal, hasAgencyGst, form]);
+  }, [invoiceSubtotal, hasAgencyGst, form]);
 
   return (
     <div className="space-y-4 sm:col-span-2">
-      <div className="space-y-2">
-        <Label>Booking Category</Label>
-        <Select
-          value={invoiceTaxType || "NON_ITC"}
-          onValueChange={(v) => form.setValue("invoiceTaxType", v as "ITC" | "NON_ITC")}
-        >
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ITC">B2B (with GSTIN)</SelectItem>
-            <SelectItem value="NON_ITC">B2C (Retail)</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">Not shown on invoice — controls layout and tax treatment.</p>
-      </div>
-
       {invoiceTaxType === "ITC" && (
         <div className="space-y-2">
           <Label>Buyer GSTIN *</Label>
@@ -158,14 +129,14 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
         <div className="space-y-4">
           <div className="space-y-3 rounded-lg border p-4">
             <div className="flex items-center justify-between gap-2">
-              <Label className="text-base">Base Fare — Adult wise (INR)</Label>
+              <Label className="text-base">Base Fare - Adult wise (INR)</Label>
               {adults.length > 1 && baseFare > 0 && (
                 <Button type="button" variant="outline" size="sm" onClick={distributeBaseFareEvenly}>
                   Split total evenly
                 </Button>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Fare reimbursement per adult — shown as separate lines on the tax invoice.</p>
+            <p className="text-xs text-muted-foreground">Fare reimbursement per adult - shown as separate lines on the tax invoice.</p>
             {adults.map((p, adultIdx) => {
               const passengerIndex = passengers.indexOf(p);
               const label = passengerDisplayName(p) || `Adult ${adultIdx + 1}`;
@@ -196,7 +167,7 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
           </div>
         </div>
       ) : (
-        <NonGstFlightTotalFields form={form} paymentMethod={paymentMethod} />
+        <NonGstFlightTotalFields form={form} />
       )}
 
       {hasAgencyGst && (
@@ -218,7 +189,7 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
                   <SelectItem value="__none__">None</SelectItem>
                   {msmes.map((m) => (
                     <SelectItem key={m.number} value={m.number}>
-                      {m.label} — {m.number}
+                      {m.label} - {m.number}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -243,10 +214,7 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
             {discountAmount > 0 && (
               <p className="text-amber-700">Discount: −{formatInr(discountAmount)}</p>
             )}
-            {paymentGatewayCharge > 0 && (
-              <p>Card payment gateway charge ({CARD_PAYMENT_GATEWAY_RATE_LABEL}): {formatInr(paymentGatewayCharge)}</p>
-            )}
-            <p className="pt-2 border-t font-semibold">Invoice Total: {formatInr(totalAmount)}</p>
+            <p className="pt-2 border-t font-semibold">Invoice Total: {formatInr(invoiceSubtotal)}</p>
           </div>
         </>
       )}
@@ -260,7 +228,7 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
           className="border-amber-200 bg-white dark:bg-background"
         />
         <p className="text-xs text-amber-800 dark:text-amber-200">
-          Charge breakup or notes — highlighted on the printed invoice.
+          Charge breakup or notes - highlighted on the printed invoice.
         </p>
       </div>
 
@@ -278,30 +246,19 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
   );
 }
 
-function NonGstFlightTotalFields({
-  form,
-  paymentMethod,
-}: {
-  form: UseFormReturn<WizardForm>;
-  paymentMethod?: string;
-}) {
-  const storedGatewayCharge = Number(form.watch("paymentGatewayCharge") || 0);
-  const effectivePaymentMethod =
-    paymentMethod || (storedGatewayCharge > 0 ? "Card" : undefined);
+function NonGstFlightTotalFields({ form }: { form: UseFormReturn<WizardForm> }) {
   const subtotal = Number(form.watch("flightInvoiceSubtotal") || form.watch("totalAmount") || 0);
-  const { paymentGatewayCharge, totalAmount } = applyCardGatewayCharge(subtotal, effectivePaymentMethod);
 
   useEffect(() => {
-    form.setValue("paymentGatewayCharge", paymentGatewayCharge);
-    form.setValue("totalAmount", totalAmount);
-  }, [paymentGatewayCharge, totalAmount, form]);
+    form.setValue("paymentGatewayCharge", 0);
+    form.setValue("totalAmount", subtotal);
+  }, [subtotal, form]);
 
   function handleSubtotalChange(raw: string) {
     const value = raw === "" ? 0 : Number(raw);
     form.setValue("flightInvoiceSubtotal", value, { shouldDirty: true });
-    const applied = applyCardGatewayCharge(value, effectivePaymentMethod);
-    form.setValue("paymentGatewayCharge", applied.paymentGatewayCharge);
-    form.setValue("totalAmount", applied.totalAmount);
+    form.setValue("paymentGatewayCharge", 0);
+    form.setValue("totalAmount", value);
   }
 
   return (
@@ -314,13 +271,6 @@ function NonGstFlightTotalFields({
         value={subtotal || ""}
         onChange={(e) => handleSubtotalChange(e.target.value)}
       />
-      {paymentGatewayCharge > 0 && (
-        <p className="text-sm text-muted-foreground">
-          Card payment gateway charge ({CARD_PAYMENT_GATEWAY_RATE_LABEL}): {formatInr(paymentGatewayCharge)}
-          {" · "}
-          <span className="font-medium text-foreground">Payable: {formatInr(totalAmount)}</span>
-        </p>
-      )}
       <p className="text-xs text-muted-foreground">
         Add agency GSTIN in Settings to enable fare breakup and tax invoice fields.
       </p>

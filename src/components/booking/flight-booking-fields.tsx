@@ -390,7 +390,7 @@ export function FlightBookingFields({
           <p className="text-xs text-muted-foreground">
             {stopCount === 0
               ? "Direct non-stop flight"
-              : `${stopCount} connection(s) — fill each flight leg and layover details below`}
+              : `${stopCount} connection(s) - fill each flight leg and layover details below`}
           </p>
         </div>
       )}
@@ -457,7 +457,7 @@ export function FlightBookingFields({
             <div className="rounded-lg border border-dashed border-sky-300 bg-sky-50/50 px-4 py-3 text-sm dark:border-sky-700 dark:bg-sky-950/20">
               <p className="font-medium text-sky-900 dark:text-sky-100">Return Journey</p>
               <p className="text-xs text-muted-foreground">
-                Outbound complete — enter return flight details below
+                Outbound complete - enter return flight details below
               </p>
             </div>
           )}

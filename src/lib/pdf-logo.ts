@@ -3,7 +3,7 @@ import path from "path";
 
 let cachedLogoDataUri: string | null = null;
 
-/** PNG data URI for @react-pdf/renderer — uses prebuilt asset (no sharp on serverless). */
+/** PNG data URI for @react-pdf/renderer - uses prebuilt asset (no sharp on serverless). */
 export async function getPdfLogoDataUri(): Promise<string | null> {
   if (cachedLogoDataUri) return cachedLogoDataUri;
 

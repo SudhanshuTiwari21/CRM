@@ -26,7 +26,7 @@ export function resolveSegmentAirline(
   if (fromFlight) return fromFlight;
   const bookingLevel = flightAirline?.trim();
   if (bookingLevel) return bookingLevel;
-  return seg.airline?.trim() || "—";
+  return seg.airline?.trim() || "-";
 }
 
 /** Resolve IATA from airline name (e.g. "IndiGo" → "6E"). */

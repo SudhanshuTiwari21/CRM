@@ -4,16 +4,16 @@ export interface FlightCancellationPolicyOption {
   text: string;
 }
 
-/** Pre-written flight cancellation policies — full text is saved on the booking and printed on the voucher. */
+/** Pre-written flight cancellation policies - full text is saved on the booking and printed on the voucher. */
 export const FLIGHT_CANCELLATION_POLICIES: FlightCancellationPolicyOption[] = [
   {
     id: "airline_standard",
-    label: "Standard — As per airline policy",
+    label: "Standard - As per airline policy",
     text: "Cancellations and date changes are subject to the fare rules of the operating airline. Airline cancellation charges, if any, will apply based on time remaining before scheduled departure. Agency service fees are non-refundable. Approved refunds will be processed within 7–10 working days after airline confirmation.",
   },
   {
     id: "refundable_24h_plus",
-    label: "Refundable — 24+ hours before departure",
+    label: "Refundable - 24+ hours before departure",
     text: "• More than 24 hours before scheduled departure: airline cancellation charges plus agency service fee (non-refundable) apply; remaining amount refundable within 7–10 working days.\n• Within 24 hours of scheduled departure: higher airline charges apply as per fare rules.\n• Less than 4 hours before departure or no-show: no refund.",
   },
   {
@@ -33,7 +33,7 @@ export const FLIGHT_CANCELLATION_POLICIES: FlightCancellationPolicyOption[] = [
   },
   {
     id: "indigo_style",
-    label: "Domestic — airline slab (2h / 2–24h / 24h+)",
+    label: "Domestic - airline slab (2h / 2–24h / 24h+)",
     text: "Cancellation charges as per airline policy apply based on time before scheduled departure:\n• More than 24 hours: lower cancellation fee as per airline fare rules.\n• Between 2 hours and 24 hours: higher cancellation fee applies.\n• Less than 2 hours before departure or no-show: no refund.\nAgency service fee is non-refundable. Refund processing time: 7–14 working days from airline confirmation.",
   },
   {

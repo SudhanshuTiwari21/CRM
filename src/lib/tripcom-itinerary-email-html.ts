@@ -36,7 +36,7 @@ function formatTripDateShort(iso?: string) {
 }
 
 function primaryRoute(segments: FlightSegment[]) {
-  if (!segments.length) return { route: "—", date: "" };
+  if (!segments.length) return { route: "-", date: "" };
   const first = segments[0];
   const last = segments[segments.length - 1];
   return {
@@ -117,7 +117,7 @@ function infoBoxHtml(params: {
 
 function segmentTimeOnly(iso?: string) {
   const parts = parseFlightDateTime(iso);
-  if (!parts) return "—";
+  if (!parts) return "-";
   return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
 }
 
@@ -148,10 +148,10 @@ function visualSegmentCardHtml(seg: FlightSegment, flight: FlightBooking) {
   const depTerminal = seg.departureTerminal ? escapeHtml(`Terminal ${seg.departureTerminal.replace(/^T/i, "")}`) : "";
   const arrTerminal = seg.terminal ? escapeHtml(`Terminal ${seg.terminal.replace(/^T/i, "")}`) : "";
   const duration = escapeHtml(formatSegmentDuration(seg));
-  const aircraft = escapeHtml(seg.aircraft || "—");
+  const aircraft = escapeHtml(seg.aircraft || "-");
   const cabin = escapeHtml(cabinClassDisplay(flight.cabinClass));
   const airline = escapeHtml(seg.airline || flight.airline);
-  const flightNo = escapeHtml(seg.flightNumber || "—");
+  const flightNo = escapeHtml(seg.flightNumber || "-");
 
   return `
     <tr>
@@ -403,7 +403,7 @@ function helpSectionConfirmedHtml(agency: AgencySettings) {
       </tr>
       <tr>
         <td style="padding-bottom:20px;font-size:14px;color:${TEXT};line-height:1.65;">
-          Your complete e-ticket, baggage details, and invoice are in the <strong>PDF attachments</strong> to this email — not repeated in this message.
+          Your complete e-ticket, baggage details, and invoice are in the <strong>PDF attachments</strong> to this email - not repeated in this message.
         </td>
       </tr>
     </table>`;
@@ -596,10 +596,10 @@ export async function buildItineraryVoucherEmailHtml(params: {
 
               ${tripcomFooterHtml(agency)}`;
 
-  return wrapTripcomEmail(`${escapeHtml(agency.companyName)} — Booking Confirmed`, body);
+  return wrapTripcomEmail(`${escapeHtml(agency.companyName)} - Booking Confirmed`, body);
 }
 
-/** Trip.com-style confirmation after PNR — message only; full ticket is in PDF attachment. */
+/** Trip.com-style confirmation after PNR - message only; full ticket is in PDF attachment. */
 export async function buildTripcomConfirmedEmailHtml(params: {
   agency: AgencySettings;
   booking: Booking;
@@ -613,7 +613,7 @@ export async function buildTripcomConfirmedEmailHtml(params: {
   const { route, date } = primaryRoute(segments);
   const customerName = escapeHtml(toTitleCase(customer.name));
   const logoSrc = logoOverride ?? getEmailLogoSrc();
-  const pnr = booking.pnr || "—";
+  const pnr = booking.pnr || "-";
 
   const body = `
               ${headerHtml(agency, logoSrc, booking.publicRef)}
@@ -653,5 +653,5 @@ export async function buildTripcomConfirmedEmailHtml(params: {
 
               ${tripcomFooterHtml(agency)}`;
 
-  return wrapTripcomEmail(`${escapeHtml(agency.companyName)} — E-Ticket Ready`, body);
+  return wrapTripcomEmail(`${escapeHtml(agency.companyName)} - E-Ticket Ready`, body);
 }

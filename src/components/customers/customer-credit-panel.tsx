@@ -120,7 +120,7 @@ export function CustomerCreditPanel({ customerId, initial }: CustomerCreditPanel
             <div className="flex items-center justify-between sm:col-span-2">
               <div>
                 <Label>Enable credit for this customer</Label>
-                <p className="text-xs text-muted-foreground">B2B and B2C — per account basis</p>
+                <p className="text-xs text-muted-foreground">B2B and B2C - per account basis</p>
               </div>
               <Button
                 type="button"
@@ -168,7 +168,7 @@ export function CustomerCreditPanel({ customerId, initial }: CustomerCreditPanel
                 <div>
                   <p className="font-medium">{tx.type}</p>
                   <p className="text-muted-foreground">
-                    {tx.booking?.publicRef || tx.note || "—"} · {formatDateTime(tx.createdAt)}
+                    {tx.booking?.publicRef || tx.note || "-"} · {formatDateTime(tx.createdAt)}
                   </p>
                 </div>
                 <div className="text-right">

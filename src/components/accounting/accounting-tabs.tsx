@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AccountingDashboard } from "@/components/accounting/accounting-dashboard";
 import { PendingPaymentsPanel } from "@/components/accounting/pending-payments-panel";
 import { RecordPaymentsPanel } from "@/components/accounting/record-payments-panel";
+import { CustomerLedgerPanel } from "@/components/accounting/customer-ledger-panel";
 
 export function AccountingTabs() {
   return (
@@ -12,6 +13,7 @@ export function AccountingTabs() {
         <TabsTrigger value="sales">Sales Statement</TabsTrigger>
         <TabsTrigger value="pending">Pending Payments</TabsTrigger>
         <TabsTrigger value="record">Record Payments</TabsTrigger>
+        <TabsTrigger value="ledger">Customer Ledger</TabsTrigger>
       </TabsList>
 
       <TabsContent value="sales">
@@ -24,6 +26,10 @@ export function AccountingTabs() {
 
       <TabsContent value="record">
         <RecordPaymentsPanel />
+      </TabsContent>
+
+      <TabsContent value="ledger">
+        <CustomerLedgerPanel />
       </TabsContent>
     </Tabs>
   );

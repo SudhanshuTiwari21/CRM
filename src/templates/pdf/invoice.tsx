@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
 });
 
 function inr(n: number) {
-  // Helvetica in react-pdf often renders ₹ poorly — use Rs.
+  // Helvetica in react-pdf often renders ₹ poorly - use Rs.
   return `Rs. ${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
@@ -150,7 +150,7 @@ export function InvoicePDF({
 
   const fareDescription = flight
     ? flight.tripType === "ADDON_SERVICES"
-      ? `${flight.airline} — ${addonTypeLabel(flight.addonType, flight.addonCustomLabel)}`
+      ? `${flight.airline} - ${addonTypeLabel(flight.addonType, flight.addonCustomLabel)}`
       : `${flight.airline} Airlines (Fare Reimbursement) Domestic`
     : `${booking.productType} Booking`;
 
@@ -162,7 +162,7 @@ export function InvoicePDF({
       ? addonDetailLines(flight.addonType, flight.addonCustomLabel, flight.addonCustomValue, passengers)
       : []),
     sector && flight?.tripType !== "ADDON_SERVICES" ? `Sector: ${sector}` : null,
-    ...sectorLegs.map((leg) => `${leg.label}: ${leg.sector} (${leg.date || "—"})`),
+    ...sectorLegs.map((leg) => `${leg.label}: ${leg.sector} (${leg.date || "-"})`),
     segments.length > 1 && flight?.tripType !== "ROUND_TRIP"
       ? `Route: ${buildFullRoute(segments)}`
       : null,
@@ -217,7 +217,7 @@ export function InvoicePDF({
             )}
             {(agency.phone || agency.email) && (
               <Text style={styles.companyLine}>
-                Contact: {agency.phone || "—"} | {agency.email || "—"}
+                Contact: {agency.phone || "-"} | {agency.email || "-"}
               </Text>
             )}
             {msmeNumber && <Text style={styles.companyLine}>MSME/Udyam: {msmeNumber}</Text>}
@@ -273,7 +273,7 @@ export function InvoicePDF({
                     <Text style={[styles.td, col.sl]}>{idx + 1}</Text>
                     <View style={[styles.td, col.desc]}>
                       <Text style={styles.descTitle}>
-                        {fareDescription} — {paxName}
+                        {fareDescription} - {paxName}
                       </Text>
                       {idx === 0 &&
                         itineraryDetailLines.map((detail) => (
@@ -282,8 +282,8 @@ export function InvoicePDF({
                           </Text>
                         ))}
                     </View>
-                    <Text style={[styles.td, col.hsn]}>—</Text>
-                    <Text style={[styles.td, col.gst, styles.right]}>—</Text>
+                    <Text style={[styles.td, col.hsn]}>-</Text>
+                    <Text style={[styles.td, col.gst, styles.right]}>-</Text>
                     <Text style={[styles.td, col.qty, styles.right]}>1</Text>
                     <Text style={[styles.td, col.rate, styles.right]}>{inr(line.amount)}</Text>
                     <Text style={[styles.td, col.per]}>Adult</Text>
@@ -345,7 +345,7 @@ export function InvoicePDF({
                           <Text>Amt: {inr(cgst)}</Text>
                         </>
                       ) : (
-                        <Text>—</Text>
+                        <Text>-</Text>
                       )}
                     </View>
                     <View style={[styles.td, { width: "14%" }]}>
@@ -355,7 +355,7 @@ export function InvoicePDF({
                           <Text>Amt: {inr(sgst)}</Text>
                         </>
                       ) : (
-                        <Text>—</Text>
+                        <Text>-</Text>
                       )}
                     </View>
                     <View style={[styles.td, { width: "14%" }]}>
@@ -365,7 +365,7 @@ export function InvoicePDF({
                           <Text>Amt: {inr(igst)}</Text>
                         </>
                       ) : (
-                        <Text>—</Text>
+                        <Text>-</Text>
                       )}
                     </View>
                     <Text style={[styles.td, { width: "14%" }, styles.right]}>{inr(totalTax)}</Text>
@@ -396,7 +396,7 @@ export function InvoicePDF({
             </View>
             <View style={styles.tableRow}>
               <Text style={[styles.td, { width: "80%" }]}>
-                {booking.productType} Booking — {booking.publicRef}
+                {booking.productType} Booking - {booking.publicRef}
                 {booking.pnr ? ` (PNR: ${booking.pnr})` : ""}
               </Text>
               <Text style={[styles.td, { width: "20%" }, styles.right]}>{inr(grandTotal)}</Text>
@@ -443,7 +443,7 @@ export function InvoicePDF({
         </View>
 
         <Text style={styles.pageFooter}>
-          SUBJECT TO {agency.city?.toUpperCase() || "KOLKATA"} JURISDICTION — This is a Computer Generated Invoice
+          SUBJECT TO {agency.city?.toUpperCase() || "KOLKATA"} JURISDICTION - This is a Computer Generated Invoice
         </Text>
       </Page>
     </Document>

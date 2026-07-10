@@ -21,7 +21,7 @@ function cabinLabel(value?: string | null) {
 }
 
 function formatFlightDateTime(iso?: string) {
-  if (!iso?.trim()) return "—";
+  if (!iso?.trim()) return "-";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return format(d, "HH:mm, MMM d, yyyy");
@@ -31,12 +31,12 @@ function airportLabel(seg: FlightSegment, kind: "from" | "to") {
   const city = kind === "from" ? seg.fromCity : seg.toCity;
   const code = kind === "from" ? seg.fromAirport : seg.toAirport;
   const terminal = kind === "from" ? seg.departureTerminal : seg.terminal;
-  const base = city && code ? `${city} (${code})` : city || code || "—";
+  const base = city && code ? `${city} (${code})` : city || code || "-";
   return terminal ? `${base} T${terminal.replace(/^T/i, "")}` : base;
 }
 
 function primaryRoute(segments: FlightSegment[]) {
-  if (!segments.length) return { route: "—", date: "" };
+  if (!segments.length) return { route: "-", date: "" };
   const first = segments[0];
   const last = segments[segments.length - 1];
   const route = `${toTitleCase(first.fromCity)} - ${toTitleCase(last.toCity)}`;
@@ -294,8 +294,8 @@ export function buildHotelConfirmedEmailHtml(params: {
               <div style="font-size:22px;font-weight:700;color:#111827;">${escapeHtml(hotel.propertyName)}</div>
               <div style="padding-top:8px;color:#4b5563;font-size:14px;">${escapeHtml(hotel.city || "")}</div>
               <div style="padding-top:12px;color:#4b5563;font-size:14px;">
-                Check-in: <strong>${escapeHtml(hotel.checkIn ? format(new Date(hotel.checkIn), "MMM d, yyyy") : "—")}</strong>
-                · Check-out: <strong>${escapeHtml(hotel.checkOut ? format(new Date(hotel.checkOut), "MMM d, yyyy") : "—")}</strong>
+                Check-in: <strong>${escapeHtml(hotel.checkIn ? format(new Date(hotel.checkIn), "MMM d, yyyy") : "-")}</strong>
+                · Check-out: <strong>${escapeHtml(hotel.checkOut ? format(new Date(hotel.checkOut), "MMM d, yyyy") : "-")}</strong>
               </div>
               <div style="padding-top:12px;color:#2563eb;font-size:14px;font-weight:600;">
                 Confirmation: ${confirmation}

@@ -2,17 +2,17 @@
 
 Modern travel agency CRM for managing **Flights**, **Hotels**, and **Buses** across three booking channels:
 
-1. **Live API** — Real-time booking via provider API (stub included)
-2. **Held** — Customer pays on website; agent books manually and enters PNR
-3. **Offline / WhatsApp** — Agent creates booking in CRM
+1. **Live API** - Real-time booking via provider API (stub included)
+2. **Held** - Customer pays on website; agent books manually and enters PNR
+3. **Offline / WhatsApp** - Agent creates booking in CRM
 
 ## Tech Stack
 
-- Next.js 15 (App Router) — Frontend + API
+- Next.js 15 (App Router) - Frontend + API
 - PostgreSQL + Prisma
-- NextAuth.js — Admin/Agent auth
-- Nodemailer — Gmail SMTP emails
-- @react-pdf/renderer — Ticket/voucher/invoice PDFs
+- NextAuth.js - Admin/Agent auth
+- Nodemailer - Gmail SMTP emails
+- @react-pdf/renderer - Ticket/voucher/invoice PDFs
 - shadcn/ui + Tailwind CSS
 
 ## Quick Start

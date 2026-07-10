@@ -38,6 +38,21 @@ export async function assertCreditAvailable(customerId: string, amount: number) 
   return customer;
 }
 
+export function getWalletBalanceAvailable(creditBalance: number) {
+  return round2(Math.max(0, -creditBalance));
+}
+
+export async function assertWalletFunds(customerId: string, amount: number) {
+  const customer = await getCustomerCreditSummary(customerId);
+  const available = getWalletBalanceAvailable(Number(customer.creditBalance));
+  if (amount > available) {
+    throw new Error(
+      `Insufficient wallet balance. Available: Rs. ${available.toLocaleString("en-IN")}, requested: Rs. ${amount.toLocaleString("en-IN")}`
+    );
+  }
+  return { customer, available };
+}
+
 export async function recordCreditTransaction(params: {
   customerId: string;
   bookingId?: string;

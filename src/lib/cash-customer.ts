@@ -1,5 +1,7 @@
-/** System placeholder — not a real customer profile. Cash contact details live in booking metadata. */
+/** System placeholder - not a real customer profile. Cash contact details live in booking metadata. */
 export const CASH_WALK_IN_PHONE = "0000000000";
+
+export type CashBillTo = "INDIVIDUAL" | "COMPANY";
 
 export type CashCustomerSnapshot = {
   name: string;
@@ -11,6 +13,8 @@ export type CashCustomerSnapshot = {
   city?: string | null;
   state?: string | null;
   pincode?: string | null;
+  billTo?: CashBillTo;
+  contactPerson?: string | null;
 };
 
 export type BookingCustomerContact = {
@@ -23,6 +27,8 @@ export type BookingCustomerContact = {
   city?: string | null;
   state?: string | null;
   pincode?: string | null;
+  billTo?: CashBillTo;
+  contactPerson?: string | null;
 };
 
 export function formatBillingAddress(contact: {
@@ -54,6 +60,8 @@ export function parseCashCustomerSnapshot(metadata: unknown): CashCustomerSnapsh
     city: typeof c.city === "string" ? c.city : null,
     state: typeof c.state === "string" ? c.state : null,
     pincode: typeof c.pincode === "string" ? c.pincode : null,
+    billTo: c.billTo === "COMPANY" ? "COMPANY" : "INDIVIDUAL",
+    contactPerson: typeof c.contactPerson === "string" ? c.contactPerson : null,
   };
 }
 
@@ -64,7 +72,21 @@ export function getBookingCustomerContact(booking: {
 }): BookingCustomerContact {
   if (booking.billingType === "CASH") {
     const snap = parseCashCustomerSnapshot(booking.metadata);
-    if (snap) return snap;
+    if (snap) {
+      return {
+        name: snap.name,
+        phone: snap.phone,
+        email: snap.email,
+        pan: snap.pan,
+        gstin: snap.gstin,
+        address: snap.address,
+        city: snap.city,
+        state: snap.state,
+        pincode: snap.pincode,
+        billTo: snap.billTo,
+        contactPerson: snap.contactPerson,
+      };
+    }
   }
   return booking.customer;
 }

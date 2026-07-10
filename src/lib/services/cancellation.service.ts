@@ -6,6 +6,7 @@ import {
   resolveCancellationCategory,
 } from "@/lib/cancellation-category";
 import { logActivity } from "./activity.service";
+import { createCreditNote } from "./credit-note.service";
 import { recordCreditTransaction } from "./credit.service";
 import type { BookingCancelInput } from "@/lib/validators/booking-cancel";
 
@@ -77,6 +78,20 @@ export async function cancelBooking(bookingId: string, input: BookingCancelInput
 
     return created;
   });
+
+  if (refundAmount > 0) {
+    await createCreditNote({
+      customerId: booking.customerId,
+      bookingId,
+      cancellationId: cancellation.id,
+      amount: refundAmount,
+      billingType: booking.billingType,
+      reason: input.reason,
+      notes: input.notes,
+      source: "AUTO_CANCEL",
+      createdById: userId,
+    });
+  }
 
   if (input.refundToCredit && refundAmount > 0) {
     await recordCreditTransaction({

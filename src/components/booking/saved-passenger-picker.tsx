@@ -196,7 +196,7 @@ export function SavedPassengerLoadDialog({
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            Saved passengers are separate from customer profiles — for quick reuse on future bookings.
+            Saved passengers are separate from customer profiles - for quick reuse on future bookings.
           </p>
           <div className="max-h-72 space-y-2 overflow-y-auto">
             {loading ? (

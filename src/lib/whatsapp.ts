@@ -93,13 +93,13 @@ export async function sendWhatsAppText(params: {
 function formatWhatsAppApiError(message?: string, code?: number, to?: string) {
   const base = message || `WhatsApp API error (${code ?? "unknown"})`;
   if (base.includes("not in allowed list") || code === 131030) {
-    return `${base} — In Meta test mode, add ${to} under developers.facebook.com → WhatsApp → API Setup → "To" recipients (max 5 numbers).`;
+    return `${base} - In Meta test mode, add ${to} under developers.facebook.com → WhatsApp → API Setup → "To" recipients (max 5 numbers).`;
   }
   if (base.includes("Re-engagement") || code === 131047) {
-    return `${base} — Meta requires an approved message template for outbound messages. Use test mode or submit a template in Meta Business Manager.`;
+    return `${base} - Meta requires an approved message template for outbound messages. Use test mode or submit a template in Meta Business Manager.`;
   }
   if (base.includes("expired") || base.includes("Session has expired") || code === 190) {
-    return `${base} — Regenerate your access token in Meta API Setup and update WHATSAPP_ACCESS_TOKEN.`;
+    return `${base} - Regenerate your access token in Meta API Setup and update WHATSAPP_ACCESS_TOKEN.`;
   }
   return base;
 }
@@ -111,6 +111,6 @@ export async function sendTestWhatsApp(to: string) {
   return sendWhatsAppText({
     to,
     template: "test",
-    body: `*${companyName}* — WhatsApp integration test successful ✅\n\nBooking confirmation messages will be sent here alongside email.`,
+    body: `*${companyName}* - WhatsApp integration test successful ✅\n\nBooking confirmation messages will be sent here alongside email.`,
   });
 }

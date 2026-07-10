@@ -6,7 +6,7 @@ export default function NewBookingPage() {
     <div>
       <Header
         title="New Offline Booking"
-        description="Create an offline booking — saved as Processing until PNR is entered"
+        description="Create an offline booking - saved as Processing until PNR is entered"
       />
       <OfflineBookingWizard />
     </div>

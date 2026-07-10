@@ -1,4 +1,4 @@
-/** Social profiles for Book to Roam — update URLs when official pages are available. */
+/** Social profiles for Book to Roam - update URLs when official pages are available. */
 export const BOOKTOROAM_SOCIAL_LINKS = [
   {
     label: "Facebook",

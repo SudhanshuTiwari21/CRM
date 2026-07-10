@@ -38,7 +38,7 @@ export async function GET(request: Request) {
           paymentStatus: b.paymentStatus,
           createdAt: b.createdAt.toISOString(),
           customerName: snap?.name || "Walk-in",
-          customerPhone: snap?.phone || "—",
+          customerPhone: snap?.phone || "-",
         };
       });
 

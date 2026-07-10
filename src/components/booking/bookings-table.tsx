@@ -64,7 +64,7 @@ const columns = [
   }),
   columnHelper.accessor("pnr", {
     header: "PNR",
-    cell: (info) => info.getValue() || <span className="text-muted-foreground">—</span>,
+    cell: (info) => info.getValue() || <span className="text-muted-foreground">-</span>,
   }),
   columnHelper.accessor("status", {
     header: "Status",
@@ -76,11 +76,11 @@ const columns = [
     cell: ({ row }) => {
       const fb = row.original.flightBooking;
       if (!fb || row.original.productType !== "FLIGHT") {
-        return <span className="text-muted-foreground">—</span>;
+        return <span className="text-muted-foreground">-</span>;
       }
       const passengers = (fb.passengers as FlightPassenger[]) || [];
       const status = freqFlyerStatusLabel("FLIGHT", passengers, fb.freqFlyerUpdatedToAirline);
-      if (status === "na") return <span className="text-muted-foreground">—</span>;
+      if (status === "na") return <span className="text-muted-foreground">-</span>;
       return (
         <Badge variant={status === "yes" ? "success" : "warning"} className="font-normal">
           {status === "yes" ? "Yes" : "No"}
@@ -94,7 +94,7 @@ const columns = [
     cell: ({ row }) => {
       const fb = row.original.flightBooking;
       if (!fb || row.original.productType !== "FLIGHT") {
-        return <span className="text-muted-foreground">—</span>;
+        return <span className="text-muted-foreground">-</span>;
       }
       const passengers = (fb.passengers as FlightPassenger[]) || [];
       const status = specialAssistanceStatusLabel(
@@ -102,7 +102,7 @@ const columns = [
         passengers,
         fb.specialAssistanceUpdatedToAirline
       );
-      if (status === "na") return <span className="text-muted-foreground">—</span>;
+      if (status === "na") return <span className="text-muted-foreground">-</span>;
       return (
         <Badge variant={status === "yes" ? "success" : "warning"} className="font-normal">
           {status === "yes" ? "Yes" : "No"}

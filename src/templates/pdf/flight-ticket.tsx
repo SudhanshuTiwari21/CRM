@@ -218,7 +218,7 @@ function FlightSegmentBlock({
         </View>
         <View style={styles.flightCol}>
           <Text style={styles.flightColLabel}>Flight Number</Text>
-          <Text style={styles.flightColValue}>{seg.flightNumber || "—"}</Text>
+          <Text style={styles.flightColValue}>{seg.flightNumber || "-"}</Text>
         </View>
         <View style={styles.flightCol}>
           <Text style={styles.flightColLabel}>Class</Text>
@@ -248,7 +248,7 @@ export function FlightTicketPDF({
   segmentAirlineLogoSrcs,
 }: Props) {
   void _customer;
-  const pnr = booking.pnr || "—";
+  const pnr = booking.pnr || "-";
   const baseFare = Number(flight.baseFare || 0);
   const taxes = Number(flight.cgstAmount || 0) + Number(flight.sgstAmount || 0) + Number(flight.igstAmount || 0);
   const discount = Number(flight.discountAmount || 0);
@@ -280,7 +280,7 @@ export function FlightTicketPDF({
               </View>
               <View style={styles.detailCell}>
                 <Text style={styles.detailLabel}>Ticket Number</Text>
-                <Text style={styles.detailValue}>{pax.ticketNumber || "—"}</Text>
+                <Text style={styles.detailValue}>{pax.ticketNumber || "-"}</Text>
               </View>
               <View style={styles.detailCell}>
                 <Text style={styles.detailLabel}>Airline (PNR)</Text>
@@ -294,11 +294,11 @@ export function FlightTicketPDF({
                 <>
                   <View style={styles.detailCell}>
                     <Text style={styles.detailLabel}>Passport No</Text>
-                    <Text style={styles.detailValue}>{pax.passportNumber || "—"}</Text>
+                    <Text style={styles.detailValue}>{pax.passportNumber || "-"}</Text>
                   </View>
                   <View style={styles.detailCell}>
                     <Text style={styles.detailLabel}>Passport Country</Text>
-                    <Text style={styles.detailValue}>{pax.passportIssuingCountry || "—"}</Text>
+                    <Text style={styles.detailValue}>{pax.passportIssuingCountry || "-"}</Text>
                   </View>
                   <View style={styles.detailCell}>
                     <Text style={styles.detailLabel}>Passport Issue</Text>

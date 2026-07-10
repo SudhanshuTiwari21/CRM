@@ -36,7 +36,7 @@ function buildSector(segments: FlightSegment[], tripType?: string | null) {
 
 function buildTravelDate(segments: FlightSegment[]) {
   const first = segments[0];
-  if (!first?.departureAt) return "—";
+  if (!first?.departureAt) return "-";
   return formatWhatsAppDate(first.departureAt);
 }
 
@@ -49,7 +49,7 @@ export function buildHotelConfirmedMessage(params: {
   const { agency, booking, customer, hotel } = params;
   const propertyLabel = hotel.city ? `${hotel.propertyName}, ${hotel.city}` : hotel.propertyName;
   const directions = mapsDirectionsUrl(hotel.propertyAddress, hotel.city);
-  const propertyPhone = hotel.propertyPhone?.trim() || "—";
+  const propertyPhone = hotel.propertyPhone?.trim() || "-";
 
   const cancellation =
     hotel.includeCancellationPolicy && hotel.cancellationPolicy
@@ -109,7 +109,7 @@ export function buildFlightConfirmedMessage(params: {
     "",
     `*Booking ID*: ${booking.publicRef}`,
     "",
-    `*PNR*: ${booking.pnr || "—"}`,
+    `*PNR*: ${booking.pnr || "-"}`,
     flight.secondaryPnr ? `*Return PNR*: ${flight.secondaryPnr}` : null,
     "",
     `*Airline*: ${flight.airline}`,
@@ -119,7 +119,7 @@ export function buildFlightConfirmedMessage(params: {
     `*Sector*: ${buildSector(segments, flight.tripType)}`,
     "",
     ...buildSectorLegs(segments, flight.tripType).map(
-      (leg) => `*${leg.label}*: ${leg.sector} — ${leg.cities}${leg.date ? ` (${leg.date})` : ""}`
+      (leg) => `*${leg.label}*: ${leg.sector} - ${leg.cities}${leg.date ? ` (${leg.date})` : ""}`
     ),
     "",
     `*Travel Date*: ${buildTravelDate(segments)}`,
@@ -159,7 +159,7 @@ export function buildFlightItineraryMessage(params: {
     "",
     `*Booking ID*: ${booking.publicRef}`,
     "",
-    `*PNR*: Pending — will be shared once confirmed`,
+    `*PNR*: Pending - will be shared once confirmed`,
     "",
     `*Airline*: ${flight.airline}`,
     "",

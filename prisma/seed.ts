@@ -138,7 +138,7 @@ Regards,
     update: {},
     create: {
       key: "checkin_assistance_reminder",
-      subject: "Check-in Assistance — {{publicRef}} departs in ~{{hoursLeft}}h",
+      subject: "Check-in Assistance - {{publicRef}} departs in ~{{hoursLeft}}h",
       body: `Check-in booking assistance required.
 
 Booking: {{publicRef}}

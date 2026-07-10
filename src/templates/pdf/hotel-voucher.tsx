@@ -107,7 +107,7 @@ export function HotelVoucherPDF({ agency, booking, hotel, customer, guests, logo
         </View>
 
         <Text style={styles.confirmLine}>
-          Hotel Confirmation Number : {supplierConfirmation || "—"}
+          Hotel Confirmation Number : {supplierConfirmation || "-"}
         </Text>
 
         {(billingAddress || customer.pan || customer.gstin) && (

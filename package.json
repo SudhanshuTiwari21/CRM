@@ -69,5 +69,8 @@
     "tailwindcss": "^4.1.8",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"
+  },
+  "optionalDependencies": {
+    "@next/swc-darwin-arm64": "^15.5.19"
   }
 }

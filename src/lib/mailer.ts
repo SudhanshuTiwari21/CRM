@@ -11,7 +11,7 @@ export type EmailAttachment = {
   filename: string;
   content: Buffer;
   contentType: string;
-  /** Content-ID for inline images — reference in HTML as src="cid:..." */
+  /** Content-ID for inline images - reference in HTML as src="cid:..." */
   cid?: string;
 };
 
@@ -183,7 +183,7 @@ export async function sendTestEmail(to: string) {
 
   return sendEmail({
     to,
-    subject: `${companyName} — SMTP Test Successful`,
+    subject: `${companyName} - SMTP Test Successful`,
     html,
     template: "smtp_test",
   });

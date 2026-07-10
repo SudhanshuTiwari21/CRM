@@ -13,7 +13,7 @@ export function formatVoucherDateTime(date: Date | string) {
 }
 
 export function formatVoucherDob(isoDate?: string | null) {
-  if (!isoDate?.trim()) return "—";
+  if (!isoDate?.trim()) return "-";
   const d = new Date(isoDate);
   if (Number.isNaN(d.getTime())) return isoDate;
   return format(d, "d MMM yyyy");
@@ -35,7 +35,7 @@ export function airportLine(city: string, code: string, fallbackCity?: string, t
 export function formatEndpoint(seg: FlightSegment, kind: "departure" | "arrival") {
   const isDep = kind === "departure";
   const at = isDep ? seg.departureAt : seg.arrivalAt;
-  if (!at) return "—";
+  if (!at) return "-";
   const city = isDep ? seg.fromCity : seg.toCity;
   const code = isDep ? seg.fromAirport : seg.toAirport;
   const terminal = isDep ? seg.departureTerminal : seg.terminal;
@@ -135,7 +135,7 @@ export function formatVoucherInr(amount: number, useRupeeSymbol = true) {
   return useRupeeSymbol ? `₹ ${formatted}` : `Rs. ${formatted}`;
 }
 
-/** PDF-safe INR — Helvetica in @react-pdf renders ₹ as a superscript "1". */
+/** PDF-safe INR - Helvetica in @react-pdf renders ₹ as a superscript "1". */
 export function formatPdfInr(amount: number) {
   return formatVoucherInr(amount, false);
 }

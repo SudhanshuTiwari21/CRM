@@ -13,6 +13,8 @@ import { parseApiResponse } from "@/lib/parse-api-response";
 import { Loader2, Search } from "lucide-react";
 import type { WizardForm } from "@/components/booking/offline-booking-wizard";
 
+
+
 interface CustomerOption {
   id: string;
   name: string;
@@ -43,9 +45,13 @@ function splitCustomerName(fullName: string) {
 
 export function CustomerBillingSection({ form, onCreditAvailabilityChange }: CustomerBillingSectionProps) {
   const billingType = form.watch("billingType");
+  const cashBillTo = form.watch("cashBillTo") || "INDIVIDUAL";
+  const ledgerBillTo = form.watch("ledgerBillTo") || "INDIVIDUAL";
   const ledgerMode = form.watch("ledgerMode");
   const customerId = form.watch("customerId");
   const customerPhone = form.watch("customer.phone");
+  const productType = form.watch("productType");
+  const invoiceTaxType = form.watch("invoiceTaxType") as "ITC" | "NON_ITC" | undefined;
 
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>([]);
@@ -55,6 +61,10 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
     billingType === "CASH" ||
     (billingType === "LEDGER" && ledgerMode === "NEW") ||
     (billingType === "LEDGER" && ledgerMode === "EXISTING" && Boolean(customerId));
+
+  const isCompanyBill =
+    (billingType === "CASH" && cashBillTo === "COMPANY") ||
+    (billingType === "LEDGER" && ledgerMode === "NEW" && ledgerBillTo === "COMPANY");
 
   const fetchCustomers = useCallback(async (search: string) => {
     setLoadingCustomers(true);
@@ -110,14 +120,31 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
   function handleBillingTypeChange(value: "CASH" | "LEDGER") {
     form.setValue("billingType", value);
     if (value === "CASH") {
+      form.setValue("cashBillTo", "INDIVIDUAL");
       form.setValue("ledgerMode", undefined);
       form.setValue("customerId", undefined);
-      if (form.getValues("paymentMethod") === "CREDIT") {
-        form.setValue("paymentMethod", "Cash");
-      }
     } else {
       form.setValue("ledgerMode", "EXISTING");
+      form.setValue("ledgerBillTo", "INDIVIDUAL");
       form.setValue("customerId", undefined);
+    }
+  }
+
+  function handleBillToChange(value: "INDIVIDUAL" | "COMPANY", mode: "CASH" | "LEDGER") {
+    if (mode === "CASH") {
+      form.setValue("cashBillTo", value);
+    } else {
+      form.setValue("ledgerBillTo", value);
+    }
+    if (value === "COMPANY") {
+      if (productType === "FLIGHT" && form.getValues("invoiceTaxType") !== "ITC") {
+        form.setValue("invoiceTaxType", "ITC");
+      }
+    } else {
+      form.setValue("customer.contactPerson", "");
+      if (!form.getValues("customer.title")) {
+        form.setValue("customer.title", "Mr");
+      }
     }
   }
 
@@ -152,40 +179,144 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
           </button>
         </div>
 
+        {productType === "FLIGHT" && (
+          <div className="space-y-2">
+            <Label>Booking Category</Label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => form.setValue("invoiceTaxType", "NON_ITC")}
+                className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                  (invoiceTaxType || "NON_ITC") === "NON_ITC"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background hover:bg-muted"
+                }`}
+              >
+                B2C (Retail)
+              </button>
+              <button
+                type="button"
+                onClick={() => form.setValue("invoiceTaxType", "ITC")}
+                className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                  invoiceTaxType === "ITC"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background hover:bg-muted"
+                }`}
+              >
+                B2B (with GSTIN)
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Controls invoice layout and tax treatment. B2B requires buyer GSTIN.
+            </p>
+          </div>
+        )}
+
         {billingType === "CASH" && (
-          <p className="text-sm text-muted-foreground">
-            Cash walk-in — contact details are saved on the booking only. No customer profile is created.
-            Records appear under Reports → Cash Sales.
-          </p>
+          <>
+            <p className="text-sm text-muted-foreground">
+              Cash walk-in - contact details are saved on the booking only. No customer profile is created.
+              Records appear under Reports → Cash Sales.
+            </p>
+            <div className="space-y-2">
+              <Label>Bill To</Label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleBillToChange("INDIVIDUAL", "CASH")}
+                  className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                    cashBillTo === "INDIVIDUAL"
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background hover:bg-muted"
+                  }`}
+                >
+                  Individual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBillToChange("COMPANY", "CASH")}
+                  className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                    cashBillTo === "COMPANY"
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background hover:bg-muted"
+                  }`}
+                >
+                  Company
+                </button>
+              </div>
+              {cashBillTo === "COMPANY" && (
+                <p className="text-xs text-muted-foreground">
+                  Company name appears on the invoice. For flight bookings, B2B is selected automatically - enter GSTIN below.
+                </p>
+              )}
+            </div>
+          </>
         )}
 
         {billingType === "LEDGER" && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                form.setValue("ledgerMode", "EXISTING");
-                form.setValue("customerId", undefined);
-              }}
-              className={`rounded-lg border px-3 py-1.5 text-sm ${
-                ledgerMode === "EXISTING" ? "border-primary bg-primary/10 text-primary" : "border-border"
-              }`}
-            >
-              Select Customer
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                form.setValue("ledgerMode", "NEW");
-                form.setValue("customerId", undefined);
-              }}
-              className={`rounded-lg border px-3 py-1.5 text-sm ${
-                ledgerMode === "NEW" ? "border-primary bg-primary/10 text-primary" : "border-border"
-              }`}
-            >
-              Create New Ledger
-            </button>
-          </div>
+          <>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  form.setValue("ledgerMode", "EXISTING");
+                  form.setValue("customerId", undefined);
+                }}
+                className={`rounded-lg border px-3 py-1.5 text-sm ${
+                  ledgerMode === "EXISTING" ? "border-primary bg-primary/10 text-primary" : "border-border"
+                }`}
+              >
+                Select Customer
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  form.setValue("ledgerMode", "NEW");
+                  form.setValue("ledgerBillTo", "INDIVIDUAL");
+                  form.setValue("customerId", undefined);
+                }}
+                className={`rounded-lg border px-3 py-1.5 text-sm ${
+                  ledgerMode === "NEW" ? "border-primary bg-primary/10 text-primary" : "border-border"
+                }`}
+              >
+                Create New Ledger
+              </button>
+            </div>
+            {ledgerMode === "NEW" && (
+              <div className="space-y-2">
+                <Label>Ledger Type</Label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleBillToChange("INDIVIDUAL", "LEDGER")}
+                    className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                      ledgerBillTo === "INDIVIDUAL"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background hover:bg-muted"
+                    }`}
+                  >
+                    Individual
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBillToChange("COMPANY", "LEDGER")}
+                    className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                      ledgerBillTo === "COMPANY"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background hover:bg-muted"
+                    }`}
+                  >
+                    Company
+                  </button>
+                </div>
+                {ledgerBillTo === "COMPANY" && (
+                  <p className="text-xs text-muted-foreground">
+                    Creates a business ledger profile with company name, GSTIN, and contact person.
+                  </p>
+                )}
+              </div>
+            )}
+          </>
         )}
 
         {billingType === "LEDGER" && ledgerMode === "EXISTING" && (
@@ -240,30 +371,57 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
           <div className="grid gap-4 sm:grid-cols-2">
             {billingType === "LEDGER" && ledgerMode === "EXISTING" && customerId && (
               <p className="text-xs text-muted-foreground sm:col-span-2">
-                You can edit these details — changes are saved to the customer profile when the booking is created.
+                You can edit these details - changes are saved to the customer profile when the booking is created.
               </p>
             )}
             <div className="space-y-2 sm:col-span-2">
-              <Label>Name *</Label>
-              <div className="flex gap-2">
-                <Select
-                  value={form.watch("customer.title") || "Mr"}
-                  onValueChange={(v) => form.setValue("customer.title", v)}
-                >
-                  <SelectTrigger className="w-[100px] shrink-0"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CUSTOMER_TITLE_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {isCompanyBill ? (
+                <>
+                  <Label>Company Name *</Label>
+                  <Input
+                    {...form.register("customer.name")}
+                    placeholder="e.g. Binod Textiles Pvt Ltd"
+                  />
+                </>
+              ) : (
+                <>
+                  <Label>Name *</Label>
+                  <div className="flex gap-2">
+                    <Select
+                      value={form.watch("customer.title") || "Mr"}
+                      onValueChange={(v) => form.setValue("customer.title", v)}
+                    >
+                      <SelectTrigger className="w-[100px] shrink-0"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CUSTOMER_TITLE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      {...form.register("customer.name")}
+                      placeholder="Full name (without title)"
+                      className="flex-1"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            {isCompanyBill && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label>
+                  Contact Person{billingType === "LEDGER" && ledgerMode === "NEW" ? " *" : ""}
+                </Label>
                 <Input
-                  {...form.register("customer.name")}
-                  placeholder="Full name (without title)"
-                  className="flex-1"
+                  {...form.register("customer.contactPerson")}
+                  placeholder={
+                    billingType === "LEDGER"
+                      ? "Primary contact at the company"
+                      : "Optional - person at the company"
+                  }
                 />
               </div>
-            </div>
+            )}
             <div className="space-y-2">
               <Label>Phone *</Label>
               <Input
@@ -282,15 +440,28 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
               />
             </div>
             <div className="space-y-2">
-              <Label>GSTIN</Label>
-              <Input {...form.register("customer.gstin")} />
+              <Label>
+                GSTIN
+                {isCompanyBill && productType === "FLIGHT" ? " *" : ""}
+              </Label>
+              <Input
+                {...form.register("customer.gstin")}
+                placeholder={isCompanyBill ? "Required for company B2B invoice" : undefined}
+                onChange={(e) => {
+                  const value = e.target.value.toUpperCase();
+                  form.setValue("customer.gstin", value);
+                  if (productType === "FLIGHT" && invoiceTaxType === "ITC") {
+                    form.setValue("buyerGstin", value);
+                  }
+                }}
+              />
             </div>
             <div className="space-y-2">
               <Label>PAN</Label>
               <Input
                 value={form.watch("customer.pan") || ""}
                 onChange={(e) => form.setValue("customer.pan", e.target.value.toUpperCase())}
-                placeholder="optional — e.g. ABCDE1234F"
+                placeholder="optional - e.g. ABCDE1234F"
               />
             </div>
             <div className="space-y-2 sm:col-span-2">

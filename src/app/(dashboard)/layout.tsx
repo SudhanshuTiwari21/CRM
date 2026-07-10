@@ -1,6 +1,6 @@
 import { Sidebar } from "@/components/layout/sidebar";
 
-/** Dashboard pages use Prisma/auth — skip static prerender at build time (Vercel). */
+/** Dashboard pages use Prisma/auth - skip static prerender at build time (Vercel). */
 export const dynamic = "force-dynamic";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

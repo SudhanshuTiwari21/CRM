@@ -49,12 +49,12 @@ export function CustomerEditFields<T extends FieldValues & CustomerFormShape>({
     <div className="space-y-4">
       {billingType === "CASH" && (
         <p className="text-xs text-muted-foreground">
-          Cash bill — contact details are stored on this booking only.
+          Cash bill - contact details are stored on this booking only.
         </p>
       )}
       {billingType === "LEDGER" && (
         <p className="text-xs text-muted-foreground">
-          Ledger bill — changes are saved to the linked customer profile.
+          Ledger bill - changes are saved to the linked customer profile.
         </p>
       )}
       <div className="grid gap-4 sm:grid-cols-2">
@@ -114,7 +114,7 @@ export function CustomerEditFields<T extends FieldValues & CustomerFormShape>({
             onChange={(e) =>
               form.setValue(panPath, e.target.value.toUpperCase() as never, { shouldDirty: true })
             }
-            placeholder="optional — e.g. ABCDE1234F"
+            placeholder="optional - e.g. ABCDE1234F"
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
@@ -157,12 +157,12 @@ export function CustomerEditFieldsControlled({
     <div className="space-y-4">
       {billingType === "CASH" && (
         <p className="text-xs text-muted-foreground">
-          Cash bill — contact details are stored on this booking only.
+          Cash bill - contact details are stored on this booking only.
         </p>
       )}
       {billingType === "LEDGER" && (
         <p className="text-xs text-muted-foreground">
-          Ledger bill — changes are saved to the linked customer profile.
+          Ledger bill - changes are saved to the linked customer profile.
         </p>
       )}
       <div className="grid gap-4 sm:grid-cols-2">
@@ -217,7 +217,7 @@ export function CustomerEditFieldsControlled({
           <Input
             value={value.pan || ""}
             onChange={(e) => patch({ pan: e.target.value.toUpperCase() })}
-            placeholder="optional — e.g. ABCDE1234F"
+            placeholder="optional - e.g. ABCDE1234F"
           />
         </div>
         <div className="space-y-2 sm:col-span-2">

@@ -115,6 +115,11 @@ enum FareType {
   UPFRONT
 }
 
+enum CreditNoteSource {
+  AUTO_CANCEL
+  MANUAL
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -129,6 +134,8 @@ model User {
   activityLogs     ActivityLog[]
   creditTransactions CustomerCreditTransaction[] @relation("CreditCreatedBy")
   cancellations    BookingCancellation[] @relation("CancelledBy")
+  paymentsRecorded Payment[]             @relation("PaymentCreatedBy")
+  creditNotes      CreditNote[]          @relation("CreditNoteCreatedBy")
   savedPassengers  SavedPassenger[]
   accounts         Account[]
   sessions         Session[]
@@ -225,6 +232,8 @@ model Customer {
   branches CustomerBranch[]
   contacts CustomerContact[]
   creditTransactions CustomerCreditTransaction[]
+  creditNotes        CreditNote[]
+  payments           Payment[]
 
   @@index([phone])
   @@index([email])
@@ -290,6 +299,38 @@ model BookingSerialCounter {
   lastNumber Int @default(0)
 }
 
+model CreditNoteSerialCounter {
+  year       Int @id
+  lastNumber Int @default(0)
+}
+
+model CreditNote {
+  id             String           @id @default(cuid())
+  publicRef      String           @unique
+  serialYear     Int
+  serialNumber   Int
+  customerId     String
+  bookingId      String?
+  cancellationId String?          @unique
+  amount         Decimal          @db.Decimal(12, 2)
+  billingType    BillingType?
+  reason         String?
+  notes          String?
+  source         CreditNoteSource @default(MANUAL)
+  createdById    String?
+  createdAt      DateTime         @default(now())
+
+  customer     Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  booking      Booking?             @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  cancellation BookingCancellation? @relation(fields: [cancellationId], references: [id], onDelete: SetNull)
+  createdBy    User?                @relation("CreditNoteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([serialYear, serialNumber])
+  @@index([customerId])
+  @@index([bookingId])
+  @@index([createdAt])
+}
+
 model Booking {
   id              String         @id @default(cuid())
   publicRef       String         @unique
@@ -326,6 +367,7 @@ model Booking {
   activityLogs  ActivityLog[]
   creditTransactions CustomerCreditTransaction[]
   cancellation  BookingCancellation?
+  creditNotes   CreditNote[]
 
   @@unique([serialYear, serialNumber])
   @@index([status])
@@ -466,18 +508,27 @@ model BusBooking {
 }
 
 model Payment {
-  id          String        @id @default(cuid())
-  bookingId   String
-  amount      Decimal       @db.Decimal(12, 2)
-  method      String
-  gatewayRef  String?
-  status      PaymentStatus @default(PAID)
-  paidAt      DateTime      @default(now())
-  createdAt   DateTime      @default(now())
+  id              String        @id @default(cuid())
+  bookingId       String?
+  customerId      String?
+  amount          Decimal       @db.Decimal(12, 2)
+  method          String
+  gatewayRef      String?
+  referenceNumber String?
+  note            String?
+  billingType     BillingType?
+  status          PaymentStatus @default(PAID)
+  paidAt          DateTime      @default(now())
+  createdById     String?
+  createdAt       DateTime      @default(now())
 
-  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking   Booking?  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customer  Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  createdBy User?     @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([bookingId])
+  @@index([customerId])
+  @@index([paidAt])
 }
 
 model Document {
@@ -559,6 +610,7 @@ model BookingCancellation {
 
   booking     Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   cancelledBy User?   @relation("CancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  creditNote  CreditNote?
 
   @@index([category])
   @@index([cancelledAt])

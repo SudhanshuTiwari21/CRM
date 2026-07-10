@@ -25,7 +25,7 @@ export default async function HotelsPage({
 
   return (
     <div>
-      <Header title="Hotels" description="Saved hotel profiles — auto-fill when booking" />
+      <Header title="Hotels" description="Saved hotel profiles - auto-fill when booking" />
       <Card>
         <CardHeader>
           <CardTitle className="text-base">All Hotels ({hotels.length})</CardTitle>

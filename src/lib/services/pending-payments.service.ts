@@ -149,7 +149,7 @@ export async function getPendingPayments(): Promise<PendingPaymentsReport> {
   const cashRows: PendingBookingRow[] = [];
   for (const b of cashBookings) {
     const snap = parseCashCustomerSnapshot(b.metadata);
-    const row = toPendingRow(b, snap?.name || "Walk-in", snap?.phone || "—");
+    const row = toPendingRow(b, snap?.name || "Walk-in", snap?.phone || "-");
     if (!row) continue;
     cashRows.push(row);
     allRows.push(row);

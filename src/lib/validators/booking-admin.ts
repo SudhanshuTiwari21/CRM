@@ -9,6 +9,7 @@ import {
 export const adminCustomerUpdateSchema = z.object({
   title: z.string().optional(),
   name: z.string().min(2, "Customer name is required"),
+  contactPerson: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
   phone: phoneSchema,
   pan: optionalPanSchema,

@@ -135,7 +135,7 @@ export function DashboardCharts({
 
   return (
     <div className="space-y-6">
-      {/* Revenue trend — full width hero chart */}
+      {/* Revenue trend - full width hero chart */}
       <ChartCard
         title="Revenue Overview"
         description="Last 7 days · paid bookings"

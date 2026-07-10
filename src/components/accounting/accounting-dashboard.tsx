@@ -110,18 +110,18 @@ function BillsTable({ rows }: { rows: BillRow[] }) {
                 <p className="text-xs text-muted-foreground">{r.segment}</p>
               </TableCell>
               <TableCell>{r.customerName}</TableCell>
-              <TableCell className="text-xs font-mono">{r.buyerGstin || r.customerGstin || "—"}</TableCell>
+              <TableCell className="text-xs font-mono">{r.buyerGstin || r.customerGstin || "-"}</TableCell>
               <TableCell>
                 <Badge variant={r.invoiceTaxType === "ITC" ? "default" : "secondary"}>
                   {r.invoiceTaxType === "ITC" ? "B2B ITC" : "B2C"}
                 </Badge>
               </TableCell>
-              <TableCell className="text-xs font-mono">{r.msmeNumber || "—"}</TableCell>
+              <TableCell className="text-xs font-mono">{r.msmeNumber || "-"}</TableCell>
               <TableCell className="text-right">{formatCurrency(r.baseFare)}</TableCell>
               <TableCell className="text-right">{formatCurrency(r.serviceCharge)}</TableCell>
-              <TableCell className="text-right">{r.cgst > 0 ? formatCurrency(r.cgst) : "—"}</TableCell>
-              <TableCell className="text-right">{r.sgst > 0 ? formatCurrency(r.sgst) : "—"}</TableCell>
-              <TableCell className="text-right">{r.igst > 0 ? formatCurrency(r.igst) : "—"}</TableCell>
+              <TableCell className="text-right">{r.cgst > 0 ? formatCurrency(r.cgst) : "-"}</TableCell>
+              <TableCell className="text-right">{r.sgst > 0 ? formatCurrency(r.sgst) : "-"}</TableCell>
+              <TableCell className="text-right">{r.igst > 0 ? formatCurrency(r.igst) : "-"}</TableCell>
               <TableCell className="text-right font-medium">{formatCurrency(r.totalAmount)}</TableCell>
             </TableRow>
           ))}
@@ -201,7 +201,7 @@ export function AccountingDashboard() {
                   <option value="">All MSME</option>
                   {msmeOptions.map((m) => (
                     <option key={m.number} value={m.number}>
-                      {m.label} — {m.number}
+                      {m.label} - {m.number}
                     </option>
                   ))}
                 </select>

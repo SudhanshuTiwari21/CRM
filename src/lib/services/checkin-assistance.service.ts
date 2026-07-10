@@ -24,7 +24,7 @@ function buildAdminCheckInMessage(params: {
   const { companyName, publicRef, customerName, customerPhone, pnr, airline, sector, departureAt, hoursLeft } =
     params;
 
-  return `*${companyName} — Check-in Assistance Reminder*
+  return `*${companyName} - Check-in Assistance Reminder*
 
 Booking: *${publicRef}*
 Customer: ${customerName} (${customerPhone})
@@ -84,7 +84,7 @@ export async function sendCheckInAssistanceAdminAlert(bookingId: string) {
   if (agency?.email) {
     results.email = await sendEmail({
       to: agency.email,
-      subject: `Check-in Assistance — ${booking.publicRef} departs in ~${hoursLeft}h`,
+      subject: `Check-in Assistance - ${booking.publicRef} departs in ~${hoursLeft}h`,
       template: "checkin_assistance_reminder",
       bookingId: booking.id,
       html: `<p><strong>Check-in booking assistance</strong> is required for the following flight:</p>
@@ -126,7 +126,7 @@ export async function sendCheckInAssistanceAdminAlert(bookingId: string) {
   return { success: true, results };
 }
 
-/** Run from cron — notify admins for assistance bookings entering the 48h window. */
+/** Run from cron - notify admins for assistance bookings entering the 48h window. */
 export async function processCheckInAssistanceReminders() {
   const now = new Date();
   const candidates = await prisma.flightBooking.findMany({
@@ -152,7 +152,7 @@ export async function processCheckInAssistanceReminders() {
   return { checked: candidates.length, processed: processed.length, details: processed };
 }
 
-/** After create/update — send immediately if already inside 48h window. */
+/** After create/update - send immediately if already inside 48h window. */
 export async function maybeSendImmediateCheckInAssistanceAlert(bookingId: string) {
   return sendCheckInAssistanceAdminAlert(bookingId);
 }

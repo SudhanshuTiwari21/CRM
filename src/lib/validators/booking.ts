@@ -86,7 +86,10 @@ export const customerSchema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   pincode: z.string().optional(),
+  contactPerson: z.string().optional(),
 });
+
+export const cashBillToSchema = z.enum(["INDIVIDUAL", "COMPANY"]);
 
 function validateOptionalPan(pan: string | undefined, ctx: z.RefinementCtx, path: string[]) {
   if (pan?.trim() && !panRegex.test(pan.trim().toUpperCase())) {
@@ -101,6 +104,8 @@ function validateOptionalPan(pan: string | undefined, ctx: z.RefinementCtx, path
 function refineOfflineBilling(
   data: {
     billingType: "CASH" | "LEDGER";
+    cashBillTo?: "INDIVIDUAL" | "COMPANY";
+    ledgerBillTo?: "INDIVIDUAL" | "COMPANY";
     ledgerMode?: "EXISTING" | "NEW";
     customerId?: string;
     customer?: {
@@ -113,14 +118,20 @@ function refineOfflineBilling(
       city?: string;
       state?: string;
       pincode?: string;
+      contactPerson?: string;
     };
     paymentMethod?: string;
   },
   ctx: z.RefinementCtx
 ) {
   if (data.billingType === "CASH") {
+    const isCompany = data.cashBillTo === "COMPANY";
     if (!data.customer?.name?.trim() || data.customer.name.trim().length < 2) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Customer name is required", path: ["customer", "name"] });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: isCompany ? "Company name is required" : "Customer name is required",
+        path: ["customer", "name"],
+      });
     }
     if (!data.customer?.phone || !isValidIndianMobile(normalizePhone(data.customer.phone))) {
       ctx.addIssue({
@@ -130,13 +141,6 @@ function refineOfflineBilling(
       });
     }
     validateOptionalPan(data.customer?.pan, ctx, ["customer", "pan"]);
-    if (data.paymentMethod === "CREDIT") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Credit payment is only available for ledger bills",
-        path: ["paymentMethod"],
-      });
-    }
     return;
   }
   if (!data.ledgerMode) {
@@ -162,7 +166,19 @@ function refineOfflineBilling(
     return;
   }
   if (!data.customer?.name?.trim() || data.customer.name.trim().length < 2) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Customer name is required", path: ["customer", "name"] });
+    const isCompany = data.ledgerBillTo === "COMPANY";
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: isCompany ? "Company name is required" : "Customer name is required",
+      path: ["customer", "name"],
+    });
+  }
+  if (data.ledgerBillTo === "COMPANY" && !data.customer?.contactPerson?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Contact person is required for business ledger",
+      path: ["customer", "contactPerson"],
+    });
   }
   if (!data.customer?.phone || !isValidIndianMobile(normalizePhone(data.customer.phone))) {
     ctx.addIssue({
@@ -250,6 +266,8 @@ export const offlineFlightBookingSchema = z
   productType: z.literal("FLIGHT"),
   channel: z.literal("OFFLINE"),
   billingType: z.enum(["CASH", "LEDGER"]),
+  cashBillTo: cashBillToSchema.optional(),
+  ledgerBillTo: cashBillToSchema.optional(),
   ledgerMode: z.enum(["EXISTING", "NEW"]).optional(),
   customerId: z.string().optional(),
   customer: customerSchema.optional(),
@@ -294,6 +312,8 @@ export const offlineHotelBookingSchema = z
   productType: z.literal("HOTEL"),
   channel: z.literal("OFFLINE"),
   billingType: z.enum(["CASH", "LEDGER"]),
+  cashBillTo: cashBillToSchema.optional(),
+  ledgerBillTo: cashBillToSchema.optional(),
   ledgerMode: z.enum(["EXISTING", "NEW"]).optional(),
   customerId: z.string().optional(),
   customer: customerSchema.optional(),
@@ -329,6 +349,8 @@ export const offlineBusBookingSchema = z
   productType: z.literal("BUS"),
   channel: z.literal("OFFLINE"),
   billingType: z.enum(["CASH", "LEDGER"]),
+  cashBillTo: cashBillToSchema.optional(),
+  ledgerBillTo: cashBillToSchema.optional(),
   ledgerMode: z.enum(["EXISTING", "NEW"]).optional(),
   customerId: z.string().optional(),
   customer: customerSchema.optional(),

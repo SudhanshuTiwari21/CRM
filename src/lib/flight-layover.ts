@@ -44,7 +44,7 @@ export function buildFullRoute(segments: FlightSegment[]) {
   return points.join(" → ");
 }
 
-/** Sector string for invoices/tickets — all legs, grouped for round trip. */
+/** Sector string for invoices/tickets - all legs, grouped for round trip. */
 /** Index of the first return leg segment in a round-trip itinerary. */
 export function getReturnLegStartIndex(segments: FlightSegment[]) {
   const idx = segments.findIndex((s) => s.direction === "return");
@@ -194,12 +194,12 @@ export function layoverDisplay(seg: FlightSegment, nextSeg?: FlightSegment) {
 
 export function formatSegmentDuration(seg: FlightSegment) {
   if (seg.duration) return seg.duration;
-  if (!seg.departureAt || !seg.arrivalAt) return "—";
+  if (!seg.departureAt || !seg.arrivalAt) return "-";
   const mins = differenceInMinutes(
     flightDateTimeToDate(seg.arrivalAt),
     flightDateTimeToDate(seg.departureAt)
   );
-  if (mins <= 0) return "—";
+  if (mins <= 0) return "-";
   return formatLayoverMinutes(mins);
 }
 

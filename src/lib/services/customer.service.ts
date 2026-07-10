@@ -73,6 +73,57 @@ export async function updateExistingCustomerFromBooking(
   });
 }
 
+export async function createBusinessCustomerFromBooking(customer: {
+  name: string;
+  email?: string;
+  phone: string;
+  pan?: string;
+  gstin?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  contactPerson?: string;
+}) {
+  const normalizedPhone = normalizePhone(customer.phone);
+  const existing = await findCustomerByPhone(customer.phone);
+  if (existing) {
+    throw new Error(
+      `A customer with this phone number already exists (${existing.name}). Select them under "Select Customer".`
+    );
+  }
+
+  const contactName = customer.contactPerson?.trim() || customer.name.trim();
+
+  return createCustomerRecord({
+    type: "BUSINESS",
+    name: customer.name.trim(),
+    phone: normalizedPhone,
+    email: customer.email || "",
+    pan: customer.pan || "",
+    branches: [
+      {
+        name: "Head Office",
+        gstin: customer.gstin || "",
+        address: customer.address || "",
+        city: customer.city || "",
+        state: customer.state || "",
+        pincode: customer.pincode || "",
+        isPrimary: true,
+      },
+    ],
+    contacts: [
+      {
+        name: contactName,
+        phone: normalizedPhone,
+        email: customer.email || "",
+        designation: "",
+        isPrimary: true,
+      },
+    ],
+  });
+}
+
 export async function upsertCustomerFromBooking(customer: {
   name: string;
   email?: string;

@@ -219,7 +219,7 @@ export function SettingsForm() {
               <Label>MSME Registry (per-booking selection)</Label>
               {msmes.map((m) => (
                 <div key={m.id} className="rounded border px-3 py-2 text-sm">
-                  {m.label} — <span className="font-mono">{m.number}</span>
+                  {m.label} - <span className="font-mono">{m.number}</span>
                 </div>
               ))}
               <div className="flex flex-wrap gap-2">

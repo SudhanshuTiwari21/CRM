@@ -158,9 +158,20 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             <Card>
               <CardHeader><CardTitle className="text-base">Customer</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <p><span className="text-muted-foreground">Name:</span> {displayCustomer.name}</p>
+                {booking.billingType === "CASH" && displayCustomer.billTo === "COMPANY" && (
+                  <p><span className="text-muted-foreground">Bill to:</span> Company</p>
+                )}
+                <p>
+                  <span className="text-muted-foreground">
+                    {displayCustomer.billTo === "COMPANY" ? "Company:" : "Name:"}
+                  </span>{" "}
+                  {displayCustomer.name}
+                </p>
+                {displayCustomer.contactPerson && (
+                  <p><span className="text-muted-foreground">Contact:</span> {displayCustomer.contactPerson}</p>
+                )}
                 <p><span className="text-muted-foreground">Phone:</span> {displayCustomer.phone}</p>
-                <p><span className="text-muted-foreground">Email:</span> {displayCustomer.email || "—"}</p>
+                <p><span className="text-muted-foreground">Email:</span> {displayCustomer.email || "-"}</p>
                 {displayCustomer.gstin && (
                   <p><span className="text-muted-foreground">GSTIN:</span> {displayCustomer.gstin}</p>
                 )}
@@ -176,7 +187,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 </Link>
                 )}
                 {booking.billingType === "CASH" && (
-                  <p className="text-xs text-muted-foreground">Cash walk-in — no ledger profile</p>
+                  <p className="text-xs text-muted-foreground">Cash walk-in - no ledger profile</p>
                 )}
               </CardContent>
             </Card>
@@ -185,8 +196,8 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               <CardContent className="space-y-2 text-sm">
                 <p><span className="text-muted-foreground">Created:</span> {formatDateTime(booking.createdAt)}</p>
                 <p><span className="text-muted-foreground">Agent:</span> {booking.assignedAgent?.name || "Unassigned"}</p>
-                <p><span className="text-muted-foreground">Confirmed:</span> {booking.confirmedAt ? formatDateTime(booking.confirmedAt) : "—"}</p>
-                <p><span className="text-muted-foreground">Supplier Ref:</span> {booking.supplierRef || "—"}</p>
+                <p><span className="text-muted-foreground">Confirmed:</span> {booking.confirmedAt ? formatDateTime(booking.confirmedAt) : "-"}</p>
+                <p><span className="text-muted-foreground">Supplier Ref:</span> {booking.supplierRef || "-"}</p>
                 {booking.internalNotes && (
                   <p className="whitespace-pre-line"><span className="text-muted-foreground">Notes:</span> {booking.internalNotes}</p>
                 )}
@@ -224,7 +235,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">
-                  {isAddonTrip ? "Add-on Service" : "Flight"} — {booking.flightBooking.airline}
+                  {isAddonTrip ? "Add-on Service" : "Flight"} - {booking.flightBooking.airline}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
                   {isAddonTrip
@@ -269,7 +280,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                         {seg.fromCity} ({seg.fromAirport}) → {seg.toCity} ({seg.toAirport})
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {formatFlightWallClock(seg.departureAt, "display")} — {formatFlightWallClock(seg.arrivalAt, "display")}
+                        {formatFlightWallClock(seg.departureAt, "display")} - {formatFlightWallClock(seg.arrivalAt, "display")}
                       </p>
                       {(seg.departureTerminal || seg.terminal) && (
                         <p className="text-xs text-muted-foreground mt-1">
@@ -334,7 +345,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                         <p className="text-sm text-muted-foreground">{p.gender}</p>
                         {passengerHasFrequentFlyer(p) && (
                           <p className="mt-1 text-sm text-muted-foreground">
-                            FF: {p.frequentFlyerAirline || "—"} · {p.frequentFlyerNumber || "—"}
+                            FF: {p.frequentFlyerAirline || "-"} · {p.frequentFlyerNumber || "-"}
                           </p>
                         )}
                         {passengerNeedsWheelchair(p) && (
@@ -346,13 +357,13 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                           <p className="mt-1 text-sm text-muted-foreground">
                             DOB: {formatPassportDate(p.dateOfBirth)}
                             {p.passportNumber
-                              ? ` · Passport: ${p.passportNumber} (${p.passportIssuingCountry || "—"}) · Exp: ${formatPassportDate(p.passportExpiryDate)}`
+                              ? ` · Passport: ${p.passportNumber} (${p.passportIssuingCountry || "-"}) · Exp: ${formatPassportDate(p.passportExpiryDate)}`
                               : ""}
                           </p>
                         )}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Seat: {p.seat || "—"} | Baggage: {p.checkInBaggage || "15 KG"}
+                        Seat: {p.seat || "-"} | Baggage: {p.checkInBaggage || "15 KG"}
                       </div>
                     </div>
                   ))}

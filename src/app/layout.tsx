@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "Book to Roam CRM",
-  description: "Book to Roam — travel CRM for flights, hotels, and buses",
+  description: "Book to Roam - travel CRM for flights, hotels, and buses",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

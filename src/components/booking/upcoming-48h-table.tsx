@@ -98,7 +98,7 @@ export function Upcoming48hTable() {
                       <Link href={`/bookings/${row.id}`} className="font-medium text-primary hover:underline">
                         {row.publicRef}
                       </Link>
-                      <p className="text-xs text-muted-foreground">PNR: {row.pnr || "—"}</p>
+                      <p className="text-xs text-muted-foreground">PNR: {row.pnr || "-"}</p>
                     </TableCell>
                     <TableCell>
                       <p>{row.customer.name}</p>
@@ -109,7 +109,7 @@ export function Upcoming48hTable() {
                       <p className="text-xs text-muted-foreground">{sector}</p>
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm">{row.departureAt ? formatDateTime(row.departureAt) : "—"}</p>
+                      <p className="text-sm">{row.departureAt ? formatDateTime(row.departureAt) : "-"}</p>
                       {hrs !== null && (
                         <p className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
                           <Clock className="h-3 w-3" />
@@ -127,7 +127,7 @@ export function Upcoming48hTable() {
                           Yes
                         </Badge>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <span className="text-muted-foreground">-</span>
                       )}
                       {row.checkInAssistance && row.checkInAssistanceNotifiedAt && (
                         <p className="mt-1 text-xs text-muted-foreground">Alert sent</p>

@@ -210,7 +210,7 @@ function SimpleEditForm({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Update failed");
 
-      toast.success(markAsPaid ? "Booking updated and marked as paid" : "Booking updated — documents regenerated");
+      toast.success(markAsPaid ? "Booking updated and marked as paid" : "Booking updated - documents regenerated");
       onClose();
       router.refresh();
     } catch (error) {
@@ -311,7 +311,7 @@ function SimpleEditForm({
           </EditFormSection>
         )}
 
-        <EditFormSection title="Internal Notes" description="Staff-only — not shown on voucher or invoice">
+        <EditFormSection title="Internal Notes" description="Staff-only - not shown on voucher or invoice">
           <Textarea
             value={form.internalNotes}
             onChange={(e) => setForm({ ...form, internalNotes: e.target.value })}
@@ -414,7 +414,7 @@ function FlightEditForm({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Update failed");
 
-      toast.success(markAsPaid ? "Booking updated and marked as paid" : "Booking updated — documents regenerated");
+      toast.success(markAsPaid ? "Booking updated and marked as paid" : "Booking updated - documents regenerated");
       onClose();
       router.refresh();
     } catch (error) {
@@ -459,7 +459,7 @@ function FlightEditForm({
           <FlightInvoiceFields form={form as unknown as ReturnType<typeof useForm<WizardForm>>} />
         </EditFormSection>
 
-        <EditFormSection title="Internal Notes" description="Staff-only — not printed on voucher or invoice">
+        <EditFormSection title="Internal Notes" description="Staff-only - not printed on voucher or invoice">
           <Textarea
             {...form.register("internalNotes")}
             rows={4}

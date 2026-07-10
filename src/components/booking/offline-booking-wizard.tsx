@@ -34,6 +34,7 @@ import { normalizePhone } from "@/lib/phone";
 const baseCustomer = {
   title: "Mr",
   name: "",
+  contactPerson: "",
   email: "",
   phone: "",
   pan: "",
@@ -48,11 +49,14 @@ const wizardSchema = z
   .object({
   productType: z.enum(["FLIGHT", "HOTEL", "BUS"]),
   billingType: z.enum(["CASH", "LEDGER"]),
+  cashBillTo: z.enum(["INDIVIDUAL", "COMPANY"]).optional(),
+  ledgerBillTo: z.enum(["INDIVIDUAL", "COMPANY"]).optional(),
   ledgerMode: z.enum(["EXISTING", "NEW"]).optional(),
   customerId: z.string().optional(),
   customer: z.object({
     title: z.string().optional(),
     name: z.string(),
+    contactPerson: z.string().optional(),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     phone: z.string(),
     pan: z.string().optional(),
@@ -63,7 +67,6 @@ const wizardSchema = z
     pincode: z.string().optional(),
   }),
   totalAmount: z.coerce.number().min(0),
-  paymentMethod: z.string().optional(),
   internalNotes: z.string().optional(),
   invoiceTaxType: z.enum(["ITC", "NON_ITC"]).optional(),
   buyerGstin: z.string().optional(),
@@ -161,13 +164,14 @@ export function OfflineBookingWizard() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [productType, setProductType] = useState<"FLIGHT" | "HOTEL" | "BUS">("FLIGHT");
-  const [creditAvailable, setCreditAvailable] = useState(false);
 
   const form = useForm<WizardForm>({
     resolver: wizardResolver,
     defaultValues: {
       productType: "FLIGHT",
       billingType: "LEDGER",
+      cashBillTo: "INDIVIDUAL",
+      ledgerBillTo: "INDIVIDUAL",
       ledgerMode: "EXISTING",
       customerId: undefined,
       customer: baseCustomer,
@@ -217,8 +221,6 @@ export function OfflineBookingWizard() {
   const { fields: passengerFields, append: appendPassenger, remove: removePassenger } = useFieldArray({ control: form.control, name: "passengers" });
   const { fields: guestFields, append: appendGuest } = useFieldArray({ control: form.control, name: "guests" });
   const { fields: busPaxFields, append: appendBusPax } = useFieldArray({ control: form.control, name: "busPassengers" });
-  const billingType = form.watch("billingType");
-
   async function onSubmit(data: WizardForm) {
     setLoading(true);
     try {
@@ -241,10 +243,16 @@ export function OfflineBookingWizard() {
       if (productType !== "FLIGHT" && data.totalAmount <= 0) {
         throw new Error("Total amount must be greater than 0");
       }
-      const { title: _title, ...customerRest } = data.customer;
+      const { title: _title, contactPerson, ...customerRest } = data.customer;
+      const isCashCompany = data.billingType === "CASH" && data.cashBillTo === "COMPANY";
+      const isLedgerCompany =
+        data.billingType === "LEDGER" && data.ledgerMode === "NEW" && data.ledgerBillTo === "COMPANY";
       const formattedCustomer = {
         ...customerRest,
-        name: formatCustomerName(data.customer.title, data.customer.name),
+        name:
+          isCashCompany || isLedgerCompany
+            ? data.customer.name.trim()
+            : formatCustomerName(data.customer.title, data.customer.name),
         phone: normalizePhone(customerRest.phone),
         email: data.customer.email?.trim() || undefined,
         pan: data.customer.pan?.trim().toUpperCase() || undefined,
@@ -253,6 +261,8 @@ export function OfflineBookingWizard() {
         city: data.customer.city?.trim() || undefined,
         state: data.customer.state?.trim() || undefined,
         pincode: data.customer.pincode?.trim() || undefined,
+        contactPerson:
+          isCashCompany || isLedgerCompany ? contactPerson?.trim() || undefined : undefined,
       };
       const customerPayload =
         data.billingType === "LEDGER" && data.ledgerMode === "EXISTING"
@@ -263,6 +273,11 @@ export function OfflineBookingWizard() {
 
       const billingPayload = {
         billingType: data.billingType,
+        cashBillTo: data.billingType === "CASH" ? data.cashBillTo || "INDIVIDUAL" : undefined,
+        ledgerBillTo:
+          data.billingType === "LEDGER" && data.ledgerMode === "NEW"
+            ? data.ledgerBillTo || "INDIVIDUAL"
+            : undefined,
         ledgerMode: data.billingType === "LEDGER" ? data.ledgerMode : undefined,
         customerId:
           data.billingType === "LEDGER" && data.ledgerMode === "EXISTING"
@@ -299,7 +314,6 @@ export function OfflineBookingWizard() {
           channel: "OFFLINE",
           ...billingPayload,
           totalAmount: data.totalAmount,
-          paymentMethod: data.paymentMethod,
           internalNotes: data.internalNotes,
           invoiceTaxType: data.invoiceTaxType || "NON_ITC",
           buyerGstin: (data.buyerGstin || data.customer.gstin || "").trim() || undefined,
@@ -338,7 +352,6 @@ export function OfflineBookingWizard() {
           channel: "OFFLINE",
           ...billingPayload,
           totalAmount: data.totalAmount,
-          paymentMethod: data.paymentMethod,
           internalNotes: data.internalNotes,
           propertyName: data.propertyName,
           propertyAddress: data.propertyAddress,
@@ -366,7 +379,6 @@ export function OfflineBookingWizard() {
           channel: "OFFLINE",
           ...billingPayload,
           totalAmount: data.totalAmount,
-          paymentMethod: data.paymentMethod,
           internalNotes: data.internalNotes,
           operator: data.operator,
           route: data.route,
@@ -392,7 +404,7 @@ export function OfflineBookingWizard() {
       router.push(`/bookings/${result.id as string}`);
     } catch (error) {
       if (error instanceof Error && error.message.includes("pattern")) {
-        toast.error("Please check all fields — invalid email or date format.");
+        toast.error("Please check all fields - invalid email or date format.");
       } else {
         toast.error(error instanceof Error ? error.message : "Failed to create booking");
       }
@@ -416,10 +428,7 @@ export function OfflineBookingWizard() {
           <TabsTrigger value="BUS">Bus</TabsTrigger>
         </TabsList>
 
-        <CustomerBillingSection
-          form={form}
-          onCreditAvailabilityChange={setCreditAvailable}
-        />
+        <CustomerBillingSection form={form} />
 
         <TabsContent value="FLIGHT">
           <Card>
@@ -472,7 +481,7 @@ export function OfflineBookingWizard() {
       </Tabs>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Payment & Notes</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Amount & Notes</CardTitle></CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           {productType === "FLIGHT" ? (
             <FlightInvoiceFields form={form} />
@@ -482,37 +491,6 @@ export function OfflineBookingWizard() {
               <Input {...form.register("totalAmount")} type="number" />
             </div>
           )}
-          <div className="space-y-2">
-            <Label>Payment Method</Label>
-            <Select
-              value={form.watch("paymentMethod") || undefined}
-              onValueChange={(v) => form.setValue("paymentMethod", v)}
-            >
-              <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="UPI">UPI</SelectItem>
-                <SelectItem value="Cash">Cash</SelectItem>
-                <SelectItem value="Card">Card</SelectItem>
-                <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                {creditAvailable && billingType === "LEDGER" && (
-                  <SelectItem value="CREDIT">On Credit</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-            {form.watch("paymentMethod") === "Card" && Number(form.watch("paymentGatewayCharge") || 0) > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Card payment gateway charge (2.5%): ₹
-                {Number(form.watch("paymentGatewayCharge")).toLocaleString("en-IN", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                added automatically to the booking total.
-              </p>
-            )}
-            {creditAvailable && billingType === "LEDGER" && (
-              <p className="text-xs text-muted-foreground">Credit account enabled for this customer</p>
-            )}
-          </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>Internal Notes</Label>
             <Textarea {...form.register("internalNotes")} placeholder="WhatsApp conversation notes..." />

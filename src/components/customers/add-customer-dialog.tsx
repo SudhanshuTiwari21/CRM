@@ -172,7 +172,7 @@ export function AddCustomerDialog({ customer, trigger }: AddCustomerDialogProps)
       toast.success(
         data.source === "api"
           ? "Address fetched from GSTIN"
-          : "GSTIN validated — add GSTIN_API_KEY in .env for full address lookup"
+          : "GSTIN validated - add GSTIN_API_KEY in .env for full address lookup"
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "GSTIN lookup failed");
@@ -292,7 +292,7 @@ export function AddCustomerDialog({ customer, trigger }: AddCustomerDialogProps)
             {isEdit ? "Edit Customer" : step === "type" ? "Add Customer" : customerType === "BUSINESS" ? "New Business Customer" : "New Individual Customer"}
           </DialogTitle>
           {step === "type" && (
-            <DialogDescription>Choose customer type — like Zoho Books</DialogDescription>
+            <DialogDescription>Choose customer type - like Zoho Books</DialogDescription>
           )}
         </DialogHeader>
 
@@ -321,7 +321,7 @@ export function AddCustomerDialog({ customer, trigger }: AddCustomerDialogProps)
                 <div>
                   <p className="font-semibold">Individual</p>
                   <p className="text-xs text-muted-foreground">
-                    Personal traveller — name, phone, email
+                    Personal traveller - name, phone, email
                   </p>
                 </div>
               </CardContent>
@@ -519,7 +519,7 @@ export function AddCustomerDialog({ customer, trigger }: AddCustomerDialogProps)
                       min={0}
                       value={creditLimit}
                       onChange={(e) => setCreditLimit(e.target.value)}
-                      placeholder="Optional — max outstanding credit"
+                      placeholder="Optional - max outstanding credit"
                     />
                     <p className="text-xs text-muted-foreground">
                       Only admins can set the credit limit. Adjust later from the customer profile.

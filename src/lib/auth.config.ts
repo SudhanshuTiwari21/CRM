@@ -3,7 +3,7 @@ import type { NextAuthConfig } from "next-auth";
 type UserRole = "ADMIN" | "AGENT";
 
 /**
- * Edge-safe auth config — no Prisma/bcrypt. Used by middleware only.
+ * Edge-safe auth config - no Prisma/bcrypt. Used by middleware only.
  * Full providers live in auth.ts.
  */
 export const authConfig = {

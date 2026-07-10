@@ -20,7 +20,8 @@ import { flightFieldsWithDeparture, maybeSendImmediateCheckInAssistanceAlert } f
 import { toDbAddonType } from "@/lib/flight-addon";
 import { formatCustomerName } from "@/lib/utils";
 import { updateExistingCustomerFromBooking } from "./customer.service";
-import type { CashCustomerSnapshot } from "@/lib/cash-customer";
+import type { CashCustomerSnapshot, CashBillTo } from "@/lib/cash-customer";
+import { parseCashCustomerSnapshot } from "@/lib/cash-customer";
 
 import type { z } from "zod";
 import type { adminBookingUpdateSchema } from "@/lib/validators/booking-admin";
@@ -28,9 +29,13 @@ import type { RecordBookingPaymentInput } from "@/lib/validators/payment";
 
 type AdminBookingUpdateInput = z.infer<typeof adminBookingUpdateSchema>;
 
-function buildCustomerSnapshot(input: NonNullable<AdminBookingUpdateInput["customer"]>): CashCustomerSnapshot {
+function buildCustomerSnapshot(
+  input: NonNullable<AdminBookingUpdateInput["customer"]>,
+  billTo: CashBillTo = "INDIVIDUAL"
+): CashCustomerSnapshot {
+  const isCompany = billTo === "COMPANY";
   return {
-    name: formatCustomerName(input.title, input.name.trim()),
+    name: isCompany ? input.name.trim() : formatCustomerName(input.title, input.name.trim()),
     phone: input.phone,
     email: input.email?.trim() || null,
     pan: input.pan?.trim().toUpperCase() || null,
@@ -39,6 +44,8 @@ function buildCustomerSnapshot(input: NonNullable<AdminBookingUpdateInput["custo
     city: input.city?.trim() || null,
     state: input.state?.trim() || null,
     pincode: input.pincode?.trim() || null,
+    billTo,
+    contactPerson: input.contactPerson?.trim() || null,
   };
 }
 
@@ -69,7 +76,9 @@ export async function updateBookingAsAdmin(
         booking.metadata && typeof booking.metadata === "object"
           ? (booking.metadata as Record<string, unknown>)
           : {};
-      bookingData.metadata = { ...existingMeta, cashCustomer: snapshot };
+      const existingSnap = parseCashCustomerSnapshot(booking.metadata);
+      const billTo = existingSnap?.billTo || "INDIVIDUAL";
+      bookingData.metadata = { ...existingMeta, cashCustomer: buildCustomerSnapshot(input.customer, billTo) };
     } else {
       await updateExistingCustomerFromBooking(booking.customerId, {
         name: snapshot.name,

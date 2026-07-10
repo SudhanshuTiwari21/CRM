@@ -131,8 +131,8 @@ function RecordPaymentDialog({
 
       toast.success(
         data.paymentStatus === "PAID"
-          ? "Payment recorded — booking fully paid"
-          : `Payment recorded — ${formatCurrency(data.amountDue)} remaining`
+          ? "Payment recorded - booking fully paid"
+          : `Payment recorded - ${formatCurrency(data.amountDue)} remaining`
       );
       onOpenChange(false);
       onRecorded();
@@ -149,7 +149,7 @@ function RecordPaymentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Record Payment — {booking.publicRef}</DialogTitle>
+          <DialogTitle>Record Payment - {booking.publicRef}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="rounded-lg border bg-muted/40 p-3 text-sm space-y-1">
@@ -177,7 +177,7 @@ function RecordPaymentDialog({
               required
             />
             <p className="text-xs text-muted-foreground">
-              Partial payments are allowed — enter any amount up to the balance due.
+              Partial payments are allowed - enter any amount up to the balance due.
             </p>
           </div>
 

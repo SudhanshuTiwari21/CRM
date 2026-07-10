@@ -12,7 +12,7 @@ export function passportExpiryFromIssueDate(issueDate: string): string {
 }
 
 export function formatPassportDate(isoDate?: string | null): string {
-  if (!isoDate?.trim()) return "—";
+  if (!isoDate?.trim()) return "-";
   const [y, m, d] = isoDate.split("-");
   if (!y || !m || !d) return isoDate;
   return `${d}/${m}/${y}`;

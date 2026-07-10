@@ -18,6 +18,7 @@ import {
   Calculator,
   Clock,
   Ban,
+  Wallet,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
@@ -34,6 +35,7 @@ const navItems = [
   { href: "/cancellations", label: "Cancellations", icon: Ban },
   { href: "/hotels", label: "Hotels", icon: Building2 },
   { href: "/customers", label: "Customers", icon: Users },
+  { href: "/payments", label: "Payments", icon: Wallet },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/accounting", label: "Accounting", icon: Calculator },
   { href: "/reports", label: "Reports", icon: BarChart3 },
@@ -56,7 +58,7 @@ export function Sidebar() {
   const NavContent = () => (
     <>
       <div className="flex h-20 items-center overflow-hidden px-4">
-        {/* SVG viewBox has large padding — scale up so the wordmark fills the sidebar */}
+        {/* SVG viewBox has large padding - scale up so the wordmark fills the sidebar */}
         <img
           src="/booktoroam-logo.svg"
           alt="Book to Roam"

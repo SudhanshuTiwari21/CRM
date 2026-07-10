@@ -25,7 +25,7 @@ async function main() {
 
   if (customer) {
     if (customer._count.bookings > 0) {
-      console.log(`Customer ${customer.name} still has bookings — skipped delete`);
+      console.log(`Customer ${customer.name} still has bookings - skipped delete`);
     } else {
       await prisma.customer.delete({ where: { id: DEMO_CUSTOMER_ID } });
       console.log(`Deleted customer ${customer.name}`);

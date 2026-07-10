@@ -37,6 +37,7 @@ export const PAYMENT_METHODS = [
   "UPI",
   "Card",
   "Bank Transfer",
+  "Wallet Balance",
   "Razorpay",
   "PayU",
   "CCAvenue",

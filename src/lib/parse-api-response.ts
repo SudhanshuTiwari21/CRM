@@ -1,4 +1,4 @@
-/** Parse CRM API responses safely — avoids "Unexpected token '<'" when HTML is returned. */
+/** Parse CRM API responses safely - avoids "Unexpected token '<'" when HTML is returned. */
 export async function parseApiResponse(res: Response): Promise<{ ok: boolean; data: Record<string, unknown>; error?: string }> {
   const contentType = res.headers.get("content-type") || "";
 

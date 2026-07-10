@@ -197,7 +197,7 @@ async function main() {
     cgst: 0,
     sgst: 0,
     igst: 79.02,
-    narration: "Inter-state B2B — IGST applicable",
+    narration: "Inter-state B2B - IGST applicable",
   });
 
   console.log("B2B sample:", b2bPath);

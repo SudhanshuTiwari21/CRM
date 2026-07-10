@@ -4,7 +4,7 @@ import type { EmailAttachment } from "@/lib/mailer";
 
 export const EMAIL_LOGO_CID = "booktoroam-logo@booktoroam";
 
-/** CID reference for inline logo — works in Gmail, Apple Mail, Outlook (unlike data: URIs). */
+/** CID reference for inline logo - works in Gmail, Apple Mail, Outlook (unlike data: URIs). */
 export function getEmailLogoSrc() {
   return `cid:${EMAIL_LOGO_CID}`;
 }
