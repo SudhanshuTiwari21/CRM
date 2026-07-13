@@ -237,7 +237,7 @@ function paymentHtml(flight: FlightBooking, totalAmount: number) {
       </tr>
     </table>
     <p style="margin:4px 0 0;font-size:8.5px;color:${C.muted};font-family:Arial,Helvetica,sans-serif;">
-      &#9432; This is not an invoice. Your invoice will be sent within 7 days.
+      &#9432; Please keep this e-ticket for your travel records.
     </p>`;
 }
 

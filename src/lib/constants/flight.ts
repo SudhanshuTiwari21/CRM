@@ -22,6 +22,11 @@ export const TRIP_TYPE_OPTIONS = [
   { value: "ADDON_SERVICES", label: "Add-on Services" },
 ] as const;
 
+export const FLIGHT_ROUTE_TYPE_OPTIONS = [
+  { value: "DOMESTIC", label: "Domestic" },
+  { value: "INTERNATIONAL", label: "International" },
+] as const;
+
 export const ADDON_TYPE_OPTIONS = [
   { value: "seat", label: "Seat Add-on" },
   { value: "food", label: "Food Add-on" },

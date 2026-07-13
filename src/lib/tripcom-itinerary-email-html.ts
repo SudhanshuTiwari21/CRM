@@ -614,20 +614,25 @@ export async function buildTripcomConfirmedEmailHtml(params: {
   const customerName = escapeHtml(toTitleCase(customer.name));
   const logoSrc = logoOverride ?? getEmailLogoSrc();
   const pnr = booking.pnr || "-";
+  const isManualOffline = booking.channel === "OFFLINE";
+
+  const headline = isManualOffline ? "Booking Confirmed" : "Payment Successful";
+  const intro = isManualOffline
+    ? `Your ticket has been <strong>issued</strong> by the airline. Your complete e-ticket and invoice are <strong>attached to this email</strong>.`
+    : `We&apos;ve received your payment. <strong>Your ticket has been issued</strong> by the airline. Your complete e-ticket and invoice are <strong>attached to this email</strong>.`;
 
   const body = `
               ${headerHtml(agency, logoSrc, booking.publicRef)}
 
               <h1 style="margin:0 0 18px;font-size:28px;font-weight:700;color:${TEXT};line-height:1.25;font-family:Arial,Helvetica,sans-serif;">
-                Payment Successful
+                ${headline}
               </h1>
 
               <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${TEXT};">
                 Dear <strong>${customerName}</strong>,
               </p>
               <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${TEXT};">
-                We&apos;ve received your payment. <strong>Your ticket has been issued</strong> by the airline.
-                Your complete e-ticket and invoice are <strong>attached to this email</strong>.
+                ${intro}
               </p>
               <p style="margin:0 0 4px;font-size:15px;line-height:1.65;color:${TEXT};">
                 Please open the PDF attachment for traveler details, flight times, baggage allowance, and terms.
@@ -653,5 +658,10 @@ export async function buildTripcomConfirmedEmailHtml(params: {
 
               ${tripcomFooterHtml(agency)}`;
 
-  return wrapTripcomEmail(`${escapeHtml(agency.companyName)} - E-Ticket Ready`, body);
+  return wrapTripcomEmail(
+    isManualOffline
+      ? `${escapeHtml(agency.companyName)} - Booking Confirmed`
+      : `${escapeHtml(agency.companyName)} - E-Ticket Ready`,
+    body
+  );
 }

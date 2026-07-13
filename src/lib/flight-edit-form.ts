@@ -169,7 +169,19 @@ export function buildFlightEditFormValues(
       : [mapSegmentForForm({ flightNumber: "", airline, fromAirport: "", fromCity: "", toAirport: "", toCity: "", departureAt: "", arrivalAt: "" }, airline)],
     passengers: passengers.length
       ? passengers.map(mapPassengerForForm)
-      : [{ title: "Mr", firstName: "", lastName: "", gender: "Male", paxType: "adult" as const, cabinBaggagePreset: "7 KG" }],
+      : [{
+          title: "Mr",
+          firstName: "",
+          lastName: "",
+          gender: "Male",
+          paxType: "adult" as const,
+          cabinBaggagePreset: "7 KG",
+          dateOfBirth: "",
+          passportNumber: "",
+          passportIssuingCountry: "",
+          passportIssueDate: "",
+          passportExpiryDate: "",
+        }],
     invoiceTaxType: flight.invoiceTaxType,
     buyerGstin: flight.buyerGstin || "",
     baseFare: Number(flight.baseFare || 0),

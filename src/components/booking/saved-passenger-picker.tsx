@@ -22,9 +22,20 @@ function applySavedToForm(form: UseFormReturn<WizardForm>, index: number, saved:
   (Object.keys(values) as (keyof typeof values)[]).forEach((key) => {
     const value = values[key];
     if (value !== undefined) {
-      form.setValue(`passengers.${index}.${key}` as `passengers.${number}.${typeof key}`, value);
+      form.setValue(`passengers.${index}.${key}` as `passengers.${number}.${typeof key}`, value, {
+        shouldDirty: true,
+        shouldTouch: true,
+      });
     }
   });
+
+  const hasPassport =
+    Boolean(saved.passportNumber?.trim()) ||
+    Boolean(saved.dateOfBirth?.trim()) ||
+    Boolean(saved.passportIssuingCountry?.trim());
+  if (hasPassport) {
+    form.setValue("showEticket", true, { shouldDirty: true });
+  }
 }
 
 export function savedPassengerToAppendValue(saved: SavedPassengerRecord) {
@@ -91,6 +102,13 @@ export function useSavedPassengerActions(
   function handleSelect(saved: SavedPassengerRecord) {
     if (target === "new") {
       appendPassenger(savedPassengerToAppendValue(saved));
+      const hasPassport =
+        Boolean(saved.passportNumber?.trim()) ||
+        Boolean(saved.dateOfBirth?.trim()) ||
+        Boolean(saved.passportIssuingCountry?.trim());
+      if (hasPassport) {
+        form.setValue("showEticket", true, { shouldDirty: true });
+      }
     } else {
       applySavedToForm(form, target, saved);
     }
@@ -107,17 +125,34 @@ export function useSavedPassengerActions(
 
     setSavingIndex(index);
     try {
+      const payload = wizardPassengerToSavePayload({
+        ...pax,
+        // Explicitly read passport fields — Select/date inputs may not be registered
+        dateOfBirth: form.getValues(`passengers.${index}.dateOfBirth`) || pax.dateOfBirth,
+        passportNumber: form.getValues(`passengers.${index}.passportNumber`) || pax.passportNumber,
+        passportIssuingCountry:
+          form.getValues(`passengers.${index}.passportIssuingCountry`) || pax.passportIssuingCountry,
+        passportIssueDate:
+          form.getValues(`passengers.${index}.passportIssueDate`) || pax.passportIssueDate,
+        passportExpiryDate:
+          form.getValues(`passengers.${index}.passportExpiryDate`) || pax.passportExpiryDate,
+      });
       const res = await fetch("/api/crm/saved-passengers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(wizardPassengerToSavePayload(pax)),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Save failed");
+      const passportSaved = Boolean(payload.passportNumber);
       toast.success(
         data.updated
-          ? "Passenger details updated in saved list"
-          : "Passenger saved for future bookings"
+          ? passportSaved
+            ? "Passenger & passport details updated in saved list"
+            : "Passenger details updated in saved list"
+          : passportSaved
+            ? "Passenger & passport details saved for future bookings"
+            : "Passenger saved for future bookings"
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Save failed");
@@ -191,12 +226,12 @@ export function SavedPassengerLoadDialog({
             <Input
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search by name, seat, FF number…"
+              placeholder="Search by name, passport, seat, FF number…"
               className="pl-9"
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            Saved passengers are separate from customer profiles - for quick reuse on future bookings.
+            Saved passengers include passport &amp; DOB when filled — for quick reuse on future bookings.
           </p>
           <div className="max-h-72 space-y-2 overflow-y-auto">
             {loading ? (
@@ -222,6 +257,18 @@ export function SavedPassengerLoadDialog({
                       {p.seat ? ` · Seat ${p.seat}` : ""}
                       {p.cabinBaggagePreset ? ` · Cabin ${p.cabinBaggagePreset}` : ""}
                     </p>
+                    {(p.passportNumber || p.dateOfBirth) && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {p.passportNumber ? `Passport ${p.passportNumber}` : ""}
+                        {p.passportNumber && p.passportIssuingCountry
+                          ? ` (${p.passportIssuingCountry})`
+                          : ""}
+                        {p.dateOfBirth
+                          ? `${p.passportNumber ? " · " : ""}DOB ${p.dateOfBirth}`
+                          : ""}
+                        {p.passportExpiryDate ? ` · Exp ${p.passportExpiryDate}` : ""}
+                      </p>
+                    )}
                   </div>
                   <Button
                     type="button"

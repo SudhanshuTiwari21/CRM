@@ -41,6 +41,7 @@ export async function listSavedPassengers(search?: string) {
           { lastName: { contains: search, mode: "insensitive" } },
           { seat: { contains: search, mode: "insensitive" } },
           { frequentFlyerNumber: { contains: search, mode: "insensitive" } },
+          { passportNumber: { contains: search, mode: "insensitive" } },
         ],
       }
     : {};

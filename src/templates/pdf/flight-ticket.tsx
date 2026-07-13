@@ -424,7 +424,7 @@ export function FlightTicketPDF({
                 <Text style={styles.footerIconText}>i</Text>
               </View>
               <Text style={styles.footerNote}>
-                This is not an invoice. Your invoice will be sent within 7 days.
+                Please keep this e-ticket for your travel records.
               </Text>
             </View>
           </Page>

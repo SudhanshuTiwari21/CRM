@@ -15,6 +15,7 @@ import {
   COMMON_AIRLINES,
   FARE_TYPE_OPTIONS,
   ADDON_TYPE_OPTIONS,
+  FLIGHT_ROUTE_TYPE_OPTIONS,
   LAYOVER_TYPE_OPTIONS,
   MEAL_OPTIONS,
   PAX_TYPE_OPTIONS,
@@ -70,7 +71,7 @@ export function FlightBookingFields({
   const tripType = form.watch("tripType") || "ONE_WAY";
   const isAddonTrip = tripType === "ADDON_SERVICES";
   const addonType = form.watch("addonType") || "seat";
-  const showEticket = form.watch("showEticket");
+  const isInternational = Boolean(form.watch("showEticket"));
   const checkInAssistance = form.watch("checkInAssistance");
 
   const savedPassenger = useSavedPassengerActions(form, appendPassenger);
@@ -285,6 +286,22 @@ export function FlightBookingFields({
           </Select>
         </div>
         )}
+        {!isAddonTrip && (
+        <div className="space-y-2">
+          <Label>Domestic / International</Label>
+          <Select
+            value={isInternational ? "INTERNATIONAL" : "DOMESTIC"}
+            onValueChange={(v) => form.setValue("showEticket", v === "INTERNATIONAL")}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {FLIGHT_ROUTE_TYPE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        )}
       </div>
 
       {isAddonTrip ? (
@@ -442,12 +459,6 @@ export function FlightBookingFields({
           checked={Boolean(checkInAssistance)}
           onCheckedChange={(v) => form.setValue("checkInAssistance", v)}
         />
-        <FormSettingToggle
-          label="E-Ticket Number (International)"
-          description="Enable passport, DOB, and e-ticket fields for international bookings"
-          checked={Boolean(showEticket)}
-          onCheckedChange={(v) => form.setValue("showEticket", v)}
-        />
       </div>
       )}
 
@@ -599,7 +610,7 @@ export function FlightBookingFields({
             Add from saved
           </Button>
         </div>
-        {showEticket && !isAddonTrip && (
+        {isInternational && !isAddonTrip && (
           <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
             <strong>Important:</strong> If the traveller&apos;s passport does not include a last name, leave the Last Name field empty.
           </div>
@@ -614,7 +625,7 @@ export function FlightBookingFields({
               <div className="flex flex-wrap items-start gap-2">
                 <div className="flex flex-wrap flex-1 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">{showEticket ? "Title *" : "Title"}</Label>
+                  <Label className="text-xs">{isInternational ? "Title *" : "Title"}</Label>
                 <Select
                   value={form.watch(`passengers.${i}.title`)}
                   onValueChange={(v) => form.setValue(`passengers.${i}.title`, v)}
@@ -630,17 +641,17 @@ export function FlightBookingFields({
                 </Select>
                 </div>
                 <div className="space-y-1 min-w-[120px] flex-1">
-                  <Label className="text-xs">{showEticket ? "First & Middle Name *" : "First Name"}</Label>
+                  <Label className="text-xs">{isInternational ? "First & Middle Name *" : "First Name"}</Label>
                 <Input
                   {...form.register(`passengers.${i}.firstName`)}
-                  placeholder={showEticket ? "As on passport" : "First Name"}
+                  placeholder={isInternational ? "As on passport" : "First Name"}
                 />
                 </div>
                 <div className="space-y-1 min-w-[120px] flex-1">
-                  <Label className="text-xs">{showEticket ? "Last Name (optional)" : "Last Name"}</Label>
+                  <Label className="text-xs">{isInternational ? "Last Name (optional)" : "Last Name"}</Label>
                 <Input
                   {...form.register(`passengers.${i}.lastName`)}
-                  placeholder={showEticket ? "Leave empty if not on passport" : "Last Name"}
+                  placeholder={isInternational ? "Leave empty if not on passport" : "Last Name"}
                 />
                 </div>
                 <Select
@@ -753,13 +764,13 @@ export function FlightBookingFields({
                     <Input {...form.register(`passengers.${i}.checkInBaggage`)} placeholder="e.g. 30 KG" />
                   </div>
                 )}
-                {showEticket && (
+                {isInternational && (
                   <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-4 sm:col-span-2 dark:border-blue-900 dark:bg-blue-950/20">
                     <p className="text-sm font-medium text-blue-950 dark:text-blue-100">International traveller details</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label className="text-xs">Date of Birth *</Label>
-                        <Input {...form.register(`passengers.${i}.dateOfBirth`)} type="date" required={showEticket} />
+                        <Input {...form.register(`passengers.${i}.dateOfBirth`)} type="date" required={isInternational} />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs">E-Ticket Number</Label>
@@ -771,14 +782,19 @@ export function FlightBookingFields({
                           {...form.register(`passengers.${i}.passportNumber`)}
                           placeholder="Passport number"
                           className="uppercase"
-                          required={showEticket}
+                          required={isInternational}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs">Passport Issuing Country *</Label>
                         <Select
                           value={form.watch(`passengers.${i}.passportIssuingCountry`) || undefined}
-                          onValueChange={(v) => form.setValue(`passengers.${i}.passportIssuingCountry`, v)}
+                          onValueChange={(v) =>
+                            form.setValue(`passengers.${i}.passportIssuingCountry`, v, {
+                              shouldDirty: true,
+                              shouldTouch: true,
+                            })
+                          }
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select country" />
@@ -796,19 +812,23 @@ export function FlightBookingFields({
                         <Label className="text-xs">Passport Issue Date *</Label>
                         <Input
                           type="date"
-                          value={form.watch(`passengers.${i}.passportIssueDate`) || ""}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            form.setValue(`passengers.${i}.passportIssueDate`, value);
-                            const expiry = passportExpiryFromIssueDate(value);
-                            if (expiry) form.setValue(`passengers.${i}.passportExpiryDate`, expiry);
-                          }}
+                          {...form.register(`passengers.${i}.passportIssueDate`, {
+                            onChange: (e) => {
+                              const value = e.target.value;
+                              const expiry = passportExpiryFromIssueDate(value);
+                              if (expiry) {
+                                form.setValue(`passengers.${i}.passportExpiryDate`, expiry, {
+                                  shouldDirty: true,
+                                });
+                              }
+                            },
+                          })}
                         />
                         <p className="text-xs text-muted-foreground">Expiry auto-fills as issue date + 15 years</p>
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs">Passport Expiry *</Label>
-                        <Input {...form.register(`passengers.${i}.passportExpiryDate`)} type="date" required={showEticket} />
+                        <Input {...form.register(`passengers.${i}.passportExpiryDate`)} type="date" required={isInternational} />
                       </div>
                     </div>
                   </div>
@@ -906,6 +926,11 @@ export function FlightBookingFields({
               paxType: "adult",
               handBaggage: "7 KG",
               cabinBaggagePreset: "7 KG",
+              dateOfBirth: "",
+              passportNumber: "",
+              passportIssuingCountry: "",
+              passportIssueDate: "",
+              passportExpiryDate: "",
             })
           }
         >
