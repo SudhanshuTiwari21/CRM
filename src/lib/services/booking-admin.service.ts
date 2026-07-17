@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import { differenceInDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { formatPublicRef, parsePublicRef } from "@/lib/booking-ref";
@@ -10,7 +11,7 @@ import {
   getStateCodeFromGstin,
 } from "@/lib/gst-calculator";
 import { applyCardGatewayCharge } from "@/lib/payment-gateway";
-import type { FlightPassenger, FlightSegment } from "@/types/booking";
+import type { FlightPassenger, FlightSegment, HotelGuest } from "@/types/booking";
 import { normalizeFlightSegments } from "@/lib/flight-datetime";
 import { logActivity } from "./activity.service";
 import { generateBookingDocuments } from "./document.service";
@@ -22,6 +23,7 @@ import { formatCustomerName } from "@/lib/utils";
 import { updateExistingCustomerFromBooking } from "./customer.service";
 import type { CashCustomerSnapshot, CashBillTo } from "@/lib/cash-customer";
 import { parseCashCustomerSnapshot } from "@/lib/cash-customer";
+import { upsertHotelProfile } from "./hotel.service";
 
 import type { z } from "zod";
 import type { adminBookingUpdateSchema } from "@/lib/validators/booking-admin";
@@ -216,11 +218,114 @@ export async function updateBookingAsAdmin(
     }
   }
 
-  if (booking.hotelBooking && input.invoiceNarration !== undefined) {
-    await prisma.hotelBooking.update({
-      where: { bookingId },
-      data: { agentRemarks: input.invoiceNarration },
-    });
+  if (booking.hotelBooking) {
+    const hotelData: Record<string, unknown> = {};
+    const hasHotelStayUpdate =
+      input.propertyName !== undefined ||
+      input.propertyAddress !== undefined ||
+      input.checkIn !== undefined ||
+      input.checkOut !== undefined ||
+      input.roomType !== undefined ||
+      input.guests !== undefined ||
+      input.mealPlan !== undefined ||
+      input.roomsCount !== undefined ||
+      input.adultsCount !== undefined ||
+      input.childrenCount !== undefined ||
+      input.roomAmenities !== undefined ||
+      input.inclusions !== undefined ||
+      input.agentRemarks !== undefined ||
+      input.confirmationNo !== undefined ||
+      input.cancellationPolicy !== undefined ||
+      input.includeCancellationPolicy !== undefined ||
+      input.policies !== undefined ||
+      input.city !== undefined ||
+      input.propertyPhone !== undefined ||
+      input.propertyEmail !== undefined ||
+      input.checkInTime !== undefined ||
+      input.checkOutTime !== undefined;
+
+    if (hasHotelStayUpdate) {
+      const propertyName = input.propertyName ?? booking.hotelBooking.propertyName;
+      const propertyAddress = input.propertyAddress ?? booking.hotelBooking.propertyAddress;
+      const city = input.city !== undefined ? input.city || null : booking.hotelBooking.city;
+      const propertyPhone =
+        input.propertyPhone !== undefined ? input.propertyPhone || null : booking.hotelBooking.propertyPhone;
+      const propertyEmail =
+        input.propertyEmail !== undefined ? input.propertyEmail || null : booking.hotelBooking.propertyEmail;
+      const checkInTime = input.checkInTime ?? booking.hotelBooking.checkInTime;
+      const checkOutTime = input.checkOutTime ?? booking.hotelBooking.checkOutTime;
+      const checkIn =
+        input.checkIn !== undefined ? new Date(input.checkIn) : booking.hotelBooking.checkIn;
+      const checkOut =
+        input.checkOut !== undefined ? new Date(input.checkOut) : booking.hotelBooking.checkOut;
+      const nights = Math.max(differenceInDays(checkOut, checkIn), 1);
+
+      const hotelProfile = await upsertHotelProfile({
+        name: propertyName,
+        address: propertyAddress,
+        city: city || undefined,
+        phone: propertyPhone || undefined,
+        email: propertyEmail || undefined,
+        checkInTime,
+        checkOutTime,
+      });
+
+      hotelData.hotelProfileId = hotelProfile.id;
+      hotelData.propertyName = propertyName;
+      hotelData.propertyAddress = propertyAddress;
+      hotelData.city = city;
+      hotelData.propertyPhone = propertyPhone;
+      hotelData.propertyEmail = propertyEmail;
+      hotelData.checkIn = checkIn;
+      hotelData.checkOut = checkOut;
+      hotelData.checkInTime = checkInTime || "02:00 PM";
+      hotelData.checkOutTime = checkOutTime || "12:00 PM";
+      hotelData.nights = nights;
+      hotelData.roomType = input.roomType ?? booking.hotelBooking.roomType;
+      hotelData.roomsCount = input.roomsCount ?? booking.hotelBooking.roomsCount;
+      hotelData.mealPlan = input.mealPlan ?? booking.hotelBooking.mealPlan;
+      hotelData.roomAmenities = input.roomAmenities ?? booking.hotelBooking.roomAmenities;
+      hotelData.adultsCount = input.adultsCount ?? booking.hotelBooking.adultsCount;
+      hotelData.childrenCount = input.childrenCount ?? booking.hotelBooking.childrenCount;
+      hotelData.guests =
+        (input.guests as HotelGuest[] | undefined) ??
+        (booking.hotelBooking.guests as unknown as HotelGuest[]);
+      hotelData.inclusions =
+        input.inclusions !== undefined ? input.inclusions || null : booking.hotelBooking.inclusions;
+      hotelData.cancellationPolicy =
+        input.cancellationPolicy !== undefined
+          ? input.cancellationPolicy || null
+          : booking.hotelBooking.cancellationPolicy;
+      hotelData.includeCancellationPolicy =
+        input.includeCancellationPolicy ?? booking.hotelBooking.includeCancellationPolicy;
+      hotelData.policies =
+        input.policies !== undefined ? input.policies || null : booking.hotelBooking.policies;
+      hotelData.agentRemarks =
+        input.agentRemarks !== undefined
+          ? input.agentRemarks || null
+          : input.invoiceNarration !== undefined
+            ? input.invoiceNarration || null
+            : booking.hotelBooking.agentRemarks;
+      hotelData.confirmationNo =
+        input.confirmationNo !== undefined
+          ? input.confirmationNo || null
+          : input.pnr !== undefined
+            ? input.pnr || null
+            : booking.hotelBooking.confirmationNo;
+    } else if (input.invoiceNarration !== undefined) {
+      hotelData.agentRemarks = input.invoiceNarration || null;
+    }
+
+    if (Object.keys(hotelData).length > 0) {
+      await prisma.hotelBooking.update({
+        where: { bookingId },
+        data: hotelData,
+      });
+    }
+  }
+
+  if (input.totalAmount !== undefined && bookingData.totalAmount === undefined) {
+    bookingData.totalAmount = input.totalAmount;
   }
 
   await prisma.booking.update({

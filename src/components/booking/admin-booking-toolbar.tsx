@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import type { BookingStatus, CancellationCategory, FlightBooking, ProductType } from "@prisma/client";
+import type { BookingStatus, CancellationCategory, FlightBooking, HotelBooking, ProductType } from "@prisma/client";
 import type { BookingCustomerContact } from "@/lib/cash-customer";
 import { BookingActions } from "@/components/booking/booking-actions";
 import { EditBookingDialog } from "@/components/booking/edit-booking-dialog";
@@ -22,6 +22,7 @@ interface AdminBookingToolbarProps {
   billingType: string;
   customerContact: BookingCustomerContact;
   flight?: FlightBooking | null;
+  hotel?: HotelBooking | null;
 }
 
 export function AdminBookingToolbar(props: AdminBookingToolbarProps) {
@@ -46,6 +47,7 @@ export function AdminBookingToolbar(props: AdminBookingToolbarProps) {
             internalNotes={props.internalNotes}
             totalAmount={props.totalAmount}
             flight={props.flight}
+            hotel={props.hotel}
           />
           {showCancel && (
             <CancelBookingDialog

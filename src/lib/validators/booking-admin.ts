@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   flightPassengerSchema,
   flightSegmentSchema,
+  hotelGuestSchema,
   optionalPanSchema,
   phoneSchema,
 } from "@/lib/validators/booking";
@@ -53,6 +54,27 @@ export const adminBookingUpdateSchema = z.object({
   paymentStatus: z.enum(["PAID"]).optional(),
   paymentMethod: z.string().min(1).optional(),
   customer: adminCustomerUpdateSchema.optional(),
+  // Hotel stay fields (full edit)
+  propertyName: z.string().min(1).optional(),
+  propertyAddress: z.string().min(1).optional(),
+  city: z.string().optional(),
+  propertyPhone: z.string().optional(),
+  propertyEmail: z.string().email().optional().or(z.literal("")),
+  checkIn: z.string().min(1).optional(),
+  checkOut: z.string().min(1).optional(),
+  checkInTime: z.string().optional(),
+  checkOutTime: z.string().optional(),
+  roomType: z.string().min(1).optional(),
+  roomsCount: z.coerce.number().int().positive().optional(),
+  mealPlan: z.enum(["ROOM_ONLY", "WITH_BREAKFAST", "HALF_BOARD", "FULL_BOARD"]).optional(),
+  roomAmenities: z.array(z.string()).optional(),
+  adultsCount: z.coerce.number().int().min(1).optional(),
+  childrenCount: z.coerce.number().int().min(0).optional(),
+  guests: z.array(hotelGuestSchema).optional(),
+  inclusions: z.string().optional(),
+  policies: z.string().optional(),
+  agentRemarks: z.string().optional(),
+  confirmationNo: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.paymentStatus === "PAID" && !data.paymentMethod?.trim()) {
     ctx.addIssue({

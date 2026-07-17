@@ -1,10 +1,12 @@
 import React from "react";
 import {
+  Circle,
   Document,
   Defs,
   Image,
   LinearGradient,
   Page,
+  Path,
   Rect,
   Stop,
   Svg,
@@ -90,6 +92,28 @@ const styles = StyleSheet.create({
   detailLabelRight: { fontSize: 7.5, color: C.label, marginBottom: 3, textAlign: "right" },
   detailValue: { fontSize: 8, color: C.text },
   detailValueRight: { fontSize: 8, color: C.text, textAlign: "right" },
+  flightSectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+    marginTop: 2,
+  },
+  flightSectionTitle: {
+    fontSize: 11.5,
+    fontFamily: "Helvetica-Bold",
+    color: C.navy,
+  },
+  flightHighlight: {
+    backgroundColor: "#f0f6fb",
+    borderWidth: 1,
+    borderColor: "#c5d8e8",
+    borderLeftWidth: 3,
+    borderLeftColor: C.navy,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+  },
   departureHeading: { fontFamily: "Helvetica-Bold", fontSize: 8, marginBottom: 8, color: C.navy },
   flightRow: { flexDirection: "row", marginBottom: 6 },
   flightCol: { width: "33%" },
@@ -98,10 +122,41 @@ const styles = StyleSheet.create({
   airlineRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   airlineLogo: { width: 16, height: 16, objectFit: "contain" as const },
   legBlock: { marginBottom: 10 },
+  eventRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 5, gap: 7 },
+  eventIconWrap: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#dceaf4",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 0,
+  },
+  eventText: { flex: 1, fontSize: 8, color: C.text, lineHeight: 1.4, paddingTop: 1 },
+  eventLabel: { fontFamily: "Helvetica-Bold", color: C.navy },
   timeLine: { fontSize: 8, marginBottom: 3, color: C.text },
-  layoverRow: { flexDirection: "row", alignItems: "center", marginVertical: 8, gap: 6 },
-  layoverLine: { flex: 1, borderTopWidth: 1, borderTopColor: C.border, borderStyle: "dashed" },
-  layoverText: { fontSize: 7, color: C.muted, paddingHorizontal: 4 },
+  routeVisual: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+    marginBottom: 8,
+    paddingLeft: 2,
+    gap: 4,
+  },
+  routeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.navy },
+  routeTrack: { flex: 1, height: 1.5, backgroundColor: "#9bb8d0" },
+  layoverRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 8,
+    gap: 6,
+    backgroundColor: "#e8f0f6",
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 3,
+  },
+  layoverLine: { flex: 1, borderTopWidth: 1, borderTopColor: "#9bb8d0", borderStyle: "dashed" },
+  layoverText: { fontSize: 7, color: C.navy, paddingHorizontal: 4, fontFamily: "Helvetica-Bold" },
   baggageGrid: { flexDirection: "row", marginBottom: 14 },
   baggageCol: { width: "50%", paddingRight: 12 },
   baggageLine: { fontSize: 8, color: C.text, marginBottom: 2 },
@@ -144,6 +199,52 @@ const styles = StyleSheet.create({
   termsItemLabel: { fontFamily: "Helvetica-Bold" },
   termsClosing: { fontFamily: "Helvetica-Bold", fontSize: 8.5, marginTop: 14, color: C.navy },
 });
+
+function IconTakeoff() {
+  return (
+    <Svg width={10} height={10} viewBox="0 0 24 24">
+      <Path
+        d="M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-1.04-1.28-1.84-1.06L14.92 10l-6.9-6.43-1.93.51 4.14 7.17-4.97 1.33-1.97-1.54-1.45.39 2.59 4.49.77 1.33 1.6-.43 5.23-1.4 5.32-1.42c.8-.22 1.28-1.04 1.06-1.84z"
+        fill={C.navy}
+      />
+    </Svg>
+  );
+}
+
+function IconLanding() {
+  return (
+    <Svg width={10} height={10} viewBox="0 0 24 24">
+      <Path
+        d="M2.5 19h19v2h-19v-2zm7.18-5.73l4.35 1.16 5.31 1.42c.8.21 1.62-.26 1.84-1.06.21-.8-.26-1.62-1.06-1.84l-5.31-1.42-2.76-9.03-1.93-.51v8.28L5.15 8.95l-.93-2.28-1.45.39 2.59 4.49.77 1.33 1.6-.43.9-.24z"
+        fill={C.navy}
+      />
+    </Svg>
+  );
+}
+
+function IconPlane() {
+  return (
+    <Svg width={12} height={12} viewBox="0 0 24 24">
+      <Path
+        d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"
+        fill={C.navy}
+      />
+    </Svg>
+  );
+}
+
+function IconStop() {
+  return (
+    <Svg width={10} height={10} viewBox="0 0 24 24">
+      <Circle cx={12} cy={12} r={7.5} stroke={C.navy} strokeWidth={2} fill="none" />
+      <Path d="M8 12h8" stroke={C.navy} strokeWidth={2} />
+    </Svg>
+  );
+}
+
+function EventIcon({ children }: { children: React.ReactNode }) {
+  return <View style={styles.eventIconWrap}>{children}</View>;
+}
 
 function VoucherHeaderBand({
   agency,
@@ -225,8 +326,33 @@ function FlightSegmentBlock({
           <Text style={styles.flightColValue}>{cabinClassDisplay(cabinClass)}</Text>
         </View>
       </View>
-      <Text style={styles.timeLine}>Departure: {formatEndpoint(seg, "departure")}</Text>
-      <Text style={styles.timeLine}>Arrival: {formatEndpoint(seg, "arrival")}</Text>
+
+      <View style={styles.routeVisual}>
+        <View style={styles.routeDot} />
+        <View style={styles.routeTrack} />
+        <IconPlane />
+        <View style={styles.routeTrack} />
+        <View style={styles.routeDot} />
+      </View>
+
+      <View style={styles.eventRow}>
+        <EventIcon>
+          <IconTakeoff />
+        </EventIcon>
+        <Text style={styles.eventText}>
+          <Text style={styles.eventLabel}>Departure: </Text>
+          {formatEndpoint(seg, "departure")}
+        </Text>
+      </View>
+      <View style={styles.eventRow}>
+        <EventIcon>
+          <IconLanding />
+        </EventIcon>
+        <Text style={styles.eventText}>
+          <Text style={styles.eventLabel}>Arrival: </Text>
+          {formatEndpoint(seg, "arrival")}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -312,62 +438,72 @@ export function FlightTicketPDF({
               ) : null}
             </View>
 
-            <Text style={styles.sectionTitle}>{isAddon ? "Add-on Service Details" : "Flight Details"}</Text>
-            {isAddon ? (
-              <View style={{ marginBottom: 14 }}>
-                <View style={styles.flightRow}>
-                  <View style={styles.flightCol}>
-                    <Text style={styles.flightColLabel}>Airline</Text>
-                    <View style={styles.airlineRow}>
-                      {airlineLogoSrc ? <Image src={airlineLogoSrc} style={styles.airlineLogo} /> : null}
-                      <Text style={styles.flightColValue}>{flight.airline}</Text>
-                    </View>
-                  </View>
-                  {pax.seat?.trim() ? (
+            <View style={styles.flightSectionTitleRow}>
+              <IconPlane />
+              <Text style={styles.flightSectionTitle}>
+                {isAddon ? "Add-on Service Details" : "Flight Details"}
+              </Text>
+            </View>
+            <View style={styles.flightHighlight}>
+              {isAddon ? (
+                <View>
+                  <View style={styles.flightRow}>
                     <View style={styles.flightCol}>
-                      <Text style={styles.flightColLabel}>Seat</Text>
-                      <Text style={styles.flightColValue}>{pax.seat.trim()}</Text>
+                      <Text style={styles.flightColLabel}>Airline</Text>
+                      <View style={styles.airlineRow}>
+                        {airlineLogoSrc ? <Image src={airlineLogoSrc} style={styles.airlineLogo} /> : null}
+                        <Text style={styles.flightColValue}>{flight.airline}</Text>
+                      </View>
                     </View>
+                    {pax.seat?.trim() ? (
+                      <View style={styles.flightCol}>
+                        <Text style={styles.flightColLabel}>Seat</Text>
+                        <Text style={styles.flightColValue}>{pax.seat.trim()}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.timeLine}>Service: {addonTypeLabel(flight.addonType, flight.addonCustomLabel)}</Text>
+                  {segments[0]?.flightNumber && segments[0].flightNumber !== "ADDON" ? (
+                    <Text style={styles.timeLine}>Reference Flight: {segments[0].flightNumber}</Text>
                   ) : null}
+                  {addonLines.map((line) => (
+                    <Text key={line} style={styles.timeLine}>
+                      {line}
+                    </Text>
+                  ))}
                 </View>
-                <Text style={styles.timeLine}>Service: {addonTypeLabel(flight.addonType, flight.addonCustomLabel)}</Text>
-                {segments[0]?.flightNumber && segments[0].flightNumber !== "ADDON" ? (
-                  <Text style={styles.timeLine}>Reference Flight: {segments[0].flightNumber}</Text>
-                ) : null}
-                {addonLines.map((line) => (
-                  <Text key={line} style={styles.timeLine}>
-                    {line}
-                  </Text>
-                ))}
-              </View>
-            ) : (
-              segmentGroups.map((group, gIdx) => (
-                <View key={`grp-${gIdx}`} style={{ marginBottom: 6 }}>
-                  <Text style={styles.departureHeading}>{group.label}</Text>
-                  {group.segments.map((seg, sIdx) => {
-                    const flatIdx = segments.indexOf(seg);
-                    const segLogo = segmentAirlineLogoSrcs?.[flatIdx >= 0 ? flatIdx : sIdx] ?? airlineLogoSrc;
-                    return (
-                      <React.Fragment key={`seg-${sIdx}`}>
-                        <FlightSegmentBlock
-                          seg={seg}
-                          airlineLogoSrc={segLogo}
-                          flightAirline={flight.airline}
-                          cabinClass={flight.cabinClass}
-                        />
-                        {sIdx < group.segments.length - 1 ? (
-                          <View style={styles.layoverRow}>
-                            <View style={styles.layoverLine} />
-                            <Text style={styles.layoverText}>{layoverLabel(seg, group.segments[sIdx + 1])}</Text>
-                            <View style={styles.layoverLine} />
-                          </View>
-                        ) : null}
-                      </React.Fragment>
-                    );
-                  })}
-                </View>
-              ))
-            )}
+              ) : (
+                segmentGroups.map((group, gIdx) => (
+                  <View key={`grp-${gIdx}`} style={{ marginBottom: gIdx < segmentGroups.length - 1 ? 6 : 0 }}>
+                    <Text style={styles.departureHeading}>{group.label}</Text>
+                    {group.segments.map((seg, sIdx) => {
+                      const flatIdx = segments.indexOf(seg);
+                      const segLogo = segmentAirlineLogoSrcs?.[flatIdx >= 0 ? flatIdx : sIdx] ?? airlineLogoSrc;
+                      return (
+                        <React.Fragment key={`seg-${sIdx}`}>
+                          <FlightSegmentBlock
+                            seg={seg}
+                            airlineLogoSrc={segLogo}
+                            flightAirline={flight.airline}
+                            cabinClass={flight.cabinClass}
+                          />
+                          {sIdx < group.segments.length - 1 ? (
+                            <View style={styles.layoverRow}>
+                              <EventIcon>
+                                <IconStop />
+                              </EventIcon>
+                              <View style={styles.layoverLine} />
+                              <Text style={styles.layoverText}>{layoverLabel(seg, group.segments[sIdx + 1])}</Text>
+                              <View style={styles.layoverLine} />
+                            </View>
+                          ) : null}
+                        </React.Fragment>
+                      );
+                    })}
+                  </View>
+                ))
+              )}
+            </View>
 
             {!isAddon && (
               <>

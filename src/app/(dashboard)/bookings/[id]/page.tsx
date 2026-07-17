@@ -128,6 +128,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               billingType={booking.billingType}
               customerContact={displayCustomer}
               flight={booking.flightBooking}
+              hotel={booking.hotelBooking}
             />
           </div>
         }

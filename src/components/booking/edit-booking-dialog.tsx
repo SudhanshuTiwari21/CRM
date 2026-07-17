@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CreditCard, FileText, Pencil, Plane, Ticket } from "lucide-react";
+import { Building2, CreditCard, FileText, Pencil, Plane, Ticket } from "lucide-react";
 import { toast } from "sonner";
-import type { FlightBooking } from "@prisma/client";
+import type { FlightBooking, HotelBooking } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FlightBookingFields } from "@/components/booking/flight-booking-fields";
 import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields";
+import { HotelBookingFields } from "@/components/booking/hotel-booking-fields";
 import {
   CustomerEditFields,
   CustomerEditFieldsControlled,
@@ -41,11 +42,20 @@ import {
   normalizeFlightEditPayload,
   type FlightEditFormValues,
 } from "@/lib/flight-edit-form";
+import {
+  buildHotelEditFormValues,
+  hotelEditFormSchema,
+  normalizeHotelEditPayload,
+  type HotelEditFormValues,
+} from "@/lib/hotel-edit-form";
 import type { BookingCustomerContact } from "@/lib/cash-customer";
 import { getFirstFormErrorMessage } from "@/lib/form-errors";
 
 type FlightEditWizardForm = Omit<WizardForm, "billingType" | "ledgerMode" | "customerId"> &
   Pick<FlightEditFormValues, "pnr" | "internalNotes">;
+
+type HotelEditWizardForm = Omit<WizardForm, "billingType" | "ledgerMode" | "customerId"> &
+  Pick<HotelEditFormValues, "pnr" | "internalNotes">;
 
 const PAYMENT_METHOD_OPTIONS = ["UPI", "Cash", "Card", "Bank Transfer"] as const;
 
@@ -128,6 +138,7 @@ interface EditBookingDialogProps {
   internalNotes?: string | null;
   totalAmount: number;
   flight?: FlightBooking | null;
+  hotel?: HotelBooking | null;
 }
 
 function buildCustomerPayload(customer: CustomerEditFieldValues) {
@@ -489,6 +500,149 @@ function FlightEditForm({
   );
 }
 
+function HotelEditForm({
+  bookingId,
+  hotel,
+  billingType,
+  customerContact,
+  paymentStatus,
+  pnr,
+  internalNotes,
+  totalAmount,
+  onClose,
+}: {
+  bookingId: string;
+  hotel: HotelBooking;
+  billingType: string;
+  customerContact: BookingCustomerContact;
+  paymentStatus: string;
+  pnr?: string | null;
+  internalNotes?: string | null;
+  totalAmount: number;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [markAsPaid, setMarkAsPaid] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
+
+  const form = useForm<HotelEditWizardForm>({
+    resolver: zodResolver(hotelEditFormSchema) as Resolver<HotelEditWizardForm>,
+    defaultValues: buildHotelEditFormValues(hotel, customerContact, {
+      pnr,
+      internalNotes,
+      totalAmount,
+    }) as HotelEditWizardForm,
+  });
+
+  const { fields: guestFields, append: appendGuest } = useFieldArray({
+    control: form.control,
+    name: "guests",
+  });
+
+  async function handleSave() {
+    let hasErrors = false;
+    await form.handleSubmit(
+      async () => {},
+      (errors) => {
+        hasErrors = true;
+        toast.error(getFirstFormErrorMessage(errors));
+      }
+    )();
+    if (hasErrors) return;
+    if (markAsPaid && !paymentMethod) {
+      toast.error("Select a payment method");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = {
+        ...normalizeHotelEditPayload(form.getValues() as HotelEditFormValues),
+        ...buildPaymentPayload(markAsPaid, paymentMethod),
+      };
+      const res = await fetch(`/api/crm/bookings/${bookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Update failed");
+
+      toast.success(markAsPaid ? "Booking updated and marked as paid" : "Booking updated - documents regenerated");
+      onClose();
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Update failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex-1 space-y-5 overflow-y-auto pr-1">
+        <EditFormSection title="Booking Reference" description="Hotel confirmation / supplier reference">
+          <div className="space-y-2">
+            <Label htmlFor="edit-hotel-pnr">Confirmation / PNR</Label>
+            <Input
+              id="edit-hotel-pnr"
+              {...form.register("pnr")}
+              placeholder="e.g. HTLS-12345"
+              className="font-mono tracking-wide"
+            />
+          </div>
+        </EditFormSection>
+
+        <EditFormSection title="Customer" description="Contact and billing details on invoice and voucher">
+          <CustomerEditFields form={form} billingType={billingType} />
+        </EditFormSection>
+
+        <EditFormSection title="Hotel Stay" description="Property, dates, room, guests, and policies">
+          <HotelBookingFields
+            form={form as unknown as ReturnType<typeof useForm<WizardForm>>}
+            guestFields={guestFields}
+            appendGuest={appendGuest as never}
+          />
+        </EditFormSection>
+
+        <EditFormSection title="Pricing">
+          <div className="space-y-2">
+            <Label htmlFor="edit-hotel-total">Total Amount (INR)</Label>
+            <Input id="edit-hotel-total" type="number" {...form.register("totalAmount")} />
+          </div>
+        </EditFormSection>
+
+        <EditFormSection title="Internal Notes" description="Staff-only - not printed on voucher or invoice">
+          <Textarea
+            {...form.register("internalNotes")}
+            rows={4}
+            placeholder="WhatsApp conversation notes, follow-up reminders..."
+            className="resize-y min-h-[100px]"
+          />
+        </EditFormSection>
+
+        <EditFormSection title="Payment" description="Record payment when received from customer">
+          <MarkPaymentPaidFields
+            paymentStatus={paymentStatus}
+            markAsPaid={markAsPaid}
+            onMarkAsPaidChange={setMarkAsPaid}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
+          />
+        </EditFormSection>
+      </div>
+
+      <EditDialogFooter
+        onCancel={onClose}
+        onSave={handleSave}
+        loading={loading}
+        saveLabel={markAsPaid ? "Save & Mark Paid" : "Save & Regenerate"}
+      />
+    </div>
+  );
+}
+
 export function EditBookingDialog({
   bookingId,
   productType,
@@ -499,9 +653,12 @@ export function EditBookingDialog({
   internalNotes,
   totalAmount,
   flight,
+  hotel,
 }: EditBookingDialogProps) {
   const [open, setOpen] = useState(false);
   const isFlightEdit = productType === "FLIGHT" && flight;
+  const isHotelEdit = productType === "HOTEL" && hotel;
+  const isFullEdit = Boolean(isFlightEdit || isHotelEdit);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -513,7 +670,7 @@ export function EditBookingDialog({
       </DialogTrigger>
       <DialogContent
         className={
-          isFlightEdit
+          isFullEdit
             ? "flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
             : "flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
         }
@@ -542,6 +699,12 @@ export function EditBookingDialog({
                 Full itinerary edit
               </span>
             )}
+            {isHotelEdit && (
+              <span className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1">
+                <Building2 className="h-3 w-3" />
+                Full stay edit
+              </span>
+            )}
             <span className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1">
               <CreditCard className="h-3 w-3" />
               Payment: {paymentStatus.replace(/_/g, " ").toLowerCase()}
@@ -562,6 +725,18 @@ export function EditBookingDialog({
               totalAmount={totalAmount}
               onClose={() => setOpen(false)}
             />
+          ) : open && isHotelEdit ? (
+            <HotelEditForm
+              bookingId={bookingId}
+              hotel={hotel}
+              billingType={billingType}
+              customerContact={customerContact}
+              paymentStatus={paymentStatus}
+              pnr={pnr}
+              internalNotes={internalNotes}
+              totalAmount={totalAmount}
+              onClose={() => setOpen(false)}
+            />
           ) : open ? (
             <SimpleEditForm
               bookingId={bookingId}
@@ -573,6 +748,7 @@ export function EditBookingDialog({
               internalNotes={internalNotes}
               totalAmount={totalAmount}
               flight={flight}
+              hotel={hotel}
               onClose={() => setOpen(false)}
             />
           ) : null}
