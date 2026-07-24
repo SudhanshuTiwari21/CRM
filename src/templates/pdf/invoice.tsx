@@ -9,7 +9,7 @@ import { amountInWordsInr } from "@/lib/number-to-words";
 import { CABIN_CLASS_OPTIONS, fareTypeLabel } from "@/lib/constants/flight";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
 import { buildFullRoute, buildSectorLegs, buildSectorSummary } from "@/lib/flight-layover";
-import { buildAdultBaseFareLines, passengerDisplayName } from "@/lib/flight-fare-breakup";
+import { buildBaseFareLines, farePassengerQtyLabel, passengerDisplayName, paxTypeUnitLabel } from "@/lib/flight-fare-breakup";
 import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
 
 const styles = StyleSheet.create({
@@ -144,9 +144,8 @@ export function InvoicePDF({
   const buyerState = flight?.buyerState || customer.state;
   const placeOfSupply = flight?.placeOfSupply || buyerState || agency.state;
   const msmeNumber = flight?.msmeNumber || (agency.msmeRegistered ? agency.msmeNumber : null);
-  const adultFareLines = buildAdultBaseFareLines(passengers, baseFare);
-  const adultCount = adultFareLines.length || passengers.length || 1;
-  const qtyLabel = `${adultCount} Adult${adultCount === 1 ? "" : "s"}`;
+  const fareLines = buildBaseFareLines(passengers, baseFare);
+  const qtyLabel = farePassengerQtyLabel(fareLines);
 
   const fareDescription = flight
     ? flight.tripType === "ADDON_SERVICES"
@@ -264,10 +263,15 @@ export function InvoicePDF({
                 <Text style={[styles.th, col.amt, styles.right]}>Amount</Text>
               </View>
 
-              {adultFareLines.map((line, idx) => {
+              {fareLines.map((line, idx) => {
+                const typeLabel = paxTypeUnitLabel(line.passenger);
+                const typeCounters = fareLines
+                  .slice(0, idx + 1)
+                  .filter((l) => (l.passenger.paxType || "adult") === (line.passenger.paxType || "adult"))
+                  .length;
                 const paxName = showPassengerName
                   ? passengerDisplayName(line.passenger)
-                  : `Adult ${idx + 1}`;
+                  : `${typeLabel} ${typeCounters}`;
                 return (
                   <View style={styles.tableRow} key={`fare-row-${idx}`}>
                     <Text style={[styles.td, col.sl]}>{idx + 1}</Text>
@@ -286,7 +290,7 @@ export function InvoicePDF({
                     <Text style={[styles.td, col.gst, styles.right]}>-</Text>
                     <Text style={[styles.td, col.qty, styles.right]}>1</Text>
                     <Text style={[styles.td, col.rate, styles.right]}>{inr(line.amount)}</Text>
-                    <Text style={[styles.td, col.per]}>Adult</Text>
+                    <Text style={[styles.td, col.per]}>{typeLabel}</Text>
                     <Text style={[styles.td, col.other, styles.right]}>{inr(0)}</Text>
                     <Text style={[styles.td, col.amt, styles.right]}>{inr(line.amount)}</Text>
                   </View>
@@ -294,7 +298,7 @@ export function InvoicePDF({
               })}
 
               <View style={styles.tableRow}>
-                <Text style={[styles.td, col.sl]}>{adultFareLines.length + 1}</Text>
+                <Text style={[styles.td, col.sl]}>{fareLines.length + 1}</Text>
                 <View style={[styles.td, col.desc]}>
                   <Text style={styles.descTitle}>Booking / Service Fee (Domestic)</Text>
                 </View>

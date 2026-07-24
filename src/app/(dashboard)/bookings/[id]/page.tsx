@@ -13,7 +13,7 @@ import { CHANNEL_LABELS, PRODUCT_LABELS } from "@/lib/constants";
 import { formatCurrency, formatDateTime, formatDate } from "@/lib/utils";
 import { formatFlightWallClock } from "@/lib/flight-datetime";
 import type { FlightSegment, FlightPassenger, HotelGuest, BusPassenger } from "@/types/booking";
-import { buildAdultBaseFareLines, passengerDisplayName } from "@/lib/flight-fare-breakup";
+import { buildBaseFareLines, passengerFareLabel } from "@/lib/flight-fare-breakup";
 import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
 import { buildSectorSummary, connectionGapText, connectionGapTitle, itineraryBadgeLabel } from "@/lib/flight-layover";
 import { resolveCancellationCategory, computeB2BNetRefund } from "@/lib/cancellation-category";
@@ -62,9 +62,9 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
   const isHotel = booking.productType === "HOTEL";
   const isFlight = booking.productType === "FLIGHT";
   const flightPassengers = (booking.flightBooking?.passengers as unknown as FlightPassenger[]) || [];
-  const adultFareLines =
+  const fareLines =
     booking.flightBooking?.baseFare != null
-      ? buildAdultBaseFareLines(flightPassengers, Number(booking.flightBooking.baseFare))
+      ? buildBaseFareLines(flightPassengers, Number(booking.flightBooking.baseFare))
       : [];
   const isRoundTrip = booking.flightBooking?.tripType === "ROUND_TRIP";
   const isAddonTrip = booking.flightBooking?.tripType === "ADDON_SERVICES";
@@ -409,14 +409,21 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                     Invoice: {booking.flightBooking.invoiceTaxType === "ITC" ? "ITC (B2B)" : "Non-ITC (B2C)"}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {adultFareLines.length > 0 ? (
+                    {fareLines.length > 0 ? (
                       <div className="sm:col-span-2 space-y-1">
-                        <p className="text-muted-foreground">Base Fare (Adult wise):</p>
-                        {adultFareLines.map((line, idx) => (
-                          <p key={`fare-${idx}`}>
-                            {passengerDisplayName(line.passenger) || `Adult ${idx + 1}`}: {formatCurrency(line.amount)}
-                          </p>
-                        ))}
+                        <p className="text-muted-foreground">Base Fare (Passenger wise):</p>
+                        {fareLines.map((line, idx) => {
+                          const type = (line.passenger.paxType || "adult") as "adult" | "child" | "infant";
+                          const typeIndex =
+                            fareLines
+                              .slice(0, idx + 1)
+                              .filter((l) => (l.passenger.paxType || "adult") === type).length;
+                          return (
+                            <p key={`fare-${idx}`}>
+                              {passengerFareLabel(line.passenger, typeIndex)}: {formatCurrency(line.amount)}
+                            </p>
+                          );
+                        })}
                         <p className="font-medium pt-1">
                           Total Base Fare: {formatCurrency(Number(booking.flightBooking!.baseFare))}
                         </p>

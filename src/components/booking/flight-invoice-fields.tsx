@@ -14,7 +14,11 @@ import {
   formatInr,
   getStateCodeFromGstin,
 } from "@/lib/gst-calculator";
-import { getAdultPassengers, passengerDisplayName, sumAdultBaseFares } from "@/lib/flight-fare-breakup";
+import {
+  getFarePassengers,
+  passengerFareLabel,
+  sumPassengerBaseFares,
+} from "@/lib/flight-fare-breakup";
 import { FormSettingToggle } from "@/components/booking/edit-form-section";
 
 interface FlightInvoiceFieldsProps {
@@ -57,27 +61,28 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
   const serviceCharge = Number(form.watch("serviceCharge") || 0);
   const discountAmount = Number(form.watch("discountAmount") || 0);
   const passengers = form.watch("passengers") || [];
-  const adults = getAdultPassengers(passengers);
+  const farePassengers = getFarePassengers(passengers);
 
-  function setAdultBaseFare(passengerIndex: number, raw: string) {
+  function setPassengerBaseFare(passengerIndex: number, raw: string) {
     const value = raw === "" ? undefined : Number(raw);
     form.setValue(`passengers.${passengerIndex}.baseFare`, value, { shouldDirty: true });
     const updated = form.getValues("passengers") || [];
-    form.setValue("baseFare", sumAdultBaseFares(updated), { shouldDirty: true });
+    form.setValue("baseFare", sumPassengerBaseFares(updated), { shouldDirty: true });
   }
 
   function distributeBaseFareEvenly() {
-    if (adults.length === 0 || baseFare <= 0) return;
-    const each = Math.round((baseFare / adults.length) * 100) / 100;
-    let adultCount = 0;
+    if (farePassengers.length === 0 || baseFare <= 0) return;
+    const each = Math.round((baseFare / farePassengers.length) * 100) / 100;
+    let fareCount = 0;
     passengers.forEach((p, i) => {
-      if ((p.paxType || "adult") !== "adult") return;
+      const type = p.paxType || "adult";
+      if (type !== "adult" && type !== "child") return;
       const amount =
-        adultCount === adults.length - 1
-          ? Math.round((baseFare - each * (adults.length - 1)) * 100) / 100
+        fareCount === farePassengers.length - 1
+          ? Math.round((baseFare - each * (farePassengers.length - 1)) * 100) / 100
           : each;
       form.setValue(`passengers.${i}.baseFare`, amount, { shouldDirty: true });
-      adultCount++;
+      fareCount++;
     });
   }
 
@@ -112,6 +117,8 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
     }
   }, [invoiceSubtotal, hasAgencyGst, form]);
 
+  const typeCounters = { adult: 0, child: 0, infant: 0 };
+
   return (
     <div className="space-y-4 sm:col-span-2">
       {invoiceTaxType === "ITC" && (
@@ -129,19 +136,23 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
         <div className="space-y-4">
           <div className="space-y-3 rounded-lg border p-4">
             <div className="flex items-center justify-between gap-2">
-              <Label className="text-base">Base Fare - Adult wise (INR)</Label>
-              {adults.length > 1 && baseFare > 0 && (
+              <Label className="text-base">Base Fare - Passenger wise (INR)</Label>
+              {farePassengers.length > 1 && baseFare > 0 && (
                 <Button type="button" variant="outline" size="sm" onClick={distributeBaseFareEvenly}>
                   Split total evenly
                 </Button>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Fare reimbursement per adult - shown as separate lines on the tax invoice.</p>
-            {adults.map((p, adultIdx) => {
+            <p className="text-xs text-muted-foreground">
+              Fare reimbursement per adult/child - shown as separate lines on the tax invoice.
+            </p>
+            {farePassengers.map((p) => {
               const passengerIndex = passengers.indexOf(p);
-              const label = passengerDisplayName(p) || `Adult ${adultIdx + 1}`;
+              const type = (p.paxType || "adult") as "adult" | "child" | "infant";
+              typeCounters[type] += 1;
+              const label = passengerFareLabel(p, typeCounters[type]);
               return (
-                <div key={`adult-fare-${passengerIndex}`} className="space-y-2">
+                <div key={`fare-${passengerIndex}`} className="space-y-2">
                   <Label>{label}</Label>
                   <Input
                     type="number"
@@ -149,14 +160,14 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
                     step="0.01"
                     placeholder="0.00"
                     value={p.baseFare ?? ""}
-                    onChange={(e) => setAdultBaseFare(passengerIndex, e.target.value)}
+                    onChange={(e) => setPassengerBaseFare(passengerIndex, e.target.value)}
                   />
                 </div>
               );
             })}
             <div className="flex items-center justify-between border-t pt-3 text-sm font-medium">
               <span>Total Base Fare</span>
-              <span>{formatInr(sumAdultBaseFares(passengers) || baseFare)}</span>
+              <span>{formatInr(sumPassengerBaseFares(passengers) || baseFare)}</span>
             </div>
             <input type="hidden" {...form.register("baseFare")} />
           </div>
