@@ -87,10 +87,10 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
   }
 
   useEffect(() => {
-    if (invoiceTaxType === "ITC" && customerGstin && !buyerGstin) {
+    if (customerGstin && !buyerGstin) {
       form.setValue("buyerGstin", customerGstin.toUpperCase());
     }
-  }, [invoiceTaxType, customerGstin, buyerGstin, form]);
+  }, [customerGstin, buyerGstin, form]);
 
   const tax = useMemo(
     () =>
@@ -121,16 +121,17 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
 
   return (
     <div className="space-y-4 sm:col-span-2">
-      {invoiceTaxType === "ITC" && (
-        <div className="space-y-2">
-          <Label>Buyer GSTIN *</Label>
-          <Input
-            {...form.register("buyerGstin")}
-            placeholder="19AAEFB7856M1ZT"
-            onChange={(e) => form.setValue("buyerGstin", e.target.value.toUpperCase())}
-          />
-        </div>
-      )}
+      <div className="space-y-2">
+        <Label>Buyer GSTIN</Label>
+        <Input
+          {...form.register("buyerGstin")}
+          placeholder="Optional"
+          onChange={(e) => form.setValue("buyerGstin", e.target.value.toUpperCase())}
+        />
+        <p className="text-xs text-muted-foreground">
+          Optional for both B2B and B2C. Used on the tax invoice when available.
+        </p>
+      </div>
 
       {hasAgencyGst ? (
         <div className="space-y-4">

@@ -124,10 +124,6 @@ async function getAgencyStateCode() {
 }
 
 function validateFlightInvoice(input: OfflineFlightBookingInput, agencyHasGst: boolean) {
-  if (input.invoiceTaxType === "ITC" && !input.buyerGstin?.trim()) {
-    throw new Error("Buyer GSTIN is required for B2B invoices");
-  }
-
   if (input.tripType === "ADDON_SERVICES") {
     validateAddonBooking(
       input.addonType,

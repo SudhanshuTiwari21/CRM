@@ -203,11 +203,11 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
                     : "border-border bg-background hover:bg-muted"
                 }`}
               >
-                B2B (with GSTIN)
+                B2B (Business)
               </button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Controls invoice layout and tax treatment. B2B requires buyer GSTIN.
+              Controls invoice layout and tax treatment. Buyer GSTIN is optional for both B2B and B2C.
             </p>
           </div>
         )}
@@ -246,7 +246,7 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
               </div>
               {cashBillTo === "COMPANY" && (
                 <p className="text-xs text-muted-foreground">
-                  Company name appears on the invoice. For flight bookings, B2B is selected automatically - enter GSTIN below.
+                  Company name appears on the invoice. For flight bookings, B2B is selected automatically — GSTIN is optional.
                 </p>
               )}
             </div>
@@ -440,17 +440,14 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
               />
             </div>
             <div className="space-y-2">
-              <Label>
-                GSTIN
-                {isCompanyBill && productType === "FLIGHT" ? " *" : ""}
-              </Label>
+              <Label>GSTIN</Label>
               <Input
                 {...form.register("customer.gstin")}
-                placeholder={isCompanyBill ? "Required for company B2B invoice" : undefined}
+                placeholder="Optional"
                 onChange={(e) => {
                   const value = e.target.value.toUpperCase();
                   form.setValue("customer.gstin", value);
-                  if (productType === "FLIGHT" && invoiceTaxType === "ITC") {
+                  if (productType === "FLIGHT") {
                     form.setValue("buyerGstin", value);
                   }
                 }}
