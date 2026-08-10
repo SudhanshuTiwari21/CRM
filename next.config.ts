@@ -5,6 +5,7 @@ const authDisabled = process.env.DISABLE_AUTH !== "false";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["*.ngrok-free.app", "*.ngrok.io", "*.ngrok.app"],
+  serverExternalPackages: ["pdf-parse"],
   env: {
     DISABLE_AUTH: authDisabled ? "true" : "false",
     NEXT_PUBLIC_DISABLE_AUTH:

@@ -9,9 +9,9 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q") || "";
-    if (q.length < 2) return jsonOk({ bookings: [], customers: [] });
+    if (q.length < 2) return jsonOk({ bookings: [], customers: [], leads: [] });
 
-    const [bookings, customers] = await Promise.all([
+    const [bookings, customers, leads] = await Promise.all([
       prisma.booking.findMany({
         where: {
           OR: [
@@ -31,9 +31,19 @@ export async function GET(request: Request) {
         },
         take: 5,
       }),
+      prisma.lead.findMany({
+        where: {
+          OR: [
+            { name: { contains: q, mode: "insensitive" } },
+            { phone: { contains: q } },
+            { company: { contains: q, mode: "insensitive" } },
+          ],
+        },
+        take: 5,
+      }),
     ]);
 
-    return jsonOk({ bookings, customers });
+    return jsonOk({ bookings, customers, leads });
   } catch (error) {
     return handleApiError(error);
   }

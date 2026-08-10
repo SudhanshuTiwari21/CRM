@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { BrandingProvider } from "@/components/branding/branding-provider";
 import { auth } from "@/lib/auth";
 import { isAuthDisabled } from "@/lib/auth-bypass";
 import "./globals.css";
@@ -18,7 +19,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <Providers session={session}>{children}</Providers>
+        <Providers session={session}>
+          <BrandingProvider>{children}</BrandingProvider>
+        </Providers>
       </body>
     </html>
   );

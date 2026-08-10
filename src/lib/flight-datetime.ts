@@ -4,6 +4,9 @@
  */
 
 const NAIVE_DT_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/;
+/** DD/MM/YYYY or DD-MM-YYYY with optional time and optional AM/PM */
+const DISPLAY_DT_RE =
+  /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?:\s*([AaPp][Mm]))?)?/;
 const LEGACY_TZ = "Asia/Kolkata";
 
 const MONTH_NAMES = [
@@ -47,6 +50,27 @@ export function formatWallClockLocal(parts: FlightWallClock) {
   return `${parts.year}-${pad2(parts.month)}-${pad2(parts.day)}T${pad2(parts.hour)}:${pad2(parts.minute)}`;
 }
 
+function parseDisplayDateTime(trimmed: string): FlightWallClock | null {
+  const match = DISPLAY_DT_RE.exec(trimmed);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  let hour = match[4] != null ? Number(match[4]) : 0;
+  const minute = match[5] != null ? Number(match[5]) : 0;
+  const ampm = match[6]?.toUpperCase();
+
+  if (ampm === "PM" && hour < 12) hour += 12;
+  if (ampm === "AM" && hour === 12) hour = 0;
+
+  if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59) {
+    return null;
+  }
+
+  return { year, month, day, hour, minute };
+}
+
 export function parseFlightDateTime(value?: string | null): FlightWallClock | null {
   if (!value?.trim()) return null;
   const trimmed = value.trim();
@@ -61,6 +85,9 @@ export function parseFlightDateTime(value?: string | null): FlightWallClock | nu
       minute: Number(naive[5]),
     };
   }
+
+  const display = parseDisplayDateTime(trimmed);
+  if (display) return display;
 
   const d = new Date(trimmed);
   if (Number.isNaN(d.getTime())) return null;
@@ -105,6 +132,14 @@ export function toDatetimeLocalValue(value?: string | null) {
   if (!value?.trim()) return "";
   const parts = parseFlightDateTime(value);
   return parts ? formatWallClockLocal(parts) : "";
+}
+
+/** Human-editable display for agents: DD/MM/YYYY, HH:mm */
+export function toFlightDateTimeInputDisplay(value?: string | null) {
+  if (!value?.trim()) return "";
+  const parts = parseFlightDateTime(value);
+  if (!parts) return value.trim();
+  return `${pad2(parts.day)}/${pad2(parts.month)}/${parts.year}, ${pad2(parts.hour)}:${pad2(parts.minute)}`;
 }
 
 export function flightDateTimeToDate(value: string) {

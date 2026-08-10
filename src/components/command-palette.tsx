@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Plane, Users } from "lucide-react";
+import { Search, Plane, Users, Target } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,13 +10,14 @@ import { Button } from "@/components/ui/button";
 interface SearchResult {
   bookings: { id: string; publicRef: string; pnr: string | null; customer: { name: string } }[];
   customers: { id: string; name: string; phone: string }[];
+  leads: { id: string; name: string; phone: string | null; company: string | null }[];
 }
 
 export function CommandPalette() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult>({ bookings: [], customers: [] });
+  const [results, setResults] = useState<SearchResult>({ bookings: [], customers: [], leads: [] });
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -31,12 +32,16 @@ export function CommandPalette() {
 
   const search = useCallback(async (q: string) => {
     if (q.length < 2) {
-      setResults({ bookings: [], customers: [] });
+      setResults({ bookings: [], customers: [], leads: [] });
       return;
     }
     const res = await fetch(`/api/crm/search?q=${encodeURIComponent(q)}`);
     const data = await res.json();
-    setResults(data);
+    setResults({
+      bookings: data.bookings || [],
+      customers: data.customers || [],
+      leads: data.leads || [],
+    });
   }, []);
 
   useEffect(() => {
@@ -66,7 +71,7 @@ export function CommandPalette() {
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
             <Input
               className="border-0 shadow-none focus-visible:ring-0"
-              placeholder="Search bookings, customers, PNR..."
+              placeholder="Search bookings, customers, leads, PNR..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -90,7 +95,7 @@ export function CommandPalette() {
               </div>
             )}
             {results.customers.length > 0 && (
-              <div>
+              <div className="mb-2">
                 <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Customers</p>
                 {results.customers.map((c) => (
                   <button
@@ -105,9 +110,30 @@ export function CommandPalette() {
                 ))}
               </div>
             )}
-            {query.length >= 2 && results.bookings.length === 0 && results.customers.length === 0 && (
-              <p className="py-6 text-center text-sm text-muted-foreground">No results found</p>
+            {results.leads.length > 0 && (
+              <div>
+                <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Leads</p>
+                {results.leads.map((l) => (
+                  <button
+                    key={l.id}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent"
+                    onClick={() => navigate(`/leads/${l.id}`)}
+                  >
+                    <Target className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{l.name}</span>
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {l.phone || l.company || ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
             )}
+            {query.length >= 2 &&
+              results.bookings.length === 0 &&
+              results.customers.length === 0 &&
+              results.leads.length === 0 && (
+                <p className="py-6 text-center text-sm text-muted-foreground">No results found</p>
+              )}
           </div>
         </DialogContent>
       </Dialog>

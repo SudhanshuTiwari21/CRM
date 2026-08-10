@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 64" fill="none">
+  <rect width="64" height="64" rx="14" fill="#0F766E"/>
+  <path d="M18 40 L32 16 L46 40 Z" fill="#FFFFFF" opacity="0.95"/>
+  <path d="M26 40 L32 28 L38 40 Z" fill="#5EEAD4"/>
+  <circle cx="32" cy="44" r="3" fill="#99F6E4"/>
+  <text x="78" y="42" font-family="Helvetica, Arial, sans-serif" font-size="28" font-weight="700" fill="#F8FAFC" letter-spacing="-0.5">TechRecoil</text>
+</svg>

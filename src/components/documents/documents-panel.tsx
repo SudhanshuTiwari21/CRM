@@ -58,10 +58,18 @@ const TEMPLATES: {
 
 type DocumentsPanelProps = {
   agencyName?: string | null;
+  /** Pre-select a document category (e.g. invoices under Accounting). */
+  defaultCategory?: DocumentCategory;
+  /** Hide the template category cards when the page is scoped to one type. */
+  hideCategoryCards?: boolean;
 };
 
-export function DocumentsPanel({ agencyName }: DocumentsPanelProps) {
-  const [category, setCategory] = useState<DocumentCategory>("all");
+export function DocumentsPanel({
+  agencyName,
+  defaultCategory = "all",
+  hideCategoryCards = false,
+}: DocumentsPanelProps) {
+  const [category, setCategory] = useState<DocumentCategory>(defaultCategory);
   const [bookingRef, setBookingRef] = useState("");
   const [passenger, setPassenger] = useState("");
   const [from, setFrom] = useState("");
@@ -97,11 +105,8 @@ export function DocumentsPanel({ agencyName }: DocumentsPanelProps) {
     return () => clearTimeout(timer);
   }, [loadDocuments]);
 
-  const hasFilters =
-    category !== "all" || Boolean(bookingRef.trim()) || Boolean(passenger.trim()) || Boolean(from) || Boolean(to);
-
   function clearFilters() {
-    setCategory("all");
+    setCategory(hideCategoryCards ? defaultCategory : "all");
     setBookingRef("");
     setPassenger("");
     setFrom("");
@@ -109,9 +114,16 @@ export function DocumentsPanel({ agencyName }: DocumentsPanelProps) {
   }
 
   const activeTemplate = TEMPLATES.find((t) => t.id === category);
+  const filterActive =
+    (!hideCategoryCards && category !== "all") ||
+    Boolean(bookingRef.trim()) ||
+    Boolean(passenger.trim()) ||
+    Boolean(from) ||
+    Boolean(to);
 
   return (
     <>
+      {!hideCategoryCards && (
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {TEMPLATES.map((t) => {
           const selected = category === t.id;
@@ -148,14 +160,15 @@ export function DocumentsPanel({ agencyName }: DocumentsPanelProps) {
           );
         })}
       </div>
+      )}
 
       <Card>
         <CardHeader className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-base">
-              {category === "all" ? "Recent Documents" : activeTemplate?.name}
+              {category === "all" ? "Recent Documents" : activeTemplate?.name || "Documents"}
             </CardTitle>
-            {hasFilters && (
+            {filterActive && (
               <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
                 <X className="mr-1 h-4 w-4" />
                 Clear filters
@@ -208,7 +221,7 @@ export function DocumentsPanel({ agencyName }: DocumentsPanelProps) {
             <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
               <Search className="h-8 w-8 opacity-40" />
               <p>No documents match your filters</p>
-              {hasFilters && (
+              {filterActive && (
                 <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
                   Clear filters
                 </Button>

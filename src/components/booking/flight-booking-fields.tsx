@@ -32,6 +32,7 @@ import {
   useSavedPassengerActions,
 } from "@/components/booking/saved-passenger-picker";
 import { FlightCancellationPolicyFields } from "@/components/booking/flight-cancellation-policy-fields";
+import { FlightDateTimeInput } from "@/components/booking/flight-datetime-input";
 
 interface FlightBookingFieldsProps {
   form: UseFormReturn<WizardForm>;
@@ -363,7 +364,10 @@ export function FlightBookingFields({
             </div>
             <div className="space-y-2">
               <Label>Travel Date (optional)</Label>
-              <Input {...form.register("addonTravelDate")} type="datetime-local" step="60" />
+              <FlightDateTimeInput
+                value={form.watch("addonTravelDate") || ""}
+                onChange={(v) => form.setValue("addonTravelDate", v, { shouldDirty: true })}
+              />
             </div>
           </div>
         </div>
@@ -459,6 +463,25 @@ export function FlightBookingFields({
           checked={Boolean(checkInAssistance)}
           onCheckedChange={(v) => form.setValue("checkInAssistance", v)}
         />
+        <FormSettingToggle
+          label="Special Assistance"
+          description="Wheelchair / special assistance for passengers — set per traveller below"
+          checked={(form.watch("passengers") || []).some((p) => Boolean(p?.wheelchairAssistance))}
+          onCheckedChange={(v) => {
+            const passengers = form.getValues("passengers") || [];
+            if (passengers.length === 0) return;
+            if (v) {
+              const alreadyOn = passengers.some((p) => Boolean(p?.wheelchairAssistance));
+              if (!alreadyOn) {
+                form.setValue("passengers.0.wheelchairAssistance", true, { shouldDirty: true });
+              }
+            } else {
+              passengers.forEach((_, idx) => {
+                form.setValue(`passengers.${idx}.wheelchairAssistance`, false, { shouldDirty: true });
+              });
+            }
+          }}
+        />
       </div>
       )}
 
@@ -504,7 +527,10 @@ export function FlightBookingFields({
               </div>
               <div className="space-y-2">
                 <Label className="text-xs">Departure</Label>
-                <Input {...form.register(`segments.${i}.departureAt`)} type="datetime-local" step="60" />
+                <FlightDateTimeInput
+                  value={form.watch(`segments.${i}.departureAt`) || ""}
+                  onChange={(v) => form.setValue(`segments.${i}.departureAt`, v, { shouldDirty: true })}
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs">Arrival City</Label>
@@ -520,7 +546,10 @@ export function FlightBookingFields({
               </div>
               <div className="space-y-2">
                 <Label className="text-xs">Arrival</Label>
-                <Input {...form.register(`segments.${i}.arrivalAt`)} type="datetime-local" step="60" />
+                <FlightDateTimeInput
+                  value={form.watch(`segments.${i}.arrivalAt`) || ""}
+                  onChange={(v) => form.setValue(`segments.${i}.arrivalAt`, v, { shouldDirty: true })}
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs">Duration</Label>
@@ -891,21 +920,16 @@ export function FlightBookingFields({
                   );
                 })()}
                 {!isAddonTrip && (
-                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-violet-200 bg-violet-50/30 px-3 py-3 sm:col-span-2 dark:border-violet-900 dark:bg-violet-950/10">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                  <div className="sm:col-span-2">
+                    <FormSettingToggle
+                      label="Special Assistance"
+                      description="Wheelchair or other special assistance for this passenger"
                       checked={Boolean(form.watch(`passengers.${i}.wheelchairAssistance`))}
-                      onChange={(e) => form.setValue(`passengers.${i}.wheelchairAssistance`, e.target.checked)}
+                      onCheckedChange={(v) =>
+                        form.setValue(`passengers.${i}.wheelchairAssistance`, v, { shouldDirty: true })
+                      }
                     />
-                    <span className="text-sm">
-                      <span className="font-medium">I require wheelchair assistance</span>
-                      <span className="text-muted-foreground"> (Optional)</span>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        Enter name as on passport or government ID
-                      </span>
-                    </span>
-                  </label>
+                  </div>
                 )}
                 </>
                 )}
@@ -931,6 +955,7 @@ export function FlightBookingFields({
               passportIssuingCountry: "",
               passportIssueDate: "",
               passportExpiryDate: "",
+              wheelchairAssistance: false,
             })
           }
         >

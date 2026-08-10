@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CommandPalette } from "@/components/command-palette";
+import { useBranding } from "@/components/branding/branding-provider";
 
 interface DashboardHeroProps {
   userName?: string | null;
@@ -19,6 +20,7 @@ interface DashboardHeroProps {
 
 export function DashboardHero({ userName, processingCount, pendingPnr }: DashboardHeroProps) {
   const router = useRouter();
+  const { brand } = useBranding();
   const firstName = userName?.split(" ")[0] || "there";
   const hour = new Date().getHours();
   const greeting =
@@ -40,7 +42,7 @@ export function DashboardHero({ userName, processingCount, pendingPnr }: Dashboa
         <div className="space-y-3">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">
             <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-            Book to Roam · Operations Hub
+            {brand.heroTagline}
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">

@@ -12,17 +12,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HotelBookingFields } from "@/components/booking/hotel-booking-fields";
 import { FlightBookingFields } from "@/components/booking/flight-booking-fields";
 import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields";
+import { TicketUploadPanel } from "@/components/booking/ticket-upload-panel";
 import { parseApiResponse } from "@/lib/parse-api-response";
 import { formatCustomerName } from "@/lib/utils";
 import { getFirstFormErrorMessage } from "@/lib/form-errors";
 import { buildAddonPlaceholderSegment, validateAddonBooking } from "@/lib/flight-addon";
 import { getReturnLegStartIndex } from "@/lib/flight-layover";
 import { CustomerBillingSection } from "@/components/booking/customer-billing-section";
+import { FlightDateTimeInput } from "@/components/booking/flight-datetime-input";
 import {
   flightPassengerSchema,
   flightSegmentSchema,
@@ -30,6 +31,7 @@ import {
   refineOfflineBilling,
 } from "@/lib/validators/booking";
 import { normalizePhone } from "@/lib/phone";
+import type { ParsedTicketResult } from "@/lib/services/ticket-parse.service";
 
 const baseCustomer = {
   title: "Mr",
@@ -234,6 +236,146 @@ export function OfflineBookingWizard() {
   const { fields: passengerFields, append: appendPassenger, remove: removePassenger } = useFieldArray({ control: form.control, name: "passengers" });
   const { fields: guestFields, append: appendGuest } = useFieldArray({ control: form.control, name: "guests" });
   const { fields: busPaxFields, append: appendBusPax } = useFieldArray({ control: form.control, name: "busPassengers" });
+
+  function applyTicketExtraction(result: ParsedTicketResult) {
+    const nextProduct = result.productType;
+    setProductType(nextProduct);
+    form.setValue("productType", nextProduct);
+
+    const fields = result.fields || {};
+    const customerPatch = fields.customer as
+      | { title?: string; name?: string; phone?: string; email?: string }
+      | undefined;
+
+    if (customerPatch) {
+      const current = form.getValues("customer");
+      form.setValue("customer", {
+        ...current,
+        title: customerPatch.title || current.title || "Mr",
+        name: customerPatch.name?.trim() || current.name,
+        phone: customerPatch.phone?.trim() || current.phone,
+        email: customerPatch.email?.trim() || current.email,
+      });
+    }
+
+    if (typeof fields.totalAmount === "number") {
+      form.setValue("totalAmount", fields.totalAmount);
+    }
+    if (typeof fields.baseFare === "number") {
+      form.setValue("baseFare", fields.baseFare);
+    }
+
+    if (nextProduct === "FLIGHT") {
+      if (typeof fields.airline === "string" && fields.airline) {
+        form.setValue("airline", fields.airline);
+      }
+      if (typeof fields.tripType === "string") {
+        form.setValue("tripType", fields.tripType as WizardForm["tripType"]);
+      }
+      if (typeof fields.cabinClass === "string") {
+        form.setValue("cabinClass", fields.cabinClass as WizardForm["cabinClass"]);
+      }
+      if (typeof fields.stopCount === "number") {
+        form.setValue("stopCount", fields.stopCount);
+      }
+      if (Array.isArray(fields.segments) && fields.segments.length > 0) {
+        form.setValue(
+          "segments",
+          fields.segments.map((s: Record<string, unknown>) => ({
+            flightNumber: String(s.flightNumber || ""),
+            airline: String(s.airline || fields.airline || "IndiGo"),
+            fromAirport: String(s.fromAirport || ""),
+            fromCity: String(s.fromCity || ""),
+            toAirport: String(s.toAirport || ""),
+            toCity: String(s.toCity || ""),
+            departureAt: String(s.departureAt || ""),
+            arrivalAt: String(s.arrivalAt || ""),
+            pnr: s.pnr ? String(s.pnr) : undefined,
+            terminal: s.terminal ? String(s.terminal) : undefined,
+            departureTerminal: s.departureTerminal ? String(s.departureTerminal) : undefined,
+          }))
+        );
+      }
+      if (Array.isArray(fields.passengers) && fields.passengers.length > 0) {
+        form.setValue(
+          "passengers",
+          fields.passengers.map((p: Record<string, unknown>) => ({
+            title: String(p.title || "Mr"),
+            firstName: String(p.firstName || ""),
+            lastName: String(p.lastName || ""),
+            gender: String(p.gender || "Male"),
+            paxType: (p.paxType as "adult" | "child" | "infant") || "adult",
+            ticketNumber: p.ticketNumber ? String(p.ticketNumber) : undefined,
+            seat: p.seat ? String(p.seat) : undefined,
+            handBaggage: String(p.handBaggage || "7 KG"),
+            cabinBaggagePreset: String(p.cabinBaggagePreset || "7 KG"),
+            dateOfBirth: "",
+            passportNumber: "",
+            passportIssuingCountry: "",
+            passportIssueDate: "",
+            passportExpiryDate: "",
+          }))
+        );
+      }
+    }
+
+    if (nextProduct === "HOTEL") {
+      for (const key of [
+        "propertyName",
+        "propertyAddress",
+        "city",
+        "roomType",
+        "checkIn",
+        "checkOut",
+        "inclusions",
+      ] as const) {
+        if (typeof fields[key] === "string") form.setValue(key, fields[key] as string);
+      }
+      if (typeof fields.roomsCount === "number") form.setValue("roomsCount", fields.roomsCount);
+      if (typeof fields.adultsCount === "number") form.setValue("adultsCount", fields.adultsCount);
+      if (typeof fields.childrenCount === "number") form.setValue("childrenCount", fields.childrenCount);
+      if (Array.isArray(fields.guests) && fields.guests.length > 0) {
+        form.setValue(
+          "guests",
+          fields.guests.map((g: { name?: string; type?: "adult" | "child" }) => ({
+            name: g.name || "",
+            type: g.type || "adult",
+          }))
+        );
+      }
+    }
+
+    if (nextProduct === "BUS") {
+      for (const key of ["operator", "route", "boardingPoint", "droppingPoint", "departureAt", "arrivalAt"] as const) {
+        if (typeof fields[key] === "string") form.setValue(key, fields[key] as string);
+      }
+      if (Array.isArray(fields.busPassengers) && fields.busPassengers.length > 0) {
+        form.setValue(
+          "busPassengers",
+          fields.busPassengers.map((p: { name?: string; seat?: string; gender?: string }) => ({
+            name: p.name || "",
+            seat: p.seat || "",
+            gender: p.gender,
+          }))
+        );
+      }
+      if (Array.isArray(fields.seats) && fields.seats.length > 0) {
+        form.setValue(
+          "seats",
+          fields.seats.map((s: { seatNumber?: string }) => ({ seatNumber: s.seatNumber || "" }))
+        );
+      }
+    }
+
+    if (result.warnings.length) {
+      const note = form.getValues("internalNotes") || "";
+      const importNote = `Imported from ticket PDF (${result.confidence}). Review: ${result.warnings.join("; ")}`;
+      if (!note.includes("Imported from ticket")) {
+        form.setValue("internalNotes", note ? `${note}\n${importNote}` : importNote);
+      }
+    }
+  }
+
   async function onSubmit(data: WizardForm) {
     setLoading(true);
     try {
@@ -434,6 +576,8 @@ export function OfflineBookingWizard() {
       noValidate
       className="space-y-6"
     >
+      <TicketUploadPanel productType={productType} onExtracted={applyTicketExtraction} />
+
       <Tabs value={productType} onValueChange={(v) => { setProductType(v as typeof productType); form.setValue("productType", v as typeof productType); }}>
         <TabsList>
           <TabsTrigger value="FLIGHT">Flight</TabsTrigger>
@@ -477,8 +621,20 @@ export function OfflineBookingWizard() {
               <Input {...form.register("route")} placeholder="Route" />
               <Input {...form.register("boardingPoint")} placeholder="Boarding Point" />
               <Input {...form.register("droppingPoint")} placeholder="Dropping Point" />
-              <Input {...form.register("departureAt")} type="datetime-local" />
-              <Input {...form.register("arrivalAt")} type="datetime-local" />
+              <div className="space-y-2">
+                <Label className="text-xs">Departure</Label>
+                <FlightDateTimeInput
+                  value={form.watch("departureAt") || ""}
+                  onChange={(v) => form.setValue("departureAt", v, { shouldDirty: true })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Arrival</Label>
+                <FlightDateTimeInput
+                  value={form.watch("arrivalAt") || ""}
+                  onChange={(v) => form.setValue("arrivalAt", v, { shouldDirty: true })}
+                />
+              </div>
               {busPaxFields.map((field, i) => (
                 <div key={field.id} className="flex gap-2 sm:col-span-2">
                   <Input {...form.register(`busPassengers.${i}.name`)} placeholder="Passenger Name" />

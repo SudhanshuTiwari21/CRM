@@ -15,7 +15,11 @@ export async function GET() {
             select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
             orderBy: { createdAt: "desc" },
           })
-        : Promise.resolve([]),
+        : prisma.user.findMany({
+            where: { active: true },
+            select: { id: true, name: true, active: true },
+            orderBy: { name: "asc" },
+          }),
     ]);
 
     return jsonOk({ agency, templates, users });
