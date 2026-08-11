@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
-import type { LeadStatus, Prisma } from "@prisma/client";
-import type { CreateLeadInput, UpdateLeadInput } from "@/lib/validators/lead";
+import type { LeadNoteType, LeadStatus, Prisma } from "@prisma/client";
+import type { CreateLeadParsed, UpdateLeadInput } from "@/lib/validators/lead";
 import { createCustomerRecord } from "@/lib/services/customer.service";
 
 export const leadListInclude = {
@@ -88,7 +88,7 @@ export async function getLeadById(id: string) {
   });
 }
 
-export async function createLead(input: CreateLeadInput, userId: string) {
+export async function createLead(input: CreateLeadParsed, userId: string) {
   const lead = await prisma.lead.create({
     data: {
       name: input.name.trim(),
@@ -199,7 +199,7 @@ export async function updateLead(id: string, input: UpdateLeadInput, userId: str
 
 export async function addLeadNote(
   leadId: string,
-  input: { body: string; type?: "NOTE" | "CALL" | "EMAIL" | "WHATSAPP" },
+  input: { body: string; type?: LeadNoteType },
   userId: string
 ) {
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });

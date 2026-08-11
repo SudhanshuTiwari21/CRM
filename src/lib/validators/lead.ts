@@ -43,5 +43,8 @@ export const convertLeadSchema = z.object({
   customerType: z.enum(["INDIVIDUAL", "BUSINESS"]).default("INDIVIDUAL"),
 });
 
-export type CreateLeadInput = z.infer<typeof createLeadSchema>;
-export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
+/** Form input types (pre-transform / pre-default) for react-hook-form */
+export type CreateLeadInput = z.input<typeof createLeadSchema>;
+export type CreateLeadParsed = z.output<typeof createLeadSchema>;
+export type UpdateLeadInput = z.input<typeof updateLeadSchema>;
+export type LeadNoteInput = z.output<typeof leadNoteSchema>;
