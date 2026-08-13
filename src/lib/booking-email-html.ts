@@ -6,7 +6,7 @@ import { formatInr } from "@/lib/gst-calculator";
 import { passengerDisplayName } from "@/lib/flight-fare-breakup";
 import { toTitleCase } from "@/lib/utils";
 import { buildEmailCopyrightHtml, buildEmailSocialButtonsHtml } from "@/lib/email-footer";
-import { getEmailLogoSrc } from "@/lib/email-logo";
+import { getEmailLogoSrc, emailLogoImgHtml } from "@/lib/email-logo";
 
 function escapeHtml(value: string) {
   return value
@@ -139,8 +139,7 @@ function emailShell(content: string, companyName: string, companyPhone?: string 
 }
 
 function headerRow(companyName: string, publicRef: string) {
-  const logoSrc = getEmailLogoSrc();
-  const logo = `<img src="${logoSrc}" alt="${escapeHtml(companyName)}" width="140" height="26" style="display:block;max-width:140px;height:auto;" />`;
+  const logo = emailLogoImgHtml(companyName, getEmailLogoSrc());
 
   return `
     <tr>

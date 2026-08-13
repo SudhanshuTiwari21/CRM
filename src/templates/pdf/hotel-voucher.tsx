@@ -5,6 +5,7 @@ import type { HotelGuest } from "@/types/booking";
 import { format } from "date-fns";
 import { MEAL_PLAN_LABELS } from "@/lib/constants/hotel";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
+import { brandUsesSquareLogo } from "@/lib/branding";
 import { formatBillingAddress } from "@/lib/cash-customer";
 
 const styles = StyleSheet.create({
@@ -80,7 +81,11 @@ export function HotelVoucherPDF({ agency, booking, hotel, customer, guests, logo
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.headerRow}>
-          {logoSrc ? <PdfLogo src={logoSrc} /> : <Text style={styles.agencyName}>{agency.companyName}</Text>}
+          {logoSrc ? (
+            <PdfLogo src={logoSrc} square={brandUsesSquareLogo(agency.companyName)} />
+          ) : (
+            <Text style={styles.agencyName}>{agency.companyName}</Text>
+          )}
           <View style={styles.agencyBlock}>
             <Text style={styles.agencyName}>{agency.companyName}</Text>
             <Text style={styles.agencyLine}>{agency.address}</Text>

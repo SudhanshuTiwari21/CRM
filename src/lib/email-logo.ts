@@ -1,8 +1,17 @@
 import fs from "fs/promises";
 import path from "path";
 import type { EmailAttachment } from "@/lib/mailer";
+import { prisma } from "@/lib/db";
+import { brandFromCompanyName, brandUsesSquareLogo, getBrandPreset } from "@/lib/branding";
 
-export const EMAIL_LOGO_CID = "booktoroam-logo@booktoroam";
+export const EMAIL_LOGO_CID = "agency-logo@crm";
+
+function escapeAttr(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
+}
 
 /** CID reference for inline logo - works in Gmail, Apple Mail, Outlook (unlike data: URIs). */
 export function getEmailLogoSrc() {
@@ -10,14 +19,34 @@ export function getEmailLogoSrc() {
 }
 
 export async function getEmailLogoInlineAttachment(): Promise<EmailAttachment> {
-  const pngPath = path.join(process.cwd(), "public", "booktoroam-logo.png");
+  let fileName = "booktoroam-logo.png";
+  try {
+    const agency = await prisma.agencySettings.findUnique({
+      where: { id: "default" },
+      select: { companyName: true },
+    });
+    fileName = getBrandPreset(brandFromCompanyName(agency?.companyName)).pdfLogoFile;
+  } catch {
+    // Keep Book to Roam fallback.
+  }
+
+  const pngPath = path.join(process.cwd(), "public", fileName);
   const content = await fs.readFile(pngPath);
   return {
-    filename: "booktoroam-logo.png",
+    filename: fileName,
     content,
     contentType: "image/png",
     cid: EMAIL_LOGO_CID,
   };
+}
+
+export function emailLogoImgHtml(companyName: string, logoSrc: string | null) {
+  if (!logoSrc) return "";
+  const alt = escapeAttr(companyName);
+  if (brandUsesSquareLogo(companyName)) {
+    return `<img src="${logoSrc}" alt="${alt}" width="64" height="64" style="display:block;width:64px;height:64px;object-fit:cover;border-radius:8px;" />`;
+  }
+  return `<img src="${logoSrc}" alt="${alt}" width="140" height="26" style="display:block;max-width:140px;height:auto;" />`;
 }
 
 /** Shared responsive rules for flight confirmation emails. */

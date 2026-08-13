@@ -1,6 +1,6 @@
 import type { AgencySettings, Booking, Customer, FlightBooking } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
-import { getEmailLogoSrc, emailResponsiveStyles } from "@/lib/email-logo";
+import { getEmailLogoSrc, emailResponsiveStyles, emailLogoImgHtml } from "@/lib/email-logo";
 import { getVoucherTermsContent } from "@/templates/pdf/voucher-terms";
 import { formatPassportDate } from "@/lib/passport-dates";
 import {
@@ -37,7 +37,7 @@ function sectionTitle(title: string) {
 function agencyHeaderHtml(agency: AgencySettings, logoSrc: string | null) {
   const cityLine = [agency.city, agency.state, agency.pincode].filter(Boolean).join(", ");
   const logo = logoSrc
-    ? `<img src="${logoSrc}" alt="${escapeHtml(agency.companyName)}" width="150" height="28" style="display:block;max-width:150px;height:auto;" />`
+    ? emailLogoImgHtml(agency.companyName, logoSrc)
     : `<span style="font-size:20px;font-weight:700;color:#16a34a;letter-spacing:1px;">${escapeHtml(agency.companyName.toUpperCase())}</span>`;
 
   return `

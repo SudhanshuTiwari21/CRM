@@ -148,7 +148,12 @@ export function Sidebar() {
 
   const NavContent = () => (
     <>
-      <div className="flex h-20 items-center overflow-hidden px-4">
+      <div
+        className={cn(
+          "flex items-center overflow-hidden px-4",
+          brand.id === "techrecoil" ? "h-24 py-3" : "h-20"
+        )}
+      >
         {brand.id === "book-to-roam" ? (
           <img
             src={brand.logoSrc}
@@ -157,9 +162,11 @@ export function Sidebar() {
             style={{ maxWidth: "none" }}
           />
         ) : (
-          <div className="flex items-center gap-2.5">
-            <img src={brand.logoSrc} alt={brand.label} className="h-10 w-auto" />
-          </div>
+          <img
+            src={brand.logoSrc}
+            alt={brand.label}
+            className="h-[72px] w-[72px] rounded-lg object-cover shadow-sm"
+          />
         )}
       </div>
       <Separator className="bg-sidebar-border" />
@@ -173,6 +180,8 @@ export function Sidebar() {
           const active = isPathActive(pathname, item.href);
           const groupActive = isGroupActive(pathname, item);
           const expanded = item.href === "/accounting" ? accountingOpen : false;
+          const activeBar =
+            brand.id === "techrecoil" ? "before:bg-white" : "before:bg-blue-400";
 
           if (!hasChildren) {
             return (
@@ -183,7 +192,7 @@ export function Sidebar() {
                 className={cn(
                   "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
                   active
-                    ? "bg-sidebar-accent text-white shadow-sm before:absolute before:left-0 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-blue-400"
+                    ? `bg-sidebar-accent text-white shadow-sm before:absolute before:left-0 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-r-full ${activeBar}`
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
               >
@@ -201,7 +210,7 @@ export function Sidebar() {
                   groupActive && !active
                     ? "text-sidebar-foreground"
                     : active
-                      ? "bg-sidebar-accent text-white shadow-sm before:absolute before:left-0 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-blue-400"
+                      ? `bg-sidebar-accent text-white shadow-sm before:absolute before:left-0 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-r-full ${activeBar}`
                       : "text-sidebar-foreground/70"
                 )}
               >

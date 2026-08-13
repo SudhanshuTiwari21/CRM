@@ -28,9 +28,9 @@ export const BRAND_PRESETS: Record<BrandId, BrandPreset> = {
     label: "TechRecoil",
     shortLabel: "TR",
     companyName: "TechRecoil",
-    logoSrc: "/techrecoil-logo.svg",
+    logoSrc: "/techrecoil-logo.png",
     pdfLogoFile: "techrecoil-logo.png",
-    heroTagline: "TechRecoil · Operations Hub",
+    heroTagline: "Travel world with us.",
   },
 };
 
@@ -48,4 +48,8 @@ export function brandFromCompanyName(companyName?: string | null): BrandId {
 
 export function getBrandPreset(id: BrandId): BrandPreset {
   return BRAND_PRESETS[id];
+}
+
+export function brandUsesSquareLogo(companyName?: string | null): boolean {
+  return brandFromCompanyName(companyName) === "techrecoil";
 }

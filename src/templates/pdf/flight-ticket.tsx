@@ -19,6 +19,7 @@ import type { CabinClass } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { resolveSegmentAirline } from "@/lib/airline-logo";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
+import { brandUsesSquareLogo } from "@/lib/branding";
 import { getVoucherTermsContent } from "@/templates/pdf/voucher-terms";
 import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
 import { formatPassportDate } from "@/lib/passport-dates";
@@ -260,7 +261,7 @@ function VoucherHeaderBand({
   return (
     <View style={styles.headerBand}>
       <View style={styles.headerRow}>
-        <PdfLogo src={logoSrc} variant="voucher" />
+        <PdfLogo src={logoSrc} variant="voucher" square={brandUsesSquareLogo(agency.companyName)} />
         <View style={styles.agencyBlock}>
           <Text style={styles.agencyName}>{agency.companyName}</Text>
           {agency.address ? <Text style={styles.agencyLine}>{agency.address}</Text> : null}

@@ -8,6 +8,7 @@ import { getStateCodeFromGstin } from "@/lib/gst-calculator";
 import { amountInWordsInr } from "@/lib/number-to-words";
 import { CABIN_CLASS_OPTIONS, fareTypeLabel } from "@/lib/constants/flight";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
+import { brandUsesSquareLogo } from "@/lib/branding";
 import { buildFullRoute, buildSectorLegs, buildSectorSummary } from "@/lib/flight-layover";
 import { buildBaseFareLines, farePassengerQtyLabel, passengerDisplayName, paxTypeUnitLabel } from "@/lib/flight-fare-breakup";
 import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
@@ -197,7 +198,7 @@ export function InvoicePDF({
         <View style={styles.headerRow}>
           <View style={styles.companyBlock}>
             {logoSrc ? (
-              <PdfLogo src={logoSrc} variant="invoice" />
+              <PdfLogo src={logoSrc} variant="invoice" square={brandUsesSquareLogo(agency.companyName)} />
             ) : (
               <Text style={styles.companyName}>{agency.companyName}</Text>
             )}

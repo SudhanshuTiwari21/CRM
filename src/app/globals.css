@@ -57,6 +57,26 @@
   --sidebar-accent: oklch(0.24 0.04 255);
 }
 
+/* TechRecoil: orange chrome matching the logo tile */
+html[data-brand="techrecoil"] {
+  --primary: oklch(0.7 0.19 52);
+  --primary-foreground: oklch(0.99 0.01 80);
+  --ring: oklch(0.7 0.19 52);
+  --sidebar: #f15a22;
+  --sidebar-foreground: #ffffff;
+  --sidebar-border: #d94c18;
+  --sidebar-accent: #d44816;
+}
+
+html[data-brand="techrecoil"].dark {
+  --primary: oklch(0.72 0.18 52);
+  --ring: oklch(0.72 0.18 52);
+  --sidebar: #e24e16;
+  --sidebar-foreground: #ffffff;
+  --sidebar-border: #c44312;
+  --sidebar-accent: #c23f10;
+}
+
 .dark {
   --background: oklch(0.14 0.02 255);
   --foreground: oklch(0.95 0.01 255);
@@ -80,6 +100,26 @@
   --sidebar-foreground: oklch(0.92 0.01 255);
   --sidebar-border: oklch(0.24 0.02 255);
   --sidebar-accent: oklch(0.2 0.03 255);
+}
+
+/* TechRecoil: orange chrome matching the logo tile */
+html[data-brand="techrecoil"] {
+  --primary: oklch(0.7 0.19 52);
+  --primary-foreground: oklch(0.99 0.01 80);
+  --ring: oklch(0.7 0.19 52);
+  --sidebar: #f15a22;
+  --sidebar-foreground: #ffffff;
+  --sidebar-border: #d94c18;
+  --sidebar-accent: #d44816;
+}
+
+html.dark[data-brand="techrecoil"] {
+  --primary: oklch(0.72 0.18 52);
+  --ring: oklch(0.72 0.18 52);
+  --sidebar: #e24e16;
+  --sidebar-foreground: #ffffff;
+  --sidebar-border: #c44312;
+  --sidebar-accent: #c23f10;
 }
 
 @layer base {

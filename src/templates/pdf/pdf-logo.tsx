@@ -12,14 +12,24 @@ const variantStyles = StyleSheet.create({
     wrap: { width: 92, marginBottom: 4, alignSelf: "flex-start" as const },
     image: { width: 92, height: 17, objectFit: "contain" as const, objectPosition: "left" as const },
   },
+  squareVoucher: {
+    wrap: { width: 56, height: 56, marginBottom: 4, alignSelf: "flex-start" as const },
+    image: { width: 56, height: 56, objectFit: "cover" as const },
+  },
+  squareInvoice: {
+    wrap: { width: 48, height: 48, marginBottom: 4, alignSelf: "flex-start" as const },
+    image: { width: 48, height: 48, objectFit: "cover" as const },
+  },
 });
 
 export function PdfLogo({
   src,
   variant = "voucher",
-}: Readonly<{ src?: string | null; variant?: "voucher" | "invoice" }>) {
+  square = false,
+}: Readonly<{ src?: string | null; variant?: "voucher" | "invoice"; square?: boolean }>) {
   if (!src) return null;
-  const s = variantStyles[variant];
+  const key = square ? (variant === "invoice" ? "squareInvoice" : "squareVoucher") : variant;
+  const s = variantStyles[key];
   return (
     <View style={s.wrap}>
       <Image src={src} style={s.image} />

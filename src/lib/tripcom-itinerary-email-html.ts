@@ -1,6 +1,6 @@
 import type { AgencySettings, Booking, Customer, FlightBooking } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
-import { getEmailLogoSrc, emailResponsiveStyles } from "@/lib/email-logo";
+import { getEmailLogoSrc, emailResponsiveStyles, emailLogoImgHtml } from "@/lib/email-logo";
 import { getAirportDisplay } from "@/lib/airport-names";
 import { groupSegments, voucherPaymentBreakdown, cabinClassDisplay } from "@/lib/voucher-format";
 import { formatFlightWallClock, parseFlightDateTime } from "@/lib/flight-datetime";
@@ -51,7 +51,7 @@ function passengerTripLine(p: FlightPassenger) {
 
 function headerHtml(agency: AgencySettings, logoSrc: string | null, publicRef: string) {
   const logo = logoSrc
-    ? `<img src="${logoSrc}" alt="${escapeHtml(agency.companyName)}" width="140" height="26" style="display:block;max-width:140px;height:auto;" />`
+    ? emailLogoImgHtml(agency.companyName, logoSrc)
     : `<span style="font-size:26px;font-weight:700;color:${BLUE};letter-spacing:-0.5px;">${escapeHtml(agency.companyName)}</span>`;
 
   return `

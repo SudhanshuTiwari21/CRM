@@ -64,6 +64,13 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    document.documentElement.dataset.brand = brandId;
+    return () => {
+      delete document.documentElement.dataset.brand;
+    };
+  }, [brandId]);
+
   const setBrandId = useCallback((id: BrandId) => {
     setBrandIdState(id);
     localStorage.setItem(BRAND_STORAGE_KEY, id);
