@@ -329,8 +329,24 @@ export function Sidebar() {
         )}
         style={{ width }}
       >
-        <div className={cn("flex h-[72px] items-center", compact ? "justify-center px-2" : "px-4")}>
-          <BrandLogo brand={brand} collapsed={compact} />
+        <div
+          className={cn(
+            "flex items-center",
+            compact ? "flex-col justify-center gap-2 px-2 py-3" : "h-[72px] gap-2 px-3"
+          )}
+        >
+          <div className={cn("min-w-0", !compact && "flex-1")}>
+            <BrandLogo brand={brand} collapsed={compact} />
+          </div>
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-white/5 hover:text-sidebar-foreground lg:flex"
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
         </div>
 
         <div className="pb-3">
@@ -445,20 +461,6 @@ export function Sidebar() {
         </nav>
 
         <div className="border-t border-sidebar-border p-2">
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            className={cn(
-              "mb-2 hidden w-full items-center rounded-md py-2 text-sidebar-foreground/60 transition-colors hover:bg-white/5 hover:text-sidebar-foreground lg:flex",
-              collapsed ? "justify-center" : "gap-2.5 px-2.5"
-            )}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            {!collapsed && <span className="text-[13px] font-medium">Collapse</span>}
-          </button>
-
           <div className={cn("flex items-center rounded-lg py-1", compact ? "justify-center" : "gap-2.5 px-1")}>
             <Avatar className="h-8 w-8">
               <AvatarFallback className="bg-white/10 text-[11px] text-sidebar-foreground">
