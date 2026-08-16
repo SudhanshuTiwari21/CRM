@@ -13,12 +13,12 @@ const variantStyles = StyleSheet.create({
     image: { width: 92, height: 17, objectFit: "contain" as const, objectPosition: "left" as const },
   },
   squareVoucher: {
-    wrap: { width: 56, height: 56, marginBottom: 4, alignSelf: "flex-start" as const },
-    image: { width: 56, height: 56, objectFit: "cover" as const },
+    wrap: { width: 72, height: 72, marginBottom: 4, alignSelf: "flex-start" as const },
+    image: { width: 72, height: 72, objectFit: "cover" as const },
   },
   squareInvoice: {
-    wrap: { width: 48, height: 48, marginBottom: 4, alignSelf: "flex-start" as const },
-    image: { width: 48, height: 48, objectFit: "cover" as const },
+    wrap: { width: 56, height: 56, marginBottom: 4, alignSelf: "flex-start" as const },
+    image: { width: 56, height: 56, objectFit: "cover" as const },
   },
 });
 

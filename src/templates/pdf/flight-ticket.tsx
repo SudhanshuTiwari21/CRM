@@ -257,11 +257,13 @@ function VoucherHeaderBand({
   fadeId: string;
 }) {
   const cityLine = [agency.city, agency.state, agency.pincode].filter(Boolean).join(", ");
+  const square = brandUsesSquareLogo(agency.companyName);
+  const headerBg = square ? "#fff4ed" : HEADER_BG;
 
   return (
-    <View style={styles.headerBand}>
+    <View style={[styles.headerBand, { backgroundColor: headerBg }]}>
       <View style={styles.headerRow}>
-        <PdfLogo src={logoSrc} variant="voucher" square={brandUsesSquareLogo(agency.companyName)} />
+        <PdfLogo src={logoSrc} variant="voucher" square={square} />
         <View style={styles.agencyBlock}>
           <Text style={styles.agencyName}>{agency.companyName}</Text>
           {agency.address ? <Text style={styles.agencyLine}>{agency.address}</Text> : null}
@@ -273,7 +275,7 @@ function VoucherHeaderBand({
       <Svg style={styles.headerFade} viewBox="0 0 515 16">
         <Defs>
           <LinearGradient id={fadeId}>
-            <Stop offset="0%" stopColor={HEADER_BG} />
+            <Stop offset="0%" stopColor={headerBg} />
             <Stop offset="55%" stopColor="#f7f9fb" />
             <Stop offset="100%" stopColor="#ffffff" />
           </LinearGradient>

@@ -3,6 +3,8 @@ import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { AgencySettings, Booking, BusBooking } from "@prisma/client";
 import type { BusPassenger } from "@/types/booking";
 import { format } from "date-fns";
+import { PdfLogo } from "@/templates/pdf/pdf-logo";
+import { brandUsesSquareLogo } from "@/lib/branding";
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 9, fontFamily: "Helvetica" },
@@ -24,13 +26,19 @@ interface Props {
   booking: Booking;
   bus: BusBooking;
   passengers: BusPassenger[];
+  logoSrc?: string | null;
 }
 
-export function BusTicketPDF({ agency, booking, bus, passengers }: Props) {
+export function BusTicketPDF({ agency, booking, bus, passengers, logoSrc }: Props) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
+          {logoSrc ? (
+            <PdfLogo src={logoSrc} square={brandUsesSquareLogo(agency.companyName)} />
+          ) : (
+            <Text style={styles.title}>{agency.companyName}</Text>
+          )}
           <Text style={styles.title}>{agency.companyName}</Text>
           <Text style={styles.subtitle}>
             {[agency.address, agency.city].filter(Boolean).join(", ")} | {agency.phone}

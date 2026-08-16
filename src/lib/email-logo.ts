@@ -26,6 +26,23 @@ export async function getEmailLogoInlineAttachment(): Promise<EmailAttachment> {
       select: { companyName: true },
     });
     fileName = getBrandPreset(brandFromCompanyName(agency?.companyName)).pdfLogoFile;
+    if (brandFromCompanyName(agency?.companyName) === "techrecoil") {
+      const candidates = [fileName, "image.png", "techrecoil-logo.png"];
+      for (const candidate of candidates) {
+        try {
+          const pngPath = path.join(process.cwd(), "public", candidate);
+          const content = await fs.readFile(pngPath);
+          return {
+            filename: candidate,
+            content,
+            contentType: "image/png",
+            cid: EMAIL_LOGO_CID,
+          };
+        } catch {
+          // try next
+        }
+      }
+    }
   } catch {
     // Keep Book to Roam fallback.
   }

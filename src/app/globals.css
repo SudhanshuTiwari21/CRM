@@ -25,6 +25,7 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary: var(--sidebar-primary);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -51,30 +52,11 @@
   --border: oklch(0.9 0.01 255);
   --input: oklch(0.9 0.01 255);
   --ring: oklch(0.45 0.18 255);
-  --sidebar: oklch(0.17 0.03 255);
-  --sidebar-foreground: oklch(0.92 0.01 255);
-  --sidebar-border: oklch(0.28 0.03 255);
-  --sidebar-accent: oklch(0.24 0.04 255);
-}
-
-/* TechRecoil: orange chrome matching the logo tile */
-html[data-brand="techrecoil"] {
-  --primary: oklch(0.7 0.19 52);
-  --primary-foreground: oklch(0.99 0.01 80);
-  --ring: oklch(0.7 0.19 52);
-  --sidebar: #f15a22;
-  --sidebar-foreground: #ffffff;
-  --sidebar-border: #d94c18;
-  --sidebar-accent: #d44816;
-}
-
-html[data-brand="techrecoil"].dark {
-  --primary: oklch(0.72 0.18 52);
-  --ring: oklch(0.72 0.18 52);
-  --sidebar: #e24e16;
-  --sidebar-foreground: #ffffff;
-  --sidebar-border: #c44312;
-  --sidebar-accent: #c23f10;
+  --sidebar: #0f1724;
+  --sidebar-foreground: #e8eef6;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-primary: #3b82f6;
 }
 
 .dark {
@@ -96,30 +78,33 @@ html[data-brand="techrecoil"].dark {
   --border: oklch(0.28 0.02 255);
   --input: oklch(0.28 0.02 255);
   --ring: oklch(0.62 0.18 255);
-  --sidebar: oklch(0.12 0.02 255);
-  --sidebar-foreground: oklch(0.92 0.01 255);
-  --sidebar-border: oklch(0.24 0.02 255);
-  --sidebar-accent: oklch(0.2 0.03 255);
+  --sidebar: #0b1220;
+  --sidebar-foreground: #e8eef6;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-primary: #60a5fa;
 }
 
-/* TechRecoil: orange chrome matching the logo tile */
+/* TechRecoil: warm charcoal sidebar, orange used as accent only */
 html[data-brand="techrecoil"] {
-  --primary: oklch(0.7 0.19 52);
-  --primary-foreground: oklch(0.99 0.01 80);
-  --ring: oklch(0.7 0.19 52);
-  --sidebar: #f15a22;
-  --sidebar-foreground: #ffffff;
-  --sidebar-border: #d94c18;
-  --sidebar-accent: #d44816;
+  --primary: #e85d04;
+  --primary-foreground: #fff7ed;
+  --ring: #e85d04;
+  --sidebar: #1a1410;
+  --sidebar-foreground: #f6efe9;
+  --sidebar-border: rgba(255, 237, 213, 0.1);
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-primary: #f97316;
 }
 
 html.dark[data-brand="techrecoil"] {
-  --primary: oklch(0.72 0.18 52);
-  --ring: oklch(0.72 0.18 52);
-  --sidebar: #e24e16;
-  --sidebar-foreground: #ffffff;
-  --sidebar-border: #c44312;
-  --sidebar-accent: #c23f10;
+  --primary: #fb923c;
+  --ring: #fb923c;
+  --sidebar: #140f0c;
+  --sidebar-foreground: #f6efe9;
+  --sidebar-border: rgba(255, 237, 213, 0.1);
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-primary: #fb923c;
 }
 
 @layer base {

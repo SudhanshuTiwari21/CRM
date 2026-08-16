@@ -13,6 +13,7 @@ import { getBookingCustomerContact } from "@/lib/cash-customer";
 import { getPdfLogoDataUri } from "@/lib/pdf-logo";
 import { resolveSegmentAirline } from "@/lib/airline-logo";
 import { getAirlineLogoDataUri } from "@/lib/airline-logo-pdf";
+import { brandFromCompanyName, type BrandId } from "@/lib/branding";
 
 function getStorageDir() {
   // Vercel serverless only allows writes to /tmp
@@ -47,12 +48,38 @@ export async function resolveDocumentPath(storagePath: string, fileName: string)
   return null;
 }
 
+function brandedPdfName(publicRef: string, kind: string, brandId: BrandId) {
+  return `${publicRef}-${kind}-${brandId}.pdf`;
+}
+
+function fileMatchesBrand(fileName: string, brandId: BrandId) {
+  return fileName.endsWith(`-${brandId}.pdf`);
+}
+
+async function documentsAreStaleForCurrentBrand(
+  docs: { fileName: string; generatedAt?: Date }[],
+  generatedAt?: Date
+) {
+  const agency = await prisma.agencySettings.findUnique({
+    where: { id: "default" },
+    select: { companyName: true, updatedAt: true },
+  });
+  if (!agency) return false;
+  const brandId = brandFromCompanyName(agency.companyName);
+  if (docs.some((doc) => !fileMatchesBrand(doc.fileName, brandId))) return true;
+  if (generatedAt && agency.updatedAt.getTime() > generatedAt.getTime() + 500) return true;
+  return false;
+}
+
 export async function readDocumentBuffer(
-  doc: { storagePath: string; fileName: string; bookingId: string; type: DocumentType },
+  doc: { storagePath: string; fileName: string; bookingId: string; type: DocumentType; generatedAt?: Date },
   options?: { userId?: string }
 ) {
-  let resolved = await resolveDocumentPath(doc.storagePath, doc.fileName);
-  if (resolved) return fs.readFile(resolved);
+  const stale = await documentsAreStaleForCurrentBrand([doc], doc.generatedAt);
+  if (!stale) {
+    const existing = await resolveDocumentPath(doc.storagePath, doc.fileName);
+    if (existing) return fs.readFile(existing);
+  }
 
   await generateBookingDocuments(doc.bookingId, options?.userId);
   const refreshed = await prisma.document.findFirst({
@@ -62,7 +89,7 @@ export async function readDocumentBuffer(
     throw new Error(`Document record not found for ${doc.fileName}`);
   }
 
-  resolved = await resolveDocumentPath(refreshed.storagePath, refreshed.fileName);
+  const resolved = await resolveDocumentPath(refreshed.storagePath, refreshed.fileName);
   if (!resolved) {
     throw new Error(`Document file not found: ${refreshed.fileName}`);
   }
@@ -91,7 +118,8 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
 
   const storageDir = getStorageDir();
   await ensureStorageDir();
-  const logoSrc = await getPdfLogoDataUri();
+  const brandId = brandFromCompanyName(agency.companyName);
+  const logoSrc = await getPdfLogoDataUri(agency.companyName);
   const documents: { type: DocumentType; fileName: string; storagePath: string }[] = [];
 
   if (booking.productType === "FLIGHT" && booking.flightBooking) {
@@ -117,7 +145,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
         segmentAirlineLogoSrcs,
       })
     );
-    const ticketFileName = `${booking.publicRef}-ticket.pdf`;
+    const ticketFileName = brandedPdfName(booking.publicRef, "ticket", brandId);
     const ticketPath = path.join(storageDir, ticketFileName);
     await fs.writeFile(ticketPath, ticketBuffer);
     documents.push({ type: "TICKET", fileName: ticketFileName, storagePath: ticketPath });
@@ -134,7 +162,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
         logoSrc,
       })
     );
-    const voucherFileName = `${booking.publicRef}-voucher.pdf`;
+    const voucherFileName = brandedPdfName(booking.publicRef, "voucher", brandId);
     const voucherPath = path.join(storageDir, voucherFileName);
     await fs.writeFile(voucherPath, voucherBuffer);
     documents.push({ type: "VOUCHER", fileName: voucherFileName, storagePath: voucherPath });
@@ -147,9 +175,10 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
         booking,
         bus: booking.busBooking,
         passengers: booking.busBooking.passengers as unknown as BusPassenger[],
+        logoSrc,
       })
     );
-    const ticketFileName = `${booking.publicRef}-bus-ticket.pdf`;
+    const ticketFileName = brandedPdfName(booking.publicRef, "bus-ticket", brandId);
     const ticketPath = path.join(storageDir, ticketFileName);
     await fs.writeFile(ticketPath, ticketBuffer);
     documents.push({ type: "TICKET", fileName: ticketFileName, storagePath: ticketPath });
@@ -171,7 +200,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
       logoSrc,
     })
   );
-  const invoiceFileName = `${booking.publicRef}-invoice.pdf`;
+  const invoiceFileName = brandedPdfName(booking.publicRef, "invoice", brandId);
   const invoicePath = path.join(storageDir, invoiceFileName);
   await fs.writeFile(invoicePath, invoiceBuffer);
   documents.push({ type: "INVOICE", fileName: invoiceFileName, storagePath: invoicePath });
@@ -232,12 +261,17 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
 
 export async function getBookingDocumentPaths(bookingId: string, userId?: string) {
   let docs = await prisma.document.findMany({ where: { bookingId } });
+  const oldestGenerated = docs.reduce<Date | undefined>((min, doc) => {
+    if (!min || doc.generatedAt < min) return doc.generatedAt;
+    return min;
+  }, undefined);
 
   const hasMissingFiles = await Promise.all(
     docs.map(async (doc) => !(await resolveDocumentPath(doc.storagePath, doc.fileName)))
   );
+  const brandStale = await documentsAreStaleForCurrentBrand(docs, oldestGenerated);
 
-  if (docs.length === 0 || hasMissingFiles.some(Boolean)) {
+  if (docs.length === 0 || hasMissingFiles.some(Boolean) || brandStale) {
     await generateBookingDocuments(bookingId, userId);
     docs = await prisma.document.findMany({ where: { bookingId } });
   }
