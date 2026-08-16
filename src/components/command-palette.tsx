@@ -57,10 +57,15 @@ export function CommandPalette() {
 
   return (
     <>
-      <Button variant="outline" size="sm" className="hidden gap-2 sm:flex" onClick={() => setOpen(true)}>
-        <Search className="h-4 w-4" />
-        <span className="text-muted-foreground">Search...</span>
-        <kbd className="pointer-events-none ml-2 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+      <Button
+        variant="outline"
+        size="sm"
+        className="hidden gap-2 border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 sm:flex"
+        onClick={() => setOpen(true)}
+      >
+        <Search className="h-4 w-4 text-slate-600" />
+        <span className="text-slate-600">Search...</span>
+        <kbd className="pointer-events-none ml-2 hidden h-5 select-none items-center gap-1 rounded border border-slate-200 bg-slate-100 px-1.5 font-mono text-[10px] font-medium text-slate-700 sm:flex">
           ⌘K
         </kbd>
       </Button>
