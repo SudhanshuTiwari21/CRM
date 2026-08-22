@@ -5,10 +5,9 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
-import { LeadNotesPanel } from "@/components/leads/lead-notes-panel";
+import { LeadActivityPanel } from "@/components/leads/lead-activity-panel";
 import { LeadDetailActions } from "@/components/leads/lead-detail-actions";
 import { getLeadById } from "@/lib/services/lead.service";
-import { LEAD_SOURCE_LABELS } from "@/lib/constants/lead";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -36,17 +35,23 @@ export default async function LeadDetailPage({
       <Header
         title={lead.name}
         description={[
+          lead.queryRef,
           lead.phone,
           lead.company,
-          LEAD_SOURCE_LABELS[lead.source],
-          lead.productInterest,
+          lead.destinations,
         ]
           .filter(Boolean)
           .join(" · ")}
         actions={<LeadStatusBadge status={lead.status} />}
       />
 
-      <div className="mb-6 grid gap-4 md:grid-cols-3">
+      <div className="mb-6 grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground">Query ref</CardTitle>
+          </CardHeader>
+          <CardContent className="text-lg font-semibold">{lead.queryRef || "—"}</CardContent>
+        </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground">Estimated value</CardTitle>
@@ -78,18 +83,29 @@ export default async function LeadDetailPage({
           <LeadDetailActions
             lead={{
               id: lead.id,
+              queryRef: lead.queryRef,
               name: lead.name,
               phone: lead.phone,
               email: lead.email,
               company: lead.company,
               source: lead.source,
               status: lead.status,
+              temperature: lead.temperature,
+              serviceType: lead.serviceType,
+              customerSegment: lead.customerSegment,
               productInterest: lead.productInterest,
+              travelDate: lead.travelDate?.toISOString() || null,
+              returnDate: lead.returnDate?.toISOString() || null,
+              destinations: lead.destinations,
+              adultCount: lead.adultCount,
+              childCount: lead.childCount,
+              infantCount: lead.infantCount,
               estimatedValue: lead.estimatedValue != null ? Number(lead.estimatedValue) : null,
               nextFollowUpAt: lead.nextFollowUpAt?.toISOString() || null,
               lostReason: lead.lostReason,
               requirement: lead.requirement,
               assignedAgentId: lead.assignedAgentId,
+              assignedOpsId: lead.assignedOpsId,
               customerId: lead.customerId,
               customer: lead.customer,
             }}
@@ -101,14 +117,34 @@ export default async function LeadDetailPage({
               <CardTitle className="text-base">Activity</CardTitle>
             </CardHeader>
             <CardContent>
-              <LeadNotesPanel
-                leadId={lead.id}
+              <LeadActivityPanel
+                lead={{
+                  id: lead.id,
+                  name: lead.name,
+                  email: lead.email,
+                  temperature: lead.temperature,
+                  assignedAgentId: lead.assignedAgentId,
+                }}
                 notes={lead.notes.map((n) => ({
                   id: n.id,
                   type: n.type,
                   body: n.body,
                   createdAt: n.createdAt.toISOString(),
                   user: n.user,
+                  details: (n.details as Record<string, unknown> | null) ?? null,
+                }))}
+                tasks={lead.tasks.map((t) => ({
+                  id: t.id,
+                  type: t.type,
+                  direction: t.direction,
+                  outcome: t.outcome,
+                  scheduledAt: t.scheduledAt?.toISOString() || null,
+                  isCompleted: t.isCompleted,
+                  details: t.details,
+                  temperature: t.temperature,
+                  createdAt: t.createdAt.toISOString(),
+                  assignedTo: t.assignedTo,
+                  createdBy: t.createdBy,
                 }))}
               />
             </CardContent>

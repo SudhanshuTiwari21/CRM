@@ -19,9 +19,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  LEAD_CUSTOMER_SEGMENT_OPTIONS,
   LEAD_PRODUCT_OPTIONS,
+  LEAD_SERVICE_TYPE_OPTIONS,
   LEAD_SOURCE_OPTIONS,
   LEAD_STATUS_OPTIONS,
+  LEAD_TEMPERATURE_OPTIONS,
 } from "@/lib/constants/lead";
 import { createLeadSchema, type CreateLeadInput } from "@/lib/validators/lead";
 import { getFirstFormErrorMessage } from "@/lib/form-errors";
@@ -52,11 +55,21 @@ export function AddLeadDialog({
       company: "",
       source: "WHATSAPP",
       status: "NEW",
+      temperature: "NONE",
+      serviceType: "PACKAGE",
+      customerSegment: "B2C",
       productInterest: "FLIGHT",
+      travelDate: "",
+      returnDate: "",
+      destinations: "",
+      adultCount: 2,
+      childCount: 0,
+      infantCount: 0,
       estimatedValue: undefined,
       nextFollowUpAt: "",
       requirement: "",
       assignedAgentId: null,
+      assignedOpsId: null,
       note: "",
     },
   });
@@ -84,7 +97,14 @@ export function AddLeadDialog({
           email: values.email || "",
           estimatedValue: values.estimatedValue || null,
           nextFollowUpAt: values.nextFollowUpAt || null,
+          travelDate: values.travelDate || null,
+          returnDate: values.returnDate || null,
+          destinations: values.destinations || null,
+          adultCount: values.adultCount ?? null,
+          childCount: values.childCount ?? null,
+          infantCount: values.infantCount ?? null,
           assignedAgentId: values.assignedAgentId || null,
+          assignedOpsId: values.assignedOpsId || null,
         }),
       });
       const data = await res.json();
@@ -167,6 +187,82 @@ export function AddLeadDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Temperature</Label>
+              <Select
+                value={form.watch("temperature") || "NONE"}
+                onValueChange={(v) =>
+                  form.setValue("temperature", v as CreateLeadInput["temperature"])
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEAD_TEMPERATURE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Service type</Label>
+              <Select
+                value={form.watch("serviceType") || "PACKAGE"}
+                onValueChange={(v) =>
+                  form.setValue("serviceType", v as CreateLeadInput["serviceType"])
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEAD_SERVICE_TYPE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Customer segment</Label>
+              <Select
+                value={form.watch("customerSegment") || "B2C"}
+                onValueChange={(v) =>
+                  form.setValue("customerSegment", v as CreateLeadInput["customerSegment"])
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEAD_CUSTOMER_SEGMENT_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Travel date</Label>
+              <Input type="date" {...form.register("travelDate")} />
+            </div>
+            <div className="space-y-2">
+              <Label>Destinations</Label>
+              <Input {...form.register("destinations")} placeholder="Mumbai-Dubai" />
+            </div>
+            <div className="space-y-2">
+              <Label>Adults</Label>
+              <Input type="number" min={0} {...form.register("adultCount")} />
+            </div>
+            <div className="space-y-2">
+              <Label>Children</Label>
+              <Input type="number" min={0} {...form.register("childCount")} />
             </div>
             <div className="space-y-2">
               <Label>Product interest</Label>

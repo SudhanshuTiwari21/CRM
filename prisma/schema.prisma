@@ -148,6 +148,45 @@ enum LeadNoteType {
   ASSIGNMENT
 }
 
+enum LeadTemperature {
+  HOT
+  WARM
+  COLD
+  NONE
+}
+
+enum LeadServiceType {
+  PACKAGE
+  FLIGHT
+  HOTEL
+  VISA
+  BUS
+  OTHER
+}
+
+enum LeadCustomerSegment {
+  B2C
+  B2B
+}
+
+enum LeadTaskType {
+  CALL
+  TODO
+}
+
+enum LeadCallDirection {
+  INCOMING
+  OUTGOING
+}
+
+enum LeadCallOutcome {
+  ANSWERED
+  UNANSWERED
+  NOT_REACHABLE
+  CALLBACK
+  LOST
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -166,8 +205,11 @@ model User {
   creditNotes      CreditNote[]          @relation("CreditNoteCreatedBy")
   savedPassengers  SavedPassenger[]
   assignedLeads    Lead[]                @relation("LeadAssignedAgent")
+  assignedOpsLeads Lead[]                @relation("LeadAssignedOps")
   createdLeads     Lead[]                @relation("LeadCreatedBy")
   leadNotes        LeadNote[]
+  assignedLeadTasks LeadTask[]           @relation("LeadTaskAssignedTo")
+  createdLeadTasks  LeadTask[]           @relation("LeadTaskCreatedBy")
   accounts         Account[]
   sessions         Session[]
 }
@@ -411,38 +453,63 @@ model Booking {
   @@index([createdAt])
 }
 
+model LeadSerialCounter {
+  year       Int @id
+  lastNumber Int @default(0)
+}
+
 model Lead {
-  id              String        @id @default(cuid())
+  id              String               @id @default(cuid())
+  queryRef        String?              @unique
+  serialYear      Int?
+  serialNumber    Int?
   name            String
   phone           String?
   email           String?
   company         String?
-  source          LeadSource    @default(OTHER)
-  status          LeadStatus    @default(NEW)
+  source          LeadSource           @default(OTHER)
+  status          LeadStatus           @default(NEW)
+  temperature     LeadTemperature      @default(NONE)
+  serviceType     LeadServiceType?
+  customerSegment LeadCustomerSegment  @default(B2C)
   productInterest ProductType?
-  estimatedValue  Decimal?      @db.Decimal(12, 2)
-  currency        String        @default("INR")
+  travelDate      DateTime?
+  returnDate      DateTime?
+  destinations    String?
+  adultCount      Int?
+  childCount      Int?
+  infantCount     Int?
+  estimatedValue  Decimal?             @db.Decimal(12, 2)
+  currency        String               @default("INR")
   nextFollowUpAt  DateTime?
   lostReason      String?
   requirement     String?
   customerId      String?
   bookingId       String?
   assignedAgentId String?
+  assignedOpsId   String?
   createdById     String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
   customer      Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
   booking       Booking?   @relation(fields: [bookingId], references: [id], onDelete: SetNull)
   assignedAgent User?      @relation("LeadAssignedAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  assignedOps   User?      @relation("LeadAssignedOps", fields: [assignedOpsId], references: [id], onDelete: SetNull)
   createdBy     User?      @relation("LeadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   notes         LeadNote[]
+  tasks         LeadTask[]
 
+  @@unique([serialYear, serialNumber])
   @@index([status])
+  @@index([temperature])
+  @@index([serviceType])
   @@index([source])
   @@index([assignedAgentId])
+  @@index([assignedOpsId])
   @@index([phone])
   @@index([nextFollowUpAt])
+  @@index([travelDate])
   @@index([createdAt])
   @@index([customerId])
 }
@@ -461,6 +528,32 @@ model LeadNote {
 
   @@index([leadId])
   @@index([createdAt])
+}
+
+model LeadTask {
+  id           String             @id @default(cuid())
+  leadId       String
+  type         LeadTaskType
+  direction    LeadCallDirection?
+  outcome      LeadCallOutcome?
+  scheduledAt  DateTime?
+  completedAt  DateTime?
+  isCompleted  Boolean            @default(false)
+  details      String?
+  temperature  LeadTemperature?
+  assignedToId String?
+  createdById  String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  lead       Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedTo User? @relation("LeadTaskAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy  User? @relation("LeadTaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([scheduledAt])
+  @@index([isCompleted])
+  @@index([assignedToId])
 }
 
 model AirlineProfile {

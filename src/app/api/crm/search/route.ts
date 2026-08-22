@@ -31,14 +31,16 @@ export async function GET(request: Request) {
         },
         take: 5,
       }),
-      prisma.lead.findMany({
-        where: {
-          OR: [
-            { name: { contains: q, mode: "insensitive" } },
-            { phone: { contains: q } },
-            { company: { contains: q, mode: "insensitive" } },
-          ],
-        },
+    prisma.lead.findMany({
+      where: {
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { phone: { contains: q } },
+          { company: { contains: q, mode: "insensitive" } },
+          { queryRef: { contains: q, mode: "insensitive" } },
+          { destinations: { contains: q, mode: "insensitive" } },
+        ],
+      },
         take: 5,
       }),
     ]);

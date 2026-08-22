@@ -2,7 +2,8 @@ import { auth } from "@/lib/auth";
 import { createLeadSchema } from "@/lib/validators/lead";
 import { createLead, listLeads } from "@/lib/services/lead.service";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api-utils";
-import type { LeadStatus } from "@prisma/client";
+import type { LeadProgressFilter } from "@/lib/validators/lead";
+import type { LeadServiceType, LeadStatus, LeadTemperature } from "@prisma/client";
 
 export async function GET(request: Request) {
   try {
@@ -10,10 +11,17 @@ export async function GET(request: Request) {
     if (!session?.user) return jsonError("Unauthorized", 401);
 
     const { searchParams } = new URL(request.url);
+    const assignee = searchParams.get("assignee") || "ALL";
+
     const result = await listLeads({
       search: searchParams.get("search") || undefined,
       status: (searchParams.get("status") as LeadStatus | "ALL") || "ALL",
-      assignedAgentId: searchParams.get("assignee") || "ALL",
+      temperature: (searchParams.get("temperature") as LeadTemperature | "ALL") || "ALL",
+      progress: (searchParams.get("progress") as LeadProgressFilter) || "IN_PROGRESS",
+      serviceType: (searchParams.get("serviceType") as LeadServiceType | "ALL") || "ALL",
+      assignedAgentId: assignee === "ME" ? "ME" : assignee,
+      assignedOpsId: searchParams.get("opsAssignee") || "ALL",
+      currentUserId: session.user.id,
       page: parseInt(searchParams.get("page") || "1", 10),
       limit: parseInt(searchParams.get("limit") || "20", 10),
     });

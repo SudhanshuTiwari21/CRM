@@ -12,26 +12,47 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  LEAD_CUSTOMER_SEGMENT_OPTIONS,
   LEAD_PRODUCT_OPTIONS,
+  LEAD_SERVICE_TYPE_OPTIONS,
   LEAD_SOURCE_OPTIONS,
   LEAD_STATUS_OPTIONS,
+  LEAD_TEMPERATURE_OPTIONS,
 } from "@/lib/constants/lead";
-import type { LeadSource, LeadStatus, ProductType } from "@prisma/client";
+import type {
+  LeadCustomerSegment,
+  LeadServiceType,
+  LeadSource,
+  LeadStatus,
+  LeadTemperature,
+  ProductType,
+} from "@prisma/client";
 
 interface LeadDetail {
   id: string;
+  queryRef?: string | null;
   name: string;
   phone: string | null;
   email: string | null;
   company: string | null;
   source: LeadSource;
   status: LeadStatus;
+  temperature: LeadTemperature;
+  serviceType: LeadServiceType | null;
+  customerSegment: LeadCustomerSegment;
   productInterest: ProductType | null;
+  travelDate: string | null;
+  returnDate: string | null;
+  destinations: string | null;
+  adultCount: number | null;
+  childCount: number | null;
+  infantCount: number | null;
   estimatedValue: string | number | null;
   nextFollowUpAt: string | null;
   lostReason: string | null;
   requirement: string | null;
   assignedAgentId: string | null;
+  assignedOpsId: string | null;
   customerId: string | null;
   customer: { id: string; name: string } | null;
 }
@@ -42,6 +63,14 @@ function toLocalInput(value: string | null) {
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function toDateInput(value: string | null) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 export function LeadDetailActions({ lead }: { lead: LeadDetail }) {
@@ -58,12 +87,22 @@ export function LeadDetailActions({ lead }: { lead: LeadDetail }) {
     company: lead.company || "",
     source: lead.source,
     status: lead.status,
+    temperature: lead.temperature,
+    serviceType: lead.serviceType || "",
+    customerSegment: lead.customerSegment,
     productInterest: lead.productInterest || "",
+    travelDate: toDateInput(lead.travelDate),
+    returnDate: toDateInput(lead.returnDate),
+    destinations: lead.destinations || "",
+    adultCount: lead.adultCount != null ? String(lead.adultCount) : "",
+    childCount: lead.childCount != null ? String(lead.childCount) : "",
+    infantCount: lead.infantCount != null ? String(lead.infantCount) : "",
     estimatedValue: lead.estimatedValue != null ? String(lead.estimatedValue) : "",
     nextFollowUpAt: toLocalInput(lead.nextFollowUpAt),
     lostReason: lead.lostReason || "",
     requirement: lead.requirement || "",
     assignedAgentId: lead.assignedAgentId || "",
+    assignedOpsId: lead.assignedOpsId || "",
   });
 
   useEffect(() => {
@@ -89,12 +128,22 @@ export function LeadDetailActions({ lead }: { lead: LeadDetail }) {
           company: form.company,
           source: form.source,
           status: form.status,
+          temperature: form.temperature,
+          serviceType: form.serviceType || null,
+          customerSegment: form.customerSegment,
           productInterest: form.productInterest || null,
+          travelDate: form.travelDate || null,
+          returnDate: form.returnDate || null,
+          destinations: form.destinations || null,
+          adultCount: form.adultCount ? Number(form.adultCount) : null,
+          childCount: form.childCount ? Number(form.childCount) : null,
+          infantCount: form.infantCount ? Number(form.infantCount) : null,
           estimatedValue: form.estimatedValue ? Number(form.estimatedValue) : null,
           nextFollowUpAt: form.nextFollowUpAt || null,
           lostReason: form.status === "LOST" ? form.lostReason : null,
           requirement: form.requirement,
           assignedAgentId: form.assignedAgentId || null,
+          assignedOpsId: form.assignedOpsId || null,
         }),
       });
       const data = await res.json();
@@ -227,6 +276,116 @@ export function LeadDetailActions({ lead }: { lead: LeadDetail }) {
           </Select>
         </div>
         <div className="space-y-2">
+          <Label>Temperature</Label>
+          <Select
+            value={form.temperature}
+            onValueChange={(v) => setForm({ ...form, temperature: v as LeadTemperature })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LEAD_TEMPERATURE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Service type</Label>
+          <Select
+            value={form.serviceType || "__none__"}
+            onValueChange={(v) =>
+              setForm({ ...form, serviceType: v === "__none__" ? "" : v })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">None</SelectItem>
+              {LEAD_SERVICE_TYPE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Customer segment</Label>
+          <Select
+            value={form.customerSegment}
+            onValueChange={(v) =>
+              setForm({ ...form, customerSegment: v as LeadCustomerSegment })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LEAD_CUSTOMER_SEGMENT_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Travel date</Label>
+          <Input
+            type="date"
+            value={form.travelDate}
+            onChange={(e) => setForm({ ...form, travelDate: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Return date</Label>
+          <Input
+            type="date"
+            value={form.returnDate}
+            onChange={(e) => setForm({ ...form, returnDate: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label>Destinations</Label>
+          <Input
+            value={form.destinations}
+            onChange={(e) => setForm({ ...form, destinations: e.target.value })}
+            placeholder="e.g. Mumbai-Dubai, Delhi-Goa"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Adults</Label>
+          <Input
+            type="number"
+            min={0}
+            value={form.adultCount}
+            onChange={(e) => setForm({ ...form, adultCount: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Children</Label>
+          <Input
+            type="number"
+            min={0}
+            value={form.childCount}
+            onChange={(e) => setForm({ ...form, childCount: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Infants</Label>
+          <Input
+            type="number"
+            min={0}
+            value={form.infantCount}
+            onChange={(e) => setForm({ ...form, infantCount: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
           <Label>Product interest</Label>
           <Select
             value={form.productInterest || "__none__"}
@@ -264,11 +423,32 @@ export function LeadDetailActions({ lead }: { lead: LeadDetail }) {
           />
         </div>
         <div className="space-y-2">
-          <Label>Assignee</Label>
+          <Label>Sales assignee</Label>
           <Select
             value={form.assignedAgentId || "__none__"}
             onValueChange={(v) =>
               setForm({ ...form, assignedAgentId: v === "__none__" ? "" : v })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Unassigned</SelectItem>
+              {agents.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Ops assignee</Label>
+          <Select
+            value={form.assignedOpsId || "__none__"}
+            onValueChange={(v) =>
+              setForm({ ...form, assignedOpsId: v === "__none__" ? "" : v })
             }
           >
             <SelectTrigger>

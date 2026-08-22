@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { getDashboardStats } from "@/lib/services/booking.service";
+import { getLeadFollowUpSummary } from "@/lib/services/lead.service";
 import { formatCurrency } from "@/lib/utils";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { KpiCard } from "@/components/dashboard/kpi-card";
@@ -7,6 +8,7 @@ import { DashboardCharts } from "@/components/dashboard/dashboard-charts";
 import { ProcessingQueuePanel } from "@/components/dashboard/processing-queue-panel";
 import { RecentBookingsPanel } from "@/components/dashboard/recent-bookings-panel";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
+import { LeadFollowUpsPanel } from "@/components/dashboard/lead-follow-ups-panel";
 import { CommandPalette } from "@/components/command-palette";
 import {
   Calendar,
@@ -18,7 +20,11 @@ import {
 } from "lucide-react";
 
 export default async function DashboardPage() {
-  const [session, stats] = await Promise.all([auth(), getDashboardStats()]);
+  const [session, stats, followUps] = await Promise.all([
+    auth(),
+    getDashboardStats(),
+    getLeadFollowUpSummary(5),
+  ]);
 
   const bookingTrend =
     stats.yesterdayBookings === 0
@@ -106,12 +112,18 @@ export default async function DashboardPage() {
         <ProcessingQueuePanel items={stats.processingQueue} total={stats.processingCount} />
       </div>
 
-      {/* Recent + activity */}
+      {/* Recent + activity + lead follow-ups */}
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <RecentBookingsPanel bookings={stats.recentBookings} />
         </div>
-        <div className="lg:col-span-2">
+        <div className="space-y-6 lg:col-span-2">
+          <LeadFollowUpsPanel
+            overdue={followUps.overdue}
+            dueToday={followUps.dueToday}
+            overdueCount={followUps.overdueCount}
+            dueTodayCount={followUps.dueTodayCount}
+          />
           <ActivityFeed items={stats.recentActivity} />
         </div>
       </div>
