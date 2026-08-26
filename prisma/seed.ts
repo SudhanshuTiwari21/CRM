@@ -8,9 +8,10 @@ async function main() {
   const agentPassword = await hash("agent123", 12);
 
   const admin = await prisma.user.upsert({
-    where: { email: "admin@techrecoil.in" },
+    where: { brandId_email: { brandId: "BOOK_TO_ROAM", email: "admin@techrecoil.in" } },
     update: {},
     create: {
+      brandId: "BOOK_TO_ROAM",
       name: "Admin User",
       email: "admin@techrecoil.in",
       passwordHash: adminPassword,
@@ -19,9 +20,10 @@ async function main() {
   });
 
   const agent = await prisma.user.upsert({
-    where: { email: "agent@techrecoil.in" },
+    where: { brandId_email: { brandId: "BOOK_TO_ROAM", email: "agent@techrecoil.in" } },
     update: {},
     create: {
+      brandId: "BOOK_TO_ROAM",
       name: "Travel Agent",
       email: "agent@techrecoil.in",
       passwordHash: agentPassword,
@@ -31,7 +33,7 @@ async function main() {
 
   const smtpUser = process.env.SMTP_USER || "";
   await prisma.agencySettings.upsert({
-    where: { id: "default" },
+    where: { brandId: "BOOK_TO_ROAM" },
     update: {
       smtpHost: process.env.SMTP_HOST || "smtp.gmail.com",
       smtpPort: parseInt(process.env.SMTP_PORT || "587", 10),
@@ -41,7 +43,7 @@ async function main() {
       email: "Sales@techrecoil.in",
     },
     create: {
-      id: "default",
+      brandId: "BOOK_TO_ROAM",
       companyName: "Book to Roam",
       address: "136 Bangur Avenue Block C",
       city: "Kolkata",
@@ -61,9 +63,10 @@ async function main() {
   });
 
   await prisma.emailTemplate.upsert({
-    where: { key: "held_processing" },
+    where: { brandId_key: { brandId: "BOOK_TO_ROAM", key: "held_processing" } },
     update: {},
     create: {
+      brandId: "BOOK_TO_ROAM",
       key: "held_processing",
       subject: "Booking Received - {{publicRef}}",
       body: `Dear {{customerName}},
@@ -85,11 +88,12 @@ Regards,
   });
 
   await prisma.emailTemplate.upsert({
-    where: { key: "booking_confirmed" },
+    where: { brandId_key: { brandId: "BOOK_TO_ROAM", key: "booking_confirmed" } },
     update: {
       subject: "Booking Confirmed - {{publicRef}} | PNR: {{pnr}}",
     },
     create: {
+      brandId: "BOOK_TO_ROAM",
       key: "booking_confirmed",
       subject: "Booking Confirmed - {{publicRef}} | PNR: {{pnr}}",
       body: `Dear {{customerName}},
@@ -109,11 +113,12 @@ Regards,
   });
 
   await prisma.emailTemplate.upsert({
-    where: { key: "itinerary_voucher" },
+    where: { brandId_key: { brandId: "BOOK_TO_ROAM", key: "itinerary_voucher" } },
     update: {
       subject: "Your Flight Booking - {{publicRef}}",
     },
     create: {
+      brandId: "BOOK_TO_ROAM",
       key: "itinerary_voucher",
       subject: "Your Flight Booking - {{publicRef}}",
       body: `Dear {{customerName}},
@@ -134,9 +139,10 @@ Regards,
   });
 
   await prisma.emailTemplate.upsert({
-    where: { key: "checkin_assistance_reminder" },
+    where: { brandId_key: { brandId: "BOOK_TO_ROAM", key: "checkin_assistance_reminder" } },
     update: {},
     create: {
+      brandId: "BOOK_TO_ROAM",
       key: "checkin_assistance_reminder",
       subject: "Check-in Assistance - {{publicRef}} departs in ~{{hoursLeft}}h",
       body: `Check-in booking assistance required.

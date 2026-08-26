@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getAgencySettings } from "@/lib/brand-context";
 import { sendEmail } from "@/lib/mailer";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import {
@@ -63,7 +64,7 @@ export async function sendCheckInAssistanceAdminAlert(bookingId: string) {
     return { skipped: true, reason: "Not yet within 48-hour window" };
   }
 
-  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+  const agency = await getAgencySettings();
   const companyName = agency?.companyName || "Book to Roam";
   const hoursLeft = hoursUntilDeparture(departure);
   const sector = buildSectorSummary(segments, booking.flightBooking.tripType);

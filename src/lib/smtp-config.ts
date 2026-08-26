@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getAgencySettings } from "@/lib/brand-context";
 
 export interface SmtpConfig {
   host: string;
@@ -15,7 +16,7 @@ function normalizeAppPassword(pass: string) {
 }
 
 export async function getSmtpConfig(): Promise<SmtpConfig> {
-  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+  const agency = await getAgencySettings();
 
   const host = agency?.smtpHost || process.env.SMTP_HOST || "smtp.gmail.com";
   const port = agency?.smtpPort || parseInt(process.env.SMTP_PORT || "587", 10);

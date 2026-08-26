@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getAgencySettings, getActiveDbBrand } from "@/lib/brand-context";
 import { allocatePublicRef } from "@/lib/booking-ref";
 import { logActivity } from "./activity.service";
 import { generateBookingDocuments } from "./document.service";
@@ -115,7 +116,7 @@ async function resolveBookingCustomer(input: {
 
 async function getAgencyStateCode() {
   try {
-    const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+    const agency = await getAgencySettings();
     return getStateCodeFromGstin(agency?.gstin);
   } catch {
     // Do not block booking creation if agency settings query fails.
@@ -238,9 +239,11 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
   }
 
   const booking = await prisma.$transaction(async (tx) => {
-    const { publicRef, serialYear, serialNumber } = await allocatePublicRef(tx);
+    const brandId = await getActiveDbBrand();
+    const { publicRef, serialYear, serialNumber } = await allocatePublicRef(tx, brandId);
 
     const baseData = {
+      brandId,
       publicRef,
       serialYear,
       serialNumber,
@@ -259,7 +262,7 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
     let created;
 
     if (input.productType === "FLIGHT") {
-      const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+      const agency = await getAgencySettings();
       const agencyStateCode = getStateCodeFromGstin(agency?.gstin);
       const agencyHasGst = Boolean(agency?.gstin?.trim());
       const flightInput = input as OfflineFlightBookingInput;
@@ -548,8 +551,10 @@ async function createBookingFromWebhook(params: {
   metadata?: Prisma.InputJsonValue;
 }) {
   const { input, customerId, publicRef, serialYear, serialNumber, channel, status, pnr, supplierRef, metadata } = params;
+  const brandId = await getActiveDbBrand();
 
   const base = {
+    brandId,
     publicRef,
     serialYear,
     serialNumber,
@@ -565,6 +570,7 @@ async function createBookingFromWebhook(params: {
     metadata,
     payments: {
       create: {
+        brandId,
         amount: input.totalAmount,
         method: input.paymentMethod,
         gatewayRef: input.gatewayRef,
@@ -866,6 +872,9 @@ export async function getDashboardStats() {
   const weekAgo = new Date(today);
   weekAgo.setDate(weekAgo.getDate() - 7);
 
+  const brandId = await getActiveDbBrand();
+  const brandFilter = { brandId };
+
   const [
     todayBookings,
     yesterdayBookings,
@@ -884,38 +893,40 @@ export async function getDashboardStats() {
     recentActivity,
     weekBookings,
   ] = await Promise.all([
-    prisma.booking.count({ where: { createdAt: { gte: today } } }),
+    prisma.booking.count({ where: { ...brandFilter, createdAt: { gte: today } } }),
     prisma.booking.count({
-      where: { createdAt: { gte: yesterday, lt: today } },
+      where: { ...brandFilter, createdAt: { gte: yesterday, lt: today } },
     }),
-    prisma.booking.count({ where: { status: "PROCESSING" } }),
-    prisma.booking.count({ where: { status: "PROCESSING", pnr: null } }),
+    prisma.booking.count({ where: { ...brandFilter, status: "PROCESSING" } }),
+    prisma.booking.count({ where: { ...brandFilter, status: "PROCESSING", pnr: null } }),
     prisma.booking.aggregate({
-      where: { paymentStatus: "PAID" },
+      where: { ...brandFilter, paymentStatus: "PAID" },
       _sum: { totalAmount: true },
     }),
     prisma.booking.aggregate({
-      where: { paymentStatus: "PAID", createdAt: { gte: weekAgo } },
+      where: { ...brandFilter, paymentStatus: "PAID", createdAt: { gte: weekAgo } },
       _sum: { totalAmount: true },
     }),
-    prisma.booking.count({ where: { status: "CONFIRMED" } }),
-    prisma.booking.count({ where: { status: "TICKET_SENT" } }),
-    prisma.booking.count(),
-    prisma.booking.groupBy({ by: ["channel"], _count: true }),
-    prisma.booking.groupBy({ by: ["productType"], _count: true }),
-    prisma.booking.groupBy({ by: ["status"], _count: true }),
+    prisma.booking.count({ where: { ...brandFilter, status: "CONFIRMED" } }),
+    prisma.booking.count({ where: { ...brandFilter, status: "TICKET_SENT" } }),
+    prisma.booking.count({ where: brandFilter }),
+    prisma.booking.groupBy({ by: ["channel"], where: brandFilter, _count: true }),
+    prisma.booking.groupBy({ by: ["productType"], where: brandFilter, _count: true }),
+    prisma.booking.groupBy({ by: ["status"], where: brandFilter, _count: true }),
     prisma.booking.findMany({
-      where: { status: "PROCESSING" },
+      where: { ...brandFilter, status: "PROCESSING" },
       include: { customer: true },
       orderBy: { createdAt: "asc" },
       take: 8,
     }),
     prisma.booking.findMany({
+      where: brandFilter,
       include: { customer: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
       take: 6,
     }),
     prisma.activityLog.findMany({
+      where: { booking: brandFilter },
       include: {
         user: { select: { name: true } },
         booking: { select: { id: true, publicRef: true } },
@@ -924,7 +935,7 @@ export async function getDashboardStats() {
       take: 8,
     }),
     prisma.booking.findMany({
-      where: { createdAt: { gte: weekAgo }, paymentStatus: "PAID" },
+      where: { ...brandFilter, createdAt: { gte: weekAgo }, paymentStatus: "PAID" },
       select: { createdAt: true, totalAmount: true },
     }),
   ]);

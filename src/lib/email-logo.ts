@@ -1,8 +1,8 @@
 import fs from "fs/promises";
 import path from "path";
 import type { EmailAttachment } from "@/lib/mailer";
-import { prisma } from "@/lib/db";
 import { brandFromCompanyName, brandUsesSquareLogo, getBrandPreset } from "@/lib/branding";
+import { getAgencySettings } from "@/lib/brand-context";
 
 export const EMAIL_LOGO_CID = "agency-logo@crm";
 
@@ -21,10 +21,7 @@ export function getEmailLogoSrc() {
 export async function getEmailLogoInlineAttachment(): Promise<EmailAttachment> {
   let fileName = "booktoroam-logo.png";
   try {
-    const agency = await prisma.agencySettings.findUnique({
-      where: { id: "default" },
-      select: { companyName: true },
-    });
+    const agency = await getAgencySettings();
     fileName = getBrandPreset(brandFromCompanyName(agency?.companyName)).pdfLogoFile;
     if (brandFromCompanyName(agency?.companyName) === "techrecoil") {
       const candidates = [fileName, "image.png", "techrecoil-logo.png"];

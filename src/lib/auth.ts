@@ -41,11 +41,28 @@ const nextAuth = NextAuth({
         try {
           if (!credentials?.email || !credentials?.password) return null;
 
-          const user = await prisma.user.findUnique({
-            where: { email: credentials.email as string },
-          });
+          const brandCookie = (await import("next/headers").then((m) => m.cookies()).catch(() => null))
+            ?.get?.("crm-active-brand")?.value;
+          const preferredBrand =
+            brandCookie === "techrecoil"
+              ? "TECHRECOIL"
+              : brandCookie === "book-to-roam"
+                ? "BOOK_TO_ROAM"
+                : null;
 
-          if (!user || !user.active) return null;
+          const email = credentials.email as string;
+          const user =
+            (preferredBrand
+              ? await prisma.user.findFirst({
+                  where: { email, brandId: preferredBrand, active: true },
+                })
+              : null) ||
+            (await prisma.user.findFirst({
+              where: { email, active: true },
+              orderBy: { createdAt: "asc" },
+            }));
+
+          if (!user) return null;
 
           const valid = await compare(credentials.password as string, user.passwordHash);
           if (!valid) return null;

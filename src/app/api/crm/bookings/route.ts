@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { createOfflineBooking } from "@/lib/services/booking.service";
 import { offlineBookingSchema } from "@/lib/validators/booking";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api-utils";
+import { getActiveDbBrand } from "@/lib/brand-context";
 import type { BookingStatus, BookingChannel, ProductType, Prisma } from "@prisma/client";
 
 export async function GET(request: Request) {
@@ -19,7 +20,9 @@ export async function GET(request: Request) {
     const search = searchParams.get("search") || "";
     const view = searchParams.get("view");
 
-    const where: Prisma.BookingWhereInput = {};
+    const where: Prisma.BookingWhereInput = {
+      brandId: await getActiveDbBrand(),
+    };
 
     if (status) where.status = status;
     if (channel) where.channel = channel;

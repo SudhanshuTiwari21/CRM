@@ -7,6 +7,7 @@ import {
   getAccountingBills,
 } from "@/lib/services/accounting.service";
 import { handleApiError, jsonError } from "@/lib/api-utils";
+import { getAgencySettings } from "@/lib/brand-context";
 
 export async function GET(request: Request) {
   try {
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
     const from = fromStr ? new Date(fromStr) : undefined;
     const to = toStr ? new Date(`${toStr}T23:59:59.999Z`) : undefined;
 
-    const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+    const agency = await getAgencySettings();
     const { rows } = await getAccountingBills({ type, msmeNumber, from, to });
 
     const companyName = agency?.companyName || "Book to Roam";

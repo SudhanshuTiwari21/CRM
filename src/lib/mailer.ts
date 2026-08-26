@@ -6,6 +6,7 @@ import fs from "fs/promises";
 import path from "path";
 import { resolveDocumentPath } from "@/lib/services/document.service";
 import { getSmtpConfig } from "@/lib/smtp-config";
+import { getActiveDbBrand, getAgencySettings } from "@/lib/brand-context";
 
 export type EmailAttachment = {
   filename: string;
@@ -105,15 +106,16 @@ export async function sendTemplatedEmail(params: {
   inlineAttachments?: EmailAttachment[];
   htmlOverride?: string;
 }) {
+  const brandId = await getActiveDbBrand();
   const template = await prisma.emailTemplate.findUnique({
-    where: { key: params.templateKey },
+    where: { brandId_key: { brandId, key: params.templateKey } },
   });
 
   if (!template) {
     throw new Error(`Email template not found: ${params.templateKey}`);
   }
 
-  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+  const agency = await getAgencySettings();
   const companyName = agency?.companyName || params.vars.companyName || "Book to Roam";
 
   const subject = renderTemplate(template.subject, params.vars);
@@ -171,7 +173,7 @@ export async function sendEmail(params: SendEmailParams) {
 }
 
 export async function sendTestEmail(to: string) {
-  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+  const agency = await getAgencySettings();
   const companyName = agency?.companyName || "Book to Roam";
 
   const html = wrapHtmlEmail(

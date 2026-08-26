@@ -6,6 +6,7 @@ import { roundMoney } from "@/lib/payment-allocation";
 import { recordCreditTransaction } from "@/lib/services/credit.service";
 import { logActivity } from "@/lib/services/activity.service";
 import type { RecordPaymentInput } from "@/lib/validators/payments-hub";
+import { getActiveDbBrand } from "@/lib/brand-context";
 
 export async function recordAdvancePayment(
   input: Extract<RecordPaymentInput, { target: "ADVANCE" }>,
@@ -21,8 +22,10 @@ export async function recordAdvancePayment(
     `Advance payment via ${input.method}${reference ? ` (Ref: ${reference})` : ""}`;
 
   const payment = await prisma.$transaction(async (tx) => {
+    const brandId = await getActiveDbBrand();
     const created = await tx.payment.create({
       data: {
+        brandId,
         customerId: input.customerId,
         amount: input.amount,
         method: input.method,
@@ -198,8 +201,12 @@ export async function listPaymentHistory(params: {
 }) {
   const page = params.page ?? 1;
   const limit = params.limit ?? 30;
+  const brandId = await getActiveDbBrand();
 
-  const where = params.billingType ? { billingType: params.billingType } : {};
+  const where = {
+    brandId,
+    ...(params.billingType ? { billingType: params.billingType } : {}),
+  };
 
   const [payments, total] = await Promise.all([
     prisma.payment.findMany({

@@ -1,0 +1,159 @@
+HOW TO OPEN LEADS
+-----------------
+[ ] Left sidebar → CRM → Leads
+[ ] Or press Cmd + K (Mac) / Ctrl + K (Windows) and search a lead name
+
+
+ADD A NEW LEAD
+--------------
+[ ] Click orange "Add Lead" button on top right
+[ ] Fill customer name (required)
+[ ] Add phone, email, company (optional)
+[ ] Pick where enquiry came from (WhatsApp, Phone, Website, etc.)
+[ ] Pick lead status (New, Contacted, Qualified, etc.)
+[ ] Pick Hot / Warm / Cold / No Status
+[ ] Pick service type (Package, Flight, Hotel, Visa, Bus)
+[ ] Pick B2C or B2B
+[ ] Add travel date and destinations (e.g. Mumbai-Dubai)
+[ ] Add number of adults, children, infants
+[ ] Add estimated trip value in INR
+[ ] Set next follow-up date and time
+[ ] Assign to a sales person
+[ ] Write requirement / notes
+[ ] Click Create — you should go to that lead's detail page
+[ ] New lead gets auto number like Q/26/1234567
+
+
+LEADS LIST PAGE (MAIN TABLE) — LIKE HELLO GTX
+---------------------------------------------
+[ ] See table with columns: Query date, Customer, Pax/Type, Description, Travel date, Destinations, Proposal, Lead stage
+[ ] See "Total records found" count on the right
+[ ] Search box works (name, phone, query number, destination)
+[ ] Filter by assignee (All, Unassigned, My leads, or pick a person)
+[ ] Page numbers work at bottom (20 leads per page)
+
+TEMPERATURE TABS (HOW URGENT IS THE LEAD?)
+------------------------------------------
+[ ] All tab shows every lead
+[ ] Hot tab — urgent leads (red)
+[ ] Warm tab — medium interest (orange)
+[ ] Cold tab — low priority (blue)
+[ ] No Status tab — not marked yet
+[ ] Each tab shows count in brackets e.g. Hot (3)
+
+PROGRESS TABS (WHERE IS THE LEAD IN THE SALES PROCESS?)
+-------------------------------------------------------
+[ ] In Progress — leads still being worked on
+[ ] Recent — leads added in last 7 days
+[ ] Confirmed — qualified leads
+[ ] Converted — won / became customer
+[ ] Lost / Trash — lost leads
+[ ] Overall — everything
+[ ] Each tab shows count in brackets
+
+BULK ASSIGN (ASSIGN MANY LEADS AT ONCE)
+---------------------------------------
+[ ] Tick checkbox on left of one or more leads
+[ ] Pick a sales user → click orange Assign
+[ ] Pick an ops user → click Assign
+[ ] Selected leads should get that person assigned
+
+QUICK ACTIONS ON EACH LEAD ROW
+------------------------------
+[ ] Click lead name or query number → opens lead detail page
+[ ] Green WhatsApp icon next to phone → opens WhatsApp chat
+[ ] Email link → opens email app
+[ ] Orange "Follow up" button on every row → opens follow-up popup
+
+
+LEAD DETAIL PAGE
+----------------
+[ ] See query reference number at top
+[ ] See estimated value, next follow-up date, assignee in cards
+[ ] Edit all lead fields and click Save
+[ ] Change temperature (Hot/Warm/Cold)
+[ ] Change travel date, destinations, pax counts
+[ ] Assign sales person AND ops person separately
+[ ] If status = Lost, you can write lost reason
+[ ] "Convert to customer" button (needs phone number on lead)
+[ ] After convert, lead status becomes Converted / Won
+[ ] Admin can delete lead
+
+
+FOLLOW-UP / CALL LOG POPUP (HELLO GTX STYLE)
+--------------------------------------------
+Open from: Follow up button on list OR "Add follow-up / call log" on detail page
+
+[ ] Switch between Call and To Do
+[ ] For calls: pick Outgoing or Incoming
+[ ] Pick call result: Answered, Unanswered, Not Reachable, Call Back, Lost
+[ ] Pick when to follow up: Today, Tomorrow, In 2 days, In 3 days, or Custom date
+[ ] Pick time for follow-up
+[ ] Pick who is assigned
+[ ] Write details / notes
+[ ] Tick "Completed" if already done
+[ ] Pick lead temperature at bottom (Hot/Warm/Cold/No Status)
+[ ] Click Save
+[ ] Next follow-up date on lead should update
+[ ] If you picked Lost as outcome, lead should move to Lost status
+[ ] Activity should appear in timeline below
+
+
+ACTIVITY TIMELINE (ON LEAD DETAIL PAGE)
+---------------------------------------
+[ ] See list of all past actions in order (newest on top)
+[ ] Shows notes, calls, WhatsApp, emails
+[ ] Shows when status changed (e.g. New → Contacted)
+[ ] Shows when someone was assigned
+[ ] Shows follow-up tasks you logged
+[ ] Add quick note: pick type (Note/Call/WhatsApp/Email), write text, Add activity
+
+
+DASHBOARD
+---------
+[ ] Go to Dashboard (left sidebar)
+[ ] See "Lead follow-ups" box on the right side
+[ ] Shows how many leads are OVERDUE (missed follow-up date)
+[ ] Shows how many are DUE TODAY
+[ ] Lists lead names — click to open that lead
+[ ] "View all" goes to Leads page
+
+
+GLOBAL SEARCH
+-------------
+[ ] Press Cmd+K or Ctrl+K anywhere in app
+[ ] Type lead name, phone, or company
+[ ] Leads appear in search results — click to open
+
+
+BRAND / SIDEBAR — SEPARATE DATA FOR BTR vs TR
+---------------------------------------------
+[ ] BTR / TR switch at top of sidebar changes brand (page reloads)
+[ ] Book to Roam (BTR) and TechRecoil (TR) show DIFFERENT data
+[ ] Existing old bookings/customers/leads stay under Book to Roam
+[ ] TechRecoil starts empty — add new leads/bookings there separately
+[ ] Settings → Users list is per brand (create users while on that brand)
+[ ] Invoices / payments / documents only show current brand's files
+[ ] Sidebar can collapse with icon next to logo
+[ ] Leads menu stays in CRM section
+
+TechRecoil admin login (if created): admin.tr@techrecoil.in / admin123
+Book to Roam admin login: admin@techrecoil.in / admin123
+(Switch brand AFTER login using BTR/TR toggle)
+
+
+NOT ADDED YET (YOU WILL NOT SEE THESE)
+--------------------------------------
+[ ] Send SMS / WhatsApp / Email using ready-made templates from lead
+[ ] Create and send price proposals / quotes from lead
+[ ] "View Proposal" column in table (shows — for now)
+[ ] Auto import leads from Facebook / Instagram ads
+[ ] Auto assign leads by rules (round robin, by city, etc.)
+[ ] Import leads from Excel / CSV
+[ ] Link lead directly to a booking from UI
+[ ] Click-to-call from browser
+[ ] AI follow-up bot
+
+
+
+

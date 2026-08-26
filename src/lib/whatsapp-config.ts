@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getAgencySettings } from "@/lib/brand-context";
 
 export interface WhatsAppConfig {
   enabled: boolean;
@@ -9,7 +10,7 @@ export interface WhatsAppConfig {
 }
 
 export async function getWhatsAppConfig(): Promise<WhatsAppConfig> {
-  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+  const agency = await getAgencySettings();
 
   const phoneNumberId = agency?.whatsappPhoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || "";
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || "";

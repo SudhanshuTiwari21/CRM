@@ -12,7 +12,6 @@ import {
 import { toast } from "sonner";
 import {
   BRAND_STORAGE_KEY,
-  brandFromCompanyName,
   getBrandPreset,
   isBrandId,
   type BrandId,
@@ -42,17 +41,16 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
           if (!cancelled) setBrandIdState(stored);
         }
 
-        const res = await fetch("/api/crm/settings");
-        if (res.ok) {
-          const data = await res.json();
-          const fromAgency = brandFromCompanyName(data?.agency?.companyName);
-          if (!cancelled) {
-            setBrandIdState(fromAgency);
-            localStorage.setItem(BRAND_STORAGE_KEY, fromAgency);
-          }
+        // Sync cookie with localStorage so server APIs use the same brand.
+        if (isBrandId(stored)) {
+          await fetch("/api/crm/brand", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ brandId: stored }),
+          }).catch(() => null);
         }
       } catch {
-        // Keep local/default brand if settings fetch fails.
+        // Keep default brand if hydrate fails.
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -86,7 +84,9 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || "Could not update brand");
         }
-        toast.success(`Switched to ${preset.label}`);
+        toast.success(`Switched to ${preset.label} — showing that brand's data only`);
+        // Full reload so all lists/APIs load the other brand's records.
+        window.location.reload();
       })
       .catch((error) => {
         toast.error(error instanceof Error ? error.message : "Could not update brand");

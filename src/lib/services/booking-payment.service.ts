@@ -54,6 +54,7 @@ export async function recordBookingPayment(
   await prisma.$transaction(async (tx) => {
     await tx.payment.create({
       data: {
+        brandId: booking.brandId,
         bookingId,
         amount: input.amount,
         method: input.method,
@@ -198,6 +199,7 @@ export async function recordAllocatedBookingPayments(
       if (split.wallet > 0) {
         await tx.payment.create({
           data: {
+            brandId: booking.brandId,
             bookingId: split.bookingId,
             customerId: input.customerId,
             amount: split.wallet,
@@ -215,6 +217,7 @@ export async function recordAllocatedBookingPayments(
       if (split.received > 0) {
         await tx.payment.create({
           data: {
+            brandId: booking.brandId,
             bookingId: split.bookingId,
             customerId: input.customerId,
             amount: split.received,

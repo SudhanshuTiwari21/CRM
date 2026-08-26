@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getAgencySettings } from "@/lib/brand-context";
 import type { EmailStatus } from "@prisma/client";
 import { getWhatsAppConfig } from "@/lib/whatsapp-config";
 
@@ -105,7 +106,7 @@ function formatWhatsAppApiError(message?: string, code?: number, to?: string) {
 }
 
 export async function sendTestWhatsApp(to: string) {
-  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+  const agency = await getAgencySettings();
   const companyName = agency?.companyName || "Book to Roam";
 
   return sendWhatsAppText({

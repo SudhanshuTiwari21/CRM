@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import type { InvoiceTaxType } from "@prisma/client";
 import { format } from "date-fns";
 import type { FlightSegment } from "@/types/booking";
+import { getActiveDbBrand } from "@/lib/brand-context";
 
 export interface AccountingBillRow {
   id: string;
@@ -54,7 +55,9 @@ export async function getAccountingBills(params: {
   from?: Date;
   to?: Date;
 }) {
+  const brandId = await getActiveDbBrand();
   const where = {
+    brandId,
     productType: "FLIGHT" as const,
     flightBooking: {
       is: {
@@ -131,6 +134,7 @@ export async function getAccountingBills(params: {
 
   const countBookings = await prisma.booking.findMany({
     where: {
+      brandId,
       productType: "FLIGHT",
       flightBooking: { is: { baseFare: { not: null } } },
       ...(params.from || params.to

@@ -17,9 +17,10 @@ export async function createCreditNote(params: {
   if (params.amount <= 0) throw new Error("Credit note amount must be greater than zero");
 
   const note = await prisma.$transaction(async (tx) => {
-    const { publicRef, serialYear, serialNumber } = await allocateCreditNoteRef(tx);
+    const { publicRef, serialYear, serialNumber, brandId } = await allocateCreditNoteRef(tx);
     return tx.creditNote.create({
       data: {
+        brandId,
         publicRef,
         serialYear,
         serialNumber,

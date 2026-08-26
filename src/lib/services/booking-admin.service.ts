@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import { differenceInDays } from "date-fns";
 import { prisma } from "@/lib/db";
+import { getAgencySettings } from "@/lib/brand-context";
 import type { Prisma } from "@prisma/client";
 import { formatPublicRef, parsePublicRef } from "@/lib/booking-ref";
 import { getAirlineLogoUrl } from "@/lib/airline-logo";
@@ -114,7 +115,7 @@ export async function updateBookingAsAdmin(
     input.addonType !== undefined;
 
   if (booking.flightBooking) {
-    const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+    const agency = await getAgencySettings();
     const agencyHasGst = Boolean(agency?.gstin?.trim());
     const agencyStateCode = getStateCodeFromGstin(agency?.gstin);
 

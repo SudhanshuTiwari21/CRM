@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getAgencySettings } from "@/lib/brand-context";
 import { getEmailLogoInlineAttachment } from "@/lib/email-logo";
 import { sendTemplatedEmail, getEmailAttachments } from "@/lib/mailer";
 import { generateBookingDocuments, getBookingDocumentPaths } from "./document.service";
@@ -29,7 +30,7 @@ async function sendBookingEmail(
       hotelBooking: true,
     },
   });
-  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+  const agency = await getAgencySettings();
 
   const contact = booking ? getBookingCustomerContact(booking) : null;
   if (!booking || !contact?.email) return { skipped: true as const };
@@ -125,7 +126,7 @@ async function sendBookingWhatsApp(
       busBooking: true,
     },
   });
-  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+  const agency = await getAgencySettings();
 
   if (!booking) {
     return { success: false, skipped: true, error: "Booking not found" };

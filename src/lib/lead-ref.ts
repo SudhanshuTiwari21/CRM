@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
-import type { Prisma } from "@prisma/client";
+import type { CrmBrand, Prisma } from "@prisma/client";
+import { getActiveDbBrand } from "@/lib/brand-context";
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
@@ -18,12 +19,13 @@ export function parseQueryRef(queryRef: string): { year: number; serialNumber: n
   return { year: century + yy, serialNumber };
 }
 
-export async function allocateQueryRef(tx: DbClient = prisma) {
+export async function allocateQueryRef(tx: DbClient = prisma, brandId?: CrmBrand) {
   const year = new Date().getFullYear();
+  const brand = brandId ?? (await getActiveDbBrand());
 
   const counter = await tx.leadSerialCounter.upsert({
-    where: { year },
-    create: { year, lastNumber: 1 },
+    where: { brandId_year: { brandId: brand, year } },
+    create: { brandId: brand, year, lastNumber: 1 },
     update: { lastNumber: { increment: 1 } },
   });
 
@@ -32,22 +34,28 @@ export async function allocateQueryRef(tx: DbClient = prisma) {
     queryRef: formatQueryRef(year, serialNumber),
     serialYear: year,
     serialNumber,
+    brandId: brand,
   };
 }
 
 /** Backfill queryRef for legacy leads missing serial fields. */
 export async function backfillLeadQueryRefs() {
+  const brand = await getActiveDbBrand();
   const leads = await prisma.lead.findMany({
-    where: { queryRef: null },
+    where: { brandId: brand, queryRef: null },
     select: { id: true },
     orderBy: { createdAt: "asc" },
   });
 
   for (const lead of leads) {
-    const ref = await allocateQueryRef();
+    const ref = await allocateQueryRef(prisma, brand);
     await prisma.lead.update({
       where: { id: lead.id },
-      data: ref,
+      data: {
+        queryRef: ref.queryRef,
+        serialYear: ref.serialYear,
+        serialNumber: ref.serialNumber,
+      },
     });
   }
 

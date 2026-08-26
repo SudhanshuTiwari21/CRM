@@ -1,7 +1,8 @@
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/db";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api-utils";
 import { getBrandPreset, isBrandId } from "@/lib/branding";
+import { BRAND_COOKIE, getAgencySettings, toDbBrand } from "@/lib/brand-context";
+import { cookies } from "next/headers";
 
 export async function POST(request: Request) {
   try {
@@ -14,21 +15,23 @@ export async function POST(request: Request) {
       return jsonError("Invalid brand", 400);
     }
 
-    const preset = getBrandPreset(brandId);
-    await prisma.agencySettings.upsert({
-      where: { id: "default" },
-      update: {
-        companyName: preset.companyName,
-        logoUrl: preset.logoSrc,
-      },
-      create: {
-        id: "default",
-        companyName: preset.companyName,
-        logoUrl: preset.logoSrc,
-      },
+    // Ensure this brand has its own settings row (does not overwrite the other brand).
+    await getAgencySettings(brandId);
+
+    const jar = await cookies();
+    jar.set(BRAND_COOKIE, brandId, {
+      path: "/",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 365,
     });
 
-    return jsonOk({ success: true, brandId, companyName: preset.companyName });
+    const preset = getBrandPreset(brandId);
+    return jsonOk({
+      success: true,
+      brandId,
+      dbBrand: toDbBrand(brandId),
+      companyName: preset.companyName,
+    });
   } catch (error) {
     return handleApiError(error);
   }

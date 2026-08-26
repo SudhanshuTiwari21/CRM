@@ -10,6 +10,7 @@ import type {
 import type { CreateLeadParsed, CreateLeadTaskParsed, LeadProgressFilter, UpdateLeadInput } from "@/lib/validators/lead";
 import { createCustomerRecord } from "@/lib/services/customer.service";
 import { allocateQueryRef } from "@/lib/lead-ref";
+import { getActiveDbBrand } from "@/lib/brand-context";
 import { subDays, startOfDay, endOfDay } from "date-fns";
 import {
   LEAD_CALL_DIRECTION_LABELS,
@@ -90,7 +91,8 @@ export async function listLeads(params: {
 }) {
   const page = params.page || 1;
   const limit = params.limit || 20;
-  const where: Prisma.LeadWhereInput = {};
+  const brandId = await getActiveDbBrand();
+  const where: Prisma.LeadWhereInput = { brandId };
 
   applyProgressFilter(params.progress, where);
 
@@ -144,21 +146,23 @@ export async function listLeads(params: {
     prisma.lead.count({ where }),
     prisma.lead.groupBy({
       by: ["status"],
+      where: { brandId },
       _count: { _all: true },
     }),
     prisma.lead.groupBy({
       by: ["temperature"],
+      where: { brandId },
       _count: { _all: true },
     }),
     Promise.all([
       prisma.lead.count({
-        where: { status: { in: ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL"] } },
+        where: { brandId, status: { in: ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL"] } },
       }),
-      prisma.lead.count({ where: { createdAt: { gte: subDays(new Date(), 7) } } }),
-      prisma.lead.count({ where: { status: "QUALIFIED" } }),
-      prisma.lead.count({ where: { status: "WON" } }),
-      prisma.lead.count({ where: { status: "LOST" } }),
-      prisma.lead.count(),
+      prisma.lead.count({ where: { brandId, createdAt: { gte: subDays(new Date(), 7) } } }),
+      prisma.lead.count({ where: { brandId, status: "QUALIFIED" } }),
+      prisma.lead.count({ where: { brandId, status: "WON" } }),
+      prisma.lead.count({ where: { brandId, status: "LOST" } }),
+      prisma.lead.count({ where: { brandId } }),
     ]),
   ]);
 
@@ -192,12 +196,16 @@ export async function getLeadById(id: string) {
 }
 
 export async function createLead(input: CreateLeadParsed, userId: string) {
+  const brandId = await getActiveDbBrand();
   const lead = await prisma.$transaction(async (tx) => {
-    const ref = await allocateQueryRef(tx);
+    const ref = await allocateQueryRef(tx, brandId);
 
     return tx.lead.create({
       data: {
-        ...ref,
+        brandId,
+        queryRef: ref.queryRef,
+        serialYear: ref.serialYear,
+        serialNumber: ref.serialNumber,
         name: input.name.trim(),
         phone: input.phone?.trim() || null,
         email: input.email?.trim() || null,
@@ -467,12 +475,14 @@ export async function getLeadFollowUpSummary(limit = 8) {
   const now = new Date();
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
+  const brandId = await getActiveDbBrand();
 
   const activeStatuses: LeadStatus[] = ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL"];
 
   const [overdue, dueToday, upcoming, overdueCount, dueTodayCount] = await Promise.all([
     prisma.lead.findMany({
       where: {
+        brandId,
         status: { in: activeStatuses },
         nextFollowUpAt: { lt: todayStart },
       },
@@ -482,6 +492,7 @@ export async function getLeadFollowUpSummary(limit = 8) {
     }),
     prisma.lead.findMany({
       where: {
+        brandId,
         status: { in: activeStatuses },
         nextFollowUpAt: { gte: todayStart, lte: todayEnd },
       },
@@ -491,6 +502,7 @@ export async function getLeadFollowUpSummary(limit = 8) {
     }),
     prisma.lead.findMany({
       where: {
+        brandId,
         status: { in: activeStatuses },
         nextFollowUpAt: { gt: todayEnd },
       },
@@ -500,12 +512,14 @@ export async function getLeadFollowUpSummary(limit = 8) {
     }),
     prisma.lead.count({
       where: {
+        brandId,
         status: { in: activeStatuses },
         nextFollowUpAt: { lt: todayStart },
       },
     }),
     prisma.lead.count({
       where: {
+        brandId,
         status: { in: activeStatuses },
         nextFollowUpAt: { gte: todayStart, lte: todayEnd },
       },
@@ -532,7 +546,7 @@ export async function convertLeadToCustomer(
 
   if (!customerId && opts.createCustomer !== false) {
     const existing = await prisma.customer.findFirst({
-      where: { phone: lead.phone },
+      where: { brandId: lead.brandId, phone: lead.phone },
     });
     if (existing) {
       customerId = existing.id;

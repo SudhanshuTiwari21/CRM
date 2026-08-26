@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { handleApiError, jsonOk, jsonError } from "@/lib/api-utils";
+import { getActiveDbBrand } from "@/lib/brand-context";
 
 export async function GET(request: Request) {
   try {
@@ -11,9 +12,12 @@ export async function GET(request: Request) {
     const q = searchParams.get("q") || "";
     if (q.length < 2) return jsonOk({ bookings: [], customers: [], leads: [] });
 
+    const brandId = await getActiveDbBrand();
+
     const [bookings, customers, leads] = await Promise.all([
       prisma.booking.findMany({
         where: {
+          brandId,
           OR: [
             { publicRef: { contains: q, mode: "insensitive" } },
             { pnr: { contains: q, mode: "insensitive" } },
@@ -24,6 +28,7 @@ export async function GET(request: Request) {
       }),
       prisma.customer.findMany({
         where: {
+          brandId,
           OR: [
             { name: { contains: q, mode: "insensitive" } },
             { phone: { contains: q } },
@@ -31,16 +36,17 @@ export async function GET(request: Request) {
         },
         take: 5,
       }),
-    prisma.lead.findMany({
-      where: {
-        OR: [
-          { name: { contains: q, mode: "insensitive" } },
-          { phone: { contains: q } },
-          { company: { contains: q, mode: "insensitive" } },
-          { queryRef: { contains: q, mode: "insensitive" } },
-          { destinations: { contains: q, mode: "insensitive" } },
-        ],
-      },
+      prisma.lead.findMany({
+        where: {
+          brandId,
+          OR: [
+            { name: { contains: q, mode: "insensitive" } },
+            { phone: { contains: q } },
+            { company: { contains: q, mode: "insensitive" } },
+            { queryRef: { contains: q, mode: "insensitive" } },
+            { destinations: { contains: q, mode: "insensitive" } },
+          ],
+        },
         take: 5,
       }),
     ]);

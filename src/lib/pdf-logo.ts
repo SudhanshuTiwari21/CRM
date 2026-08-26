@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
-import { prisma } from "@/lib/db";
 import { brandFromCompanyName, getBrandPreset } from "@/lib/branding";
+import { getAgencySettings } from "@/lib/brand-context";
 
 const logoCache = new Map<string, string | null>();
 
@@ -35,10 +35,7 @@ export async function getPdfLogoDataUri(companyName?: string | null): Promise<st
   let resolvedName = companyName;
   if (resolvedName === undefined) {
     try {
-      const agency = await prisma.agencySettings.findUnique({
-        where: { id: "default" },
-        select: { companyName: true },
-      });
+      const agency = await getAgencySettings();
       resolvedName = agency?.companyName;
     } catch {
       resolvedName = null;

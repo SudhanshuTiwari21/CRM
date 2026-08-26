@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { DocumentType, Prisma, ProductType } from "@prisma/client";
 import { bookingMatchesPassengerSearch, collectPassengerNames } from "@/lib/document-passengers";
+import { getActiveDbBrand } from "@/lib/brand-context";
 
 export type DocumentCategory = "all" | "flight-ticket" | "hotel-voucher" | "bus-ticket" | "invoice";
 
@@ -44,7 +45,8 @@ export async function listDocuments(params: ListDocumentsParams = {}) {
   const passengerQuery = params.passenger?.trim() || "";
 
   const where: Prisma.DocumentWhereInput = {};
-  const bookingWhere: Prisma.BookingWhereInput = {};
+  const brandId = await getActiveDbBrand();
+  const bookingWhere: Prisma.BookingWhereInput = { brandId };
 
   const categoryFilter = categoryWhere(category);
   if (categoryFilter?.type) {

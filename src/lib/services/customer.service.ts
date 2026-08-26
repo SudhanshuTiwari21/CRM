@@ -4,17 +4,20 @@ import type { z } from "zod";
 import type { createCustomerSchema } from "@/lib/validators/customer";
 import { normalizePhone, phoneLookupVariants } from "@/lib/phone";
 import { CASH_WALK_IN_PHONE } from "@/lib/cash-customer";
+import { getActiveDbBrand } from "@/lib/brand-context";
 
 type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
 
 export async function getOrCreateCashWalkInCustomer() {
+  const brandId = await getActiveDbBrand();
   const existing = await prisma.customer.findFirst({
-    where: { phone: CASH_WALK_IN_PHONE },
+    where: { brandId, phone: CASH_WALK_IN_PHONE },
   });
   if (existing) return existing;
 
   return prisma.customer.create({
     data: {
+      brandId,
       type: "INDIVIDUAL",
       name: "Cash Walk-in",
       phone: CASH_WALK_IN_PHONE,
@@ -24,9 +27,10 @@ export async function getOrCreateCashWalkInCustomer() {
 }
 
 export async function findCustomerByPhone(phone: string) {
+  const brandId = await getActiveDbBrand();
   const variants = phoneLookupVariants(phone);
   return prisma.customer.findFirst({
-    where: { phone: { in: variants } },
+    where: { brandId, phone: { in: variants } },
   });
 }
 
@@ -207,10 +211,12 @@ export async function createCustomerRecord(
   const creditEnabled = input.creditEnabled ?? false;
   const creditLimit =
     options?.creditLimitAllowed && input.creditLimit != null ? input.creditLimit : null;
+  const brandId = await getActiveDbBrand();
 
   if (input.type === "INDIVIDUAL") {
     return prisma.customer.create({
       data: {
+        brandId,
         type: "INDIVIDUAL",
         name: input.name,
         phone: normalizedPhone,
@@ -230,6 +236,7 @@ export async function createCustomerRecord(
 
   return prisma.customer.create({
     data: {
+      brandId,
       type: "BUSINESS",
       name: input.name,
       phone: normalizedPhone,

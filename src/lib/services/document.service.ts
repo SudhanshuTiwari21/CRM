@@ -14,6 +14,7 @@ import { getPdfLogoDataUri } from "@/lib/pdf-logo";
 import { resolveSegmentAirline } from "@/lib/airline-logo";
 import { getAirlineLogoDataUri } from "@/lib/airline-logo-pdf";
 import { brandFromCompanyName, type BrandId } from "@/lib/branding";
+import { getAgencySettings } from "@/lib/brand-context";
 
 function getStorageDir() {
   // Vercel serverless only allows writes to /tmp
@@ -60,10 +61,7 @@ async function documentsAreStaleForCurrentBrand(
   docs: { fileName: string; generatedAt?: Date }[],
   generatedAt?: Date
 ) {
-  const agency = await prisma.agencySettings.findUnique({
-    where: { id: "default" },
-    select: { companyName: true, updatedAt: true },
-  });
+  const agency = await getAgencySettings();
   if (!agency) return false;
   const brandId = brandFromCompanyName(agency.companyName);
   if (docs.some((doc) => !fileMatchesBrand(doc.fileName, brandId))) return true;
@@ -110,7 +108,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
 
   if (!booking) throw new Error("Booking not found");
 
-  const agency = await prisma.agencySettings.findUnique({ where: { id: "default" } });
+  const agency = await getAgencySettings();
   if (!agency) throw new Error("Agency settings not found");
 
   const customerContact = getBookingCustomerContact(booking);

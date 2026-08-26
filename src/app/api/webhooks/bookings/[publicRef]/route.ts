@@ -8,7 +8,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ publ
 
     const { publicRef } = await params;
 
-    const booking = await prisma.booking.findUnique({
+    const booking = await prisma.booking.findFirst({
       where: { publicRef },
       select: {
         publicRef: true,

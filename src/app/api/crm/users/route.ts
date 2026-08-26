@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { hash } from "bcryptjs";
 import { z } from "zod";
 import { handleApiError, jsonOk } from "@/lib/api-utils";
+import { getActiveDbBrand } from "@/lib/brand-context";
 
 const createUserSchema = z.object({
   name: z.string().min(2),
@@ -16,16 +17,18 @@ export async function POST(request: Request) {
     await requireAdmin();
     const body = await request.json();
     const data = createUserSchema.parse(body);
+    const brandId = await getActiveDbBrand();
 
     const passwordHash = await hash(data.password, 12);
     const user = await prisma.user.create({
       data: {
+        brandId,
         name: data.name,
         email: data.email,
         passwordHash,
         role: data.role,
       },
-      select: { id: true, name: true, email: true, role: true, active: true },
+      select: { id: true, name: true, email: true, role: true, active: true, brandId: true },
     });
 
     return jsonOk(user, 201);

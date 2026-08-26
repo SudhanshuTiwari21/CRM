@@ -6,7 +6,7 @@ const DEMO_BOOKING_REF = "FB-2026-000001";
 const DEMO_CUSTOMER_ID = "seed-customer-1";
 
 async function main() {
-  const booking = await prisma.booking.findUnique({
+  const booking = await prisma.booking.findFirst({
     where: { publicRef: DEMO_BOOKING_REF },
     select: { id: true, publicRef: true },
   });
