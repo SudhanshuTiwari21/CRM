@@ -31,26 +31,32 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
   const [msmes, setMsmes] = useState<{ label: string; number: string }[]>([]);
 
   useEffect(() => {
-    fetch("/api/crm/settings")
-      .then(async (r) => {
-        const type = r.headers.get("content-type") || "";
-        if (!r.ok || !type.includes("application/json")) return null;
-        return r.json();
-      })
-      .then((data) => {
-        const gstin = data?.agency?.gstin || null;
-        setAgencyGstin(gstin);
-        setAgencyStateCode(getStateCodeFromGstin(gstin));
-      })
-      .catch(() => {
-        setAgencyGstin(null);
-        setAgencyStateCode(null);
-      });
+    function loadAgency() {
+      fetch("/api/crm/settings", { credentials: "include" })
+        .then(async (r) => {
+          const type = r.headers.get("content-type") || "";
+          if (!r.ok || !type.includes("application/json")) return null;
+          return r.json();
+        })
+        .then((data) => {
+          const gstin = data?.agency?.gstin || null;
+          setAgencyGstin(gstin);
+          setAgencyStateCode(getStateCodeFromGstin(gstin));
+        })
+        .catch(() => {
+          setAgencyGstin(null);
+          setAgencyStateCode(null);
+        });
+    }
 
-    fetch("/api/crm/msme")
+    loadAgency();
+    fetch("/api/crm/msme", { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setMsmes(d.msmes || []))
       .catch(() => setMsmes([]));
+
+    window.addEventListener("focus", loadAgency);
+    return () => window.removeEventListener("focus", loadAgency);
   }, []);
 
   const hasAgencyGst = Boolean(agencyGstin?.trim());
@@ -283,9 +289,16 @@ function NonGstFlightTotalFields({ form }: { form: UseFormReturn<WizardForm> }) 
         value={subtotal || ""}
         onChange={(e) => handleSubtotalChange(e.target.value)}
       />
-      <p className="text-xs text-muted-foreground">
-        Add agency GSTIN in Settings to enable fare breakup and tax invoice fields.
-      </p>
+      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <p className="font-medium">Price breakup is hidden</p>
+        <p className="mt-1 text-amber-800/90">
+          Add your agency GSTIN in{" "}
+          <a href="/settings" className="font-semibold underline underline-offset-2">
+            Settings
+          </a>{" "}
+          for this brand (BTR / TR). After saving, refresh this page — base fare, tax, and breakup fields will come back.
+        </p>
+      </div>
     </div>
   );
 }

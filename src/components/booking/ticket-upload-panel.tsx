@@ -34,11 +34,18 @@ export function TicketUploadPanel({
       const res = await fetch("/api/crm/bookings/parse-ticket", {
         method: "POST",
         body,
+        credentials: "include",
       });
       const { ok, data, error } = await parseApiResponse(res);
-      if (!ok) throw new Error(error);
+      if (!ok) throw new Error(error || "Could not read ticket PDF");
 
-      const result = data as ParsedTicketResult;
+      // API returns the parse result at the top level (not nested under `result`)
+      const result = data as unknown as ParsedTicketResult;
+      if (!result?.fields || !result.productType) {
+        throw new Error(
+          "Ticket was read but no usable fields were found. Try a text-based e-ticket PDF (not a scanned photo)."
+        );
+      }
       onExtracted(result);
 
       const warnCount = result.warnings?.length || 0;
@@ -54,7 +61,10 @@ export function TicketUploadPanel({
         toast.success("Ticket details filled into the form");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to parse ticket");
+      const message =
+        error instanceof Error ? error.message : "Failed to parse ticket";
+      toast.error(message, { duration: 8000 });
+      console.error("[ticket-import]", error);
     } finally {
       setLoading(false);
       if (inputRef.current) inputRef.current.value = "";
