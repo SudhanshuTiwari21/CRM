@@ -22,6 +22,8 @@ import {
   getServiceDescription,
   type LeadProgressFilter,
 } from "@/lib/constants/lead";
+import { TRIP_PLAN_STATUS_LABELS } from "@/lib/constants/trip-plan";
+import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type {
   LeadCustomerSegment,
@@ -62,6 +64,14 @@ interface LeadRow {
   assignedAgent: { id: string; name: string } | null;
   assignedOps: { id: string; name: string } | null;
   _count: { notes: number };
+  tripPlans?: {
+    id: string;
+    version: number;
+    status: string;
+    title: string;
+    offerPrice: string | number;
+    currency: string;
+  }[];
 }
 
 function whatsAppHref(phone: string) {
@@ -481,7 +491,31 @@ export function LeadsTable({ refreshKey = 0 }: { refreshKey?: number }) {
                   <TableCell className="max-w-[140px] text-xs">
                     {lead.destinations || "—"}
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">—</TableCell>
+                  <TableCell className="text-xs">
+                    {lead.tripPlans?.[0] ? (
+                      <div className="space-y-1">
+                        <Link
+                          href={`/leads/${lead.id}/trip-plan/${lead.tripPlans[0].id}`}
+                          className="font-medium text-blue-700 hover:underline"
+                        >
+                          V{lead.tripPlans[0].version} ·{" "}
+                          {formatCurrency(Number(lead.tripPlans[0].offerPrice))}
+                        </Link>
+                        <p className="text-[10px] text-muted-foreground">
+                          {TRIP_PLAN_STATUS_LABELS[
+                            lead.tripPlans[0].status as keyof typeof TRIP_PLAN_STATUS_LABELS
+                          ] || lead.tripPlans[0].status}
+                        </p>
+                      </div>
+                    ) : (
+                      <Link
+                        href={`/leads/${lead.id}/trip-plan/new`}
+                        className="text-muted-foreground hover:text-blue-700 hover:underline"
+                      >
+                        Create plan
+                      </Link>
+                    )}
+                  </TableCell>
                   <TableCell className="min-w-[130px] space-y-1.5">
                     <LeadStatusBadge status={lead.status} />
                     {lead.temperature !== "NONE" && (

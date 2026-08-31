@@ -145,8 +145,6 @@ Book to Roam admin login: admin@techrecoil.in / admin123
 NOT ADDED YET (YOU WILL NOT SEE THESE)
 --------------------------------------
 [ ] Send SMS / WhatsApp / Email using ready-made templates from lead
-[ ] Create and send price proposals / quotes from lead
-[ ] "View Proposal" column in table (shows — for now)
 [ ] Auto import leads from Facebook / Instagram ads
 [ ] Auto assign leads by rules (round robin, by city, etc.)
 [ ] Import leads from Excel / CSV
@@ -155,5 +153,18 @@ NOT ADDED YET (YOU WILL NOT SEE THESE)
 [ ] AI follow-up bot
 
 
+TRIP PLANNING / PROPOSALS (NEW — PLEASE VERIFY)
+------------------------------------------------
+[ ] Open any lead → see "Trip plans & proposals" section
+[ ] Click "Create trip plan" to open the builder
+[ ] Add services: Flight, Hotel, Transfer, Sightseeing, Visa, Meals, Guide, Insurance, Bus, Other
+[ ] Organize services day-wise (Day 1, Day 2, etc.)
+[ ] Enter cost + markup → system calculates sell price and margin
+[ ] Set inclusions, exclusions, and terms on the proposal
+[ ] Save draft or Send proposal (updates lead to "Proposal Sent")
+[ ] Download branded PDF proposal
+[ ] Create new version (V2, V3…) without losing old versions
+[ ] Leads table "Proposal" column shows latest version + price (click to open)
+[ ] Each brand (BTR / TR) has separate trip plans
 
 

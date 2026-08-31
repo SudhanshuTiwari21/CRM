@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { LeadActivityPanel } from "@/components/leads/lead-activity-panel";
+import { LeadTripPlansPanel } from "@/components/trip-plan/lead-trip-plans-panel";
 import { LeadDetailActions } from "@/components/leads/lead-detail-actions";
 import { getLeadById } from "@/lib/services/lead.service";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
@@ -79,7 +80,7 @@ export default async function LeadDetailPage({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-5">
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 space-y-6">
           <LeadDetailActions
             lead={{
               id: lead.id,
@@ -110,6 +111,7 @@ export default async function LeadDetailPage({
               customer: lead.customer,
             }}
           />
+          <LeadTripPlansPanel leadId={lead.id} />
         </div>
         <div className="lg:col-span-2">
           <Card>

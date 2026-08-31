@@ -192,6 +192,32 @@ enum LeadCallOutcome {
   LOST
 }
 
+enum TripPlanStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  SUPERSEDED
+}
+
+enum TripServiceType {
+  FLIGHT
+  HOTEL
+  TRANSFER
+  SIGHTSEEING
+  VISA
+  MEAL
+  GUIDE
+  INSURANCE
+  BUS
+  OTHER
+}
+
+enum TripMarkupType {
+  FIXED
+  PERCENT
+}
+
 model User {
   id           String   @id @default(cuid())
   brandId      CrmBrand @default(BOOK_TO_ROAM)
@@ -216,6 +242,7 @@ model User {
   leadNotes        LeadNote[]
   assignedLeadTasks LeadTask[]           @relation("LeadTaskAssignedTo")
   createdLeadTasks  LeadTask[]           @relation("LeadTaskCreatedBy")
+  createdTripPlans  TripPlan[]           @relation("TripPlanCreatedBy")
   accounts         Account[]
   sessions         Session[]
 
@@ -526,6 +553,7 @@ model Lead {
   createdBy     User?      @relation("LeadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   notes         LeadNote[]
   tasks         LeadTask[]
+  tripPlans     TripPlan[]
 
   @@unique([brandId, queryRef])
   @@unique([brandId, serialYear, serialNumber])
@@ -868,4 +896,70 @@ model EmailTemplate {
 
   @@unique([brandId, key])
   @@index([brandId])
+}
+
+model TripPlan {
+  id             String         @id @default(cuid())
+  brandId        CrmBrand       @default(BOOK_TO_ROAM)
+  leadId         String
+  version        Int            @default(1)
+  title          String
+  status         TripPlanStatus @default(DRAFT)
+  travelDate     DateTime?
+  returnDate     DateTime?
+  destinations   String?
+  adultCount     Int?
+  childCount     Int?
+  infantCount    Int?
+  durationDays   Int?
+  currency       String         @default("INR")
+  subtotalCost   Decimal        @default(0) @db.Decimal(12, 2)
+  subtotalSell   Decimal        @default(0) @db.Decimal(12, 2)
+  offerPrice     Decimal        @default(0) @db.Decimal(12, 2)
+  gstRate        Decimal?       @db.Decimal(5, 2)
+  gstAmount      Decimal?       @db.Decimal(12, 2)
+  inclusions     String?
+  exclusions     String?
+  terms          String?
+  internalNotes  String?
+  sentAt         DateTime?
+  pdfGeneratedAt DateTime?
+  createdById    String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  lead      Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy User?          @relation("TripPlanCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  items     TripPlanItem[]
+
+  @@unique([leadId, version])
+  @@index([brandId])
+  @@index([leadId])
+  @@index([status])
+}
+
+model TripPlanItem {
+  id           String          @id @default(cuid())
+  tripPlanId   String
+  dayNumber    Int             @default(1)
+  sortOrder    Int             @default(0)
+  serviceType  TripServiceType
+  title        String
+  description  String?
+  supplierName String?
+  location     String?
+  serviceDate  DateTime?
+  quantity     Int             @default(1)
+  costPrice    Decimal         @default(0) @db.Decimal(12, 2)
+  markupType   TripMarkupType  @default(FIXED)
+  markupValue  Decimal         @default(0) @db.Decimal(12, 2)
+  sellPrice    Decimal         @default(0) @db.Decimal(12, 2)
+  metadata     Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  tripPlan TripPlan @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+
+  @@index([tripPlanId])
+  @@index([dayNumber])
 }

@@ -24,6 +24,18 @@ export const leadListInclude = {
   createdBy: { select: { id: true, name: true } },
   customer: { select: { id: true, name: true, phone: true } },
   booking: { select: { id: true, publicRef: true } },
+  tripPlans: {
+    orderBy: { version: "desc" as const },
+    take: 1,
+    select: {
+      id: true,
+      version: true,
+      status: true,
+      title: true,
+      offerPrice: true,
+      currency: true,
+    },
+  },
   _count: { select: { notes: true } },
 } satisfies Prisma.LeadInclude;
 
