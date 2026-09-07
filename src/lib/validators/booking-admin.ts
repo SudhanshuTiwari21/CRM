@@ -3,6 +3,7 @@ import {
   flightPassengerSchema,
   flightSegmentSchema,
   hotelGuestSchema,
+  hotelRoomSchema,
   optionalPanSchema,
   phoneSchema,
 } from "@/lib/validators/booking";
@@ -71,6 +72,7 @@ export const adminBookingUpdateSchema = z.object({
   adultsCount: z.coerce.number().int().min(1).optional(),
   childrenCount: z.coerce.number().int().min(0).optional(),
   guests: z.array(hotelGuestSchema).optional(),
+  rooms: z.array(hotelRoomSchema).optional(),
   inclusions: z.string().optional(),
   policies: z.string().optional(),
   agentRemarks: z.string().optional(),

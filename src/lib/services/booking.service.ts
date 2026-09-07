@@ -11,6 +11,8 @@ import { upsertAirlineProfile } from "./airline.service";
 import { getAirlineLogoUrl, resolveAirlineIata } from "@/lib/airline-logo";
 import { toDbAddonType, validateAddonBooking } from "@/lib/flight-addon";
 import { normalizeFlightSegments } from "@/lib/flight-datetime";
+import { normalizeHotelRooms, totalsFromHotelRooms } from "@/lib/hotel-rooms";
+import { assertCashBillingAllowed, validateCashBillAmountAndPan } from "@/lib/cash-compliance";
 import { upsertCustomerFromBooking, getOrCreateCashWalkInCustomer, updateExistingCustomerFromBooking, createBusinessCustomerFromBooking } from "./customer.service";
 import { recordCreditTransaction } from "./credit.service";
 import type { CashCustomerSnapshot } from "@/lib/cash-customer";
@@ -229,6 +231,18 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
     customer: input.customer,
   });
 
+  if (billingType === "CASH") {
+    const amountError = validateCashBillAmountAndPan({
+      billingType: "CASH",
+      totalAmount: input.totalAmount,
+      pan: input.customer?.pan,
+    });
+    if (amountError) throw new Error(amountError);
+
+    const ratioCheck = await assertCashBillingAllowed({ amount: input.totalAmount });
+    if (!ratioCheck.ok) throw new Error(ratioCheck.error);
+  }
+
   let assignedAgentId: string | null = null;
   if (userId && userId !== "bypass") {
     const agent = await prisma.user.findFirst({
@@ -326,6 +340,15 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
         checkOutTime: input.checkOutTime,
       });
 
+      const rooms = normalizeHotelRooms({
+        rooms: input.rooms,
+        roomsCount: input.roomsCount,
+        adultsCount: input.adultsCount,
+        childrenCount: input.childrenCount,
+        guests: input.guests,
+      });
+      const roomTotals = totalsFromHotelRooms(rooms);
+
       created = await tx.booking.create({
         data: {
           ...baseData,
@@ -343,13 +366,14 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
               checkInTime: input.checkInTime || "02:00 PM",
               checkOutTime: input.checkOutTime || "12:00 PM",
               nights: Math.max(nights, 1),
-              roomsCount: input.roomsCount || 1,
+              roomsCount: roomTotals.roomsCount,
               roomType: input.roomType,
               mealPlan: input.mealPlan || "ROOM_ONLY",
               roomAmenities: input.roomAmenities || [],
-              adultsCount: input.adultsCount || 1,
-              childrenCount: input.childrenCount || 0,
-              guests: input.guests || [],
+              adultsCount: roomTotals.adultsCount,
+              childrenCount: roomTotals.childrenCount,
+              guests: roomTotals.guests as unknown as Prisma.InputJsonValue,
+              rooms: rooms as unknown as Prisma.InputJsonValue,
               inclusions: input.inclusions,
               cancellationPolicy: input.cancellationPolicy,
               includeCancellationPolicy: input.includeCancellationPolicy || false,

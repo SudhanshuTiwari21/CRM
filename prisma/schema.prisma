@@ -717,6 +717,7 @@ model HotelBooking {
   adultsCount               Int       @default(1)
   childrenCount             Int       @default(0)
   guests                    Json
+  rooms                     Json?
   inclusions                String?
   cancellationPolicy        String?
   includeCancellationPolicy Boolean   @default(false)

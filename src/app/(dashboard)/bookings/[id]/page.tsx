@@ -13,6 +13,7 @@ import { CHANNEL_LABELS, PRODUCT_LABELS } from "@/lib/constants";
 import { formatCurrency, formatDateTime, formatDate } from "@/lib/utils";
 import { formatFlightWallClock } from "@/lib/flight-datetime";
 import type { FlightSegment, FlightPassenger, HotelGuest, BusPassenger } from "@/types/booking";
+import { normalizeHotelRooms } from "@/lib/hotel-rooms";
 import { buildBaseFareLines, passengerFareLabel } from "@/lib/flight-fare-breakup";
 import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
 import { buildSectorSummary, connectionGapText, connectionGapTitle, itineraryBadgeLabel } from "@/lib/flight-layover";
@@ -371,17 +372,43 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 </div>
               )}
               {booking.hotelBooking && (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div className="flex gap-4 text-sm">
                     <span>{booking.hotelBooking.adultsCount} Adult{booking.hotelBooking.adultsCount !== 1 ? "s" : ""}</span>
                     {booking.hotelBooking.childrenCount > 0 && (
                       <span>{booking.hotelBooking.childrenCount} Child{booking.hotelBooking.childrenCount !== 1 ? "ren" : ""}</span>
                     )}
+                    <span>{booking.hotelBooking.roomsCount} Room{booking.hotelBooking.roomsCount !== 1 ? "s" : ""}</span>
                   </div>
-                  {(booking.hotelBooking.guests as unknown as HotelGuest[]).filter((g) => g.name?.trim()).map((g, i) => (
-                    <div key={i} className="rounded-lg border p-3">
-                      <p className="font-medium">{g.name}</p>
-                      <p className="text-sm text-muted-foreground capitalize">{g.type}</p>
+                  {normalizeHotelRooms({
+                    rooms: booking.hotelBooking.rooms,
+                    roomsCount: booking.hotelBooking.roomsCount,
+                    adultsCount: booking.hotelBooking.adultsCount,
+                    childrenCount: booking.hotelBooking.childrenCount,
+                    guests: booking.hotelBooking.guests,
+                  }).map((room) => (
+                    <div key={room.roomNumber} className="rounded-lg border p-3">
+                      <p className="font-medium">
+                        Room {room.roomNumber} · {room.adultsCount} Adult
+                        {room.adultsCount !== 1 ? "s" : ""}
+                        {room.childrenCount > 0
+                          ? `, ${room.childrenCount} Child${room.childrenCount !== 1 ? "ren" : ""}`
+                          : ""}
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        {room.guests.filter((g) => g.name?.trim()).length ? (
+                          room.guests
+                            .filter((g) => g.name?.trim())
+                            .map((g, i) => (
+                              <p key={i} className="text-sm text-muted-foreground">
+                                {g.name}{" "}
+                                <span className="capitalize">({g.type})</span>
+                              </p>
+                            ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No guest names entered</p>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

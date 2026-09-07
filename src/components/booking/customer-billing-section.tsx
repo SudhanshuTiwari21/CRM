@@ -48,6 +48,17 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
   const cashBillTo = form.watch("cashBillTo") || "INDIVIDUAL";
   const ledgerBillTo = form.watch("ledgerBillTo") || "INDIVIDUAL";
   const ledgerMode = form.watch("ledgerMode");
+  const totalAmount = Number(form.watch("totalAmount") || 0);
+  const [cashCompliance, setCashCompliance] = useState<{
+    cashBillingLocked: boolean;
+    cashSalesRatio: number;
+    cashSalesRatioLimit: number;
+    fyLabel: string;
+    cashTxnMax: number;
+    cashPanThreshold: number;
+    wouldExceed: boolean;
+    message: string | null;
+  } | null>(null);
   const customerId = form.watch("customerId");
   const customerPhone = form.watch("customer.phone");
   const productType = form.watch("productType");
@@ -81,6 +92,39 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
       fetchCustomers(customerSearch);
     }
   }, [billingType, ledgerMode, customerSearch, fetchCustomers]);
+
+  useEffect(() => {
+    if (billingType !== "CASH") {
+      setCashCompliance(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetch(`/api/crm/cash-compliance?amount=${encodeURIComponent(String(totalAmount || 0))}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.error) return;
+          setCashCompliance({
+            cashBillingLocked: Boolean(data.cashBillingLocked),
+            cashSalesRatio: Number(data.cashSalesRatio) || 0,
+            cashSalesRatioLimit: Number(data.cashSalesRatioLimit) || 30,
+            fyLabel: data.fyLabel || "FY",
+            cashTxnMax: Number(data.cashTxnMax) || 199999,
+            cashPanThreshold: Number(data.cashPanThreshold) || 100000,
+            wouldExceed: Boolean(data.wouldExceed),
+            message: data.message || null,
+          });
+        })
+        .catch(() => setCashCompliance(null));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [billingType, totalAmount]);
+
+  const panRequired =
+    billingType === "CASH" &&
+    totalAmount > (cashCompliance?.cashPanThreshold ?? 100_000);
+  const cashAmountBlocked =
+    billingType === "CASH" &&
+    totalAmount > (cashCompliance?.cashTxnMax ?? 199_999);
 
   useEffect(() => {
     if (billingType !== "LEDGER" || ledgerMode !== "EXISTING") {
@@ -178,6 +222,33 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
             Ledger Bill
           </button>
         </div>
+
+        {billingType === "CASH" && cashCompliance && (
+          <div
+            className={`rounded-lg border p-3 text-sm ${
+              cashCompliance.cashBillingLocked || cashCompliance.wouldExceed || cashAmountBlocked
+                ? "border-red-200 bg-red-50 text-red-900"
+                : "border-amber-200 bg-amber-50 text-amber-950"
+            }`}
+          >
+            <p className="font-medium">
+              Cash sales ratio ({cashCompliance.fyLabel}): {cashCompliance.cashSalesRatio}% /{" "}
+              {cashCompliance.cashSalesRatioLimit}%
+            </p>
+            {cashAmountBlocked ? (
+              <p className="mt-1">
+                Cash bill cannot exceed ₹{(cashCompliance.cashTxnMax || 199999).toLocaleString("en-IN")}.
+              </p>
+            ) : null}
+            {cashCompliance.message ? <p className="mt-1">{cashCompliance.message}</p> : null}
+            {!cashCompliance.cashBillingLocked && !cashCompliance.wouldExceed && !cashAmountBlocked ? (
+              <p className="mt-1 text-xs opacity-80">
+                Max cash bill ₹{cashCompliance.cashTxnMax.toLocaleString("en-IN")}. PAN required above ₹
+                {cashCompliance.cashPanThreshold.toLocaleString("en-IN")}.
+              </p>
+            ) : null}
+          </div>
+        )}
 
         {productType === "FLIGHT" && (
           <div className="space-y-2">
@@ -454,12 +525,17 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
               />
             </div>
             <div className="space-y-2">
-              <Label>PAN</Label>
+              <Label>PAN{panRequired ? " *" : ""}</Label>
               <Input
                 value={form.watch("customer.pan") || ""}
                 onChange={(e) => form.setValue("customer.pan", e.target.value.toUpperCase())}
-                placeholder="optional - e.g. ABCDE1234F"
+                placeholder={
+                  panRequired ? "Required for cash above ₹1,00,000" : "optional - e.g. ABCDE1234F"
+                }
               />
+              {panRequired ? (
+                <p className="text-xs text-amber-700">Mandatory for cash bills above ₹1,00,000</p>
+              ) : null}
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label>Billing Address</Label>

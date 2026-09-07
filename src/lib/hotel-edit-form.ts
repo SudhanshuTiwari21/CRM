@@ -1,13 +1,14 @@
 import { z } from "zod";
 import type { HotelBooking } from "@prisma/client";
 import type { BookingCustomerContact } from "@/lib/cash-customer";
-import type { HotelGuest } from "@/types/booking";
 import {
   hotelGuestSchema,
+  hotelRoomSchema,
   optionalPanSchema,
   phoneSchema,
 } from "@/lib/validators/booking";
 import { buildCustomerEditFormValues } from "@/lib/flight-edit-form";
+import { normalizeHotelRooms, totalsFromHotelRooms } from "@/lib/hotel-rooms";
 
 function toDateInputValue(value: Date | string | null | undefined) {
   if (!value) return "";
@@ -52,6 +53,7 @@ export const hotelEditFormSchema = z.object({
   adultsCount: z.coerce.number().int().min(1).optional(),
   childrenCount: z.coerce.number().int().min(0).optional(),
   guests: z.array(hotelGuestSchema).optional(),
+  rooms: z.array(hotelRoomSchema).optional(),
   inclusions: z.string().optional(),
   cancellationPolicy: z.string().optional(),
   includeCancellationPolicy: z.boolean().optional(),
@@ -66,7 +68,14 @@ export function buildHotelEditFormValues(
   customerContact: BookingCustomerContact,
   booking: { pnr?: string | null; internalNotes?: string | null; totalAmount: unknown }
 ): HotelEditFormValues {
-  const guests = (hotel.guests as unknown as HotelGuest[]) || [];
+  const rooms = normalizeHotelRooms({
+    rooms: hotel.rooms,
+    roomsCount: hotel.roomsCount,
+    adultsCount: hotel.adultsCount,
+    childrenCount: hotel.childrenCount,
+    guests: hotel.guests,
+  });
+  const totals = totalsFromHotelRooms(rooms);
 
   return {
     pnr: hotel.confirmationNo || booking.pnr || "",
@@ -84,12 +93,13 @@ export function buildHotelEditFormValues(
     checkInTime: hotel.checkInTime || "02:00 PM",
     checkOutTime: hotel.checkOutTime || "12:00 PM",
     roomType: hotel.roomType || "",
-    roomsCount: hotel.roomsCount || 1,
+    roomsCount: totals.roomsCount,
     mealPlan: hotel.mealPlan || "ROOM_ONLY",
     roomAmenities: hotel.roomAmenities || [],
-    adultsCount: hotel.adultsCount || 1,
-    childrenCount: hotel.childrenCount || 0,
-    guests: guests.length ? guests.map((g) => ({ name: g.name || "", type: g.type || "adult" })) : [],
+    adultsCount: totals.adultsCount,
+    childrenCount: totals.childrenCount,
+    guests: totals.guests,
+    rooms,
     inclusions: hotel.inclusions || "",
     cancellationPolicy: hotel.cancellationPolicy || "",
     includeCancellationPolicy: hotel.includeCancellationPolicy,
@@ -99,6 +109,15 @@ export function buildHotelEditFormValues(
 }
 
 export function normalizeHotelEditPayload(data: HotelEditFormValues) {
+  const rooms = normalizeHotelRooms({
+    rooms: data.rooms,
+    roomsCount: data.roomsCount,
+    adultsCount: data.adultsCount,
+    childrenCount: data.childrenCount,
+    guests: data.guests,
+  });
+  const totals = totalsFromHotelRooms(rooms);
+
   return {
     pnr: data.pnr?.trim() || undefined,
     internalNotes: data.internalNotes,
@@ -125,15 +144,13 @@ export function normalizeHotelEditPayload(data: HotelEditFormValues) {
     checkInTime: data.checkInTime?.trim() || "02:00 PM",
     checkOutTime: data.checkOutTime?.trim() || "12:00 PM",
     roomType: data.roomType.trim(),
-    roomsCount: data.roomsCount || 1,
+    roomsCount: totals.roomsCount,
     mealPlan: data.mealPlan || "ROOM_ONLY",
     roomAmenities: data.roomAmenities || [],
-    adultsCount: data.adultsCount || 1,
-    childrenCount: data.childrenCount || 0,
-    guests: (data.guests || []).map((g) => ({
-      name: g.name?.trim() || "",
-      type: g.type,
-    })),
+    adultsCount: totals.adultsCount,
+    childrenCount: totals.childrenCount,
+    guests: totals.guests,
+    rooms,
     inclusions: data.inclusions?.trim() || undefined,
     cancellationPolicy: data.cancellationPolicy?.trim() || undefined,
     includeCancellationPolicy: data.includeCancellationPolicy || false,

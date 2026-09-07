@@ -60,6 +60,14 @@ export const flightPassengerSchema = z.object({
 export const hotelGuestSchema = z.object({
   name: z.string().optional().or(z.literal("")),
   type: z.enum(["adult", "child"]),
+  roomNumber: z.coerce.number().int().positive().optional(),
+});
+
+export const hotelRoomSchema = z.object({
+  roomNumber: z.coerce.number().int().positive(),
+  adultsCount: z.coerce.number().int().min(1).max(6),
+  childrenCount: z.coerce.number().int().min(0).max(4),
+  guests: z.array(hotelGuestSchema).default([]),
 });
 
 export const busPassengerSchema = z.object({
@@ -104,6 +112,7 @@ function validateOptionalPan(pan: string | undefined, ctx: z.RefinementCtx, path
 function refineOfflineBilling(
   data: {
     billingType: "CASH" | "LEDGER";
+    totalAmount?: number;
     cashBillTo?: "INDIVIDUAL" | "COMPANY";
     ledgerBillTo?: "INDIVIDUAL" | "COMPANY";
     ledgerMode?: "EXISTING" | "NEW";
@@ -140,7 +149,32 @@ function refineOfflineBilling(
         path: ["customer", "phone"],
       });
     }
-    validateOptionalPan(data.customer?.pan, ctx, ["customer", "pan"]);
+
+    const amount = Number(data.totalAmount) || 0;
+    if (amount > 199_999) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Cash billing is not allowed above ₹1,99,999. Use ledger billing instead.",
+        path: ["totalAmount"],
+      });
+    } else if (amount > 100_000) {
+      const pan = data.customer?.pan?.trim().toUpperCase() || "";
+      if (!pan) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "PAN is mandatory for cash bills above ₹1,00,000",
+          path: ["customer", "pan"],
+        });
+      } else if (!panRegex.test(pan)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid PAN format (e.g. ABCDE1234F)",
+          path: ["customer", "pan"],
+        });
+      }
+    } else {
+      validateOptionalPan(data.customer?.pan, ctx, ["customer", "pan"]);
+    }
     return;
   }
   if (!data.ledgerMode) {
@@ -334,6 +368,7 @@ export const offlineHotelBookingSchema = z
   adultsCount: z.coerce.number().int().min(1).optional(),
   childrenCount: z.coerce.number().int().min(0).optional(),
   guests: z.array(hotelGuestSchema).optional(),
+  rooms: z.array(hotelRoomSchema).optional(),
   inclusions: z.string().optional(),
   cancellationPolicy: z.string().optional(),
   includeCancellationPolicy: z.boolean().optional(),

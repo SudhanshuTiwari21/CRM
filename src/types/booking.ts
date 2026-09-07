@@ -54,6 +54,16 @@ export interface FlightPassenger {
 export interface HotelGuest {
   name: string;
   type: "adult" | "child";
+  /** 1-based room number when guests are split by room */
+  roomNumber?: number;
+}
+
+/** Per-room occupancy + guest names for multi-room hotel vouchers */
+export interface HotelRoom {
+  roomNumber: number;
+  adultsCount: number;
+  childrenCount: number;
+  guests: HotelGuest[];
 }
 
 export interface BusPassenger {

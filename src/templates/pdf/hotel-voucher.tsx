@@ -1,5 +1,5 @@
 import React from "react";
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Svg, Path, Rect } from "@react-pdf/renderer";
 import type { AgencySettings, Booking, Customer, HotelBooking } from "@prisma/client";
 import type { HotelGuest } from "@/types/booking";
 import { format } from "date-fns";
@@ -7,6 +7,7 @@ import { MEAL_PLAN_LABELS } from "@/lib/constants/hotel";
 import { PdfLogo } from "@/templates/pdf/pdf-logo";
 import { brandUsesSquareLogo } from "@/lib/branding";
 import { formatBillingAddress } from "@/lib/cash-customer";
+import { formatRoomGuestNames, normalizeHotelRooms } from "@/lib/hotel-rooms";
 
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 9, fontFamily: "Helvetica", color: "#1f2937" },
@@ -24,7 +25,17 @@ const styles = StyleSheet.create({
   badgeTextPending: { color: "#92400e" },
   confirmLine: { fontSize: 10, marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid #e5e7eb" },
   cityLine: { fontSize: 9, color: "#4b5563", marginBottom: 4 },
-  hotelName: { fontSize: 16, fontWeight: "bold", color: "#1e3a8a", marginBottom: 6 },
+  hotelTitleRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6, marginTop: 2 },
+  hotelIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    backgroundColor: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hotelName: { fontSize: 16, fontWeight: "bold", color: "#1e3a8a", flex: 1 },
   hotelAddress: { fontSize: 9, color: "#4b5563", lineHeight: 1.4, marginBottom: 4 },
   contactLine: { fontSize: 8, color: "#4b5563", marginBottom: 2 },
   stayRow: { flexDirection: "row", marginTop: 14, marginBottom: 14, gap: 24 },
@@ -32,11 +43,12 @@ const styles = StyleSheet.create({
   stayLabel: { fontSize: 8, color: "#6b7280" },
   stayTime: { fontSize: 14, fontWeight: "bold", marginTop: 2 },
   stayDate: { fontSize: 9, color: "#4b5563", marginTop: 2 },
-  reservationLine: { fontSize: 9, marginBottom: 4 },
+  reservationLine: { fontSize: 9, marginBottom: 10 },
   guestLine: { fontSize: 9, marginBottom: 12 },
-  roomBox: { border: "1px solid #e5e7eb", borderRadius: 4, padding: 12, marginBottom: 12 },
-  roomTitle: { fontSize: 10, fontWeight: "bold", marginBottom: 6 },
-  roomMeta: { fontSize: 8, color: "#4b5563", marginBottom: 4 },
+  roomBox: { border: "1px solid #e5e7eb", borderRadius: 4, padding: 12, marginBottom: 10 },
+  roomTitle: { fontSize: 10, fontWeight: "bold", marginBottom: 4 },
+  roomMeta: { fontSize: 8, color: "#4b5563", marginBottom: 3 },
+  roomGuests: { fontSize: 8.5, color: "#111827", marginTop: 4, lineHeight: 1.4 },
   divider: { borderTop: "1px solid #e5e7eb", marginVertical: 8 },
   sectionTitle: { fontSize: 9, fontWeight: "bold", color: "#1e3a8a", marginBottom: 6, marginTop: 8 },
   amenitiesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
@@ -44,6 +56,19 @@ const styles = StyleSheet.create({
   policyText: { fontSize: 8, color: "#4b5563", lineHeight: 1.4 },
   footer: { position: "absolute", bottom: 24, left: 32, right: 32, fontSize: 7, color: "#9ca3af", textAlign: "center" },
 });
+
+function HotelBuildingIcon() {
+  return (
+    <Svg viewBox="0 0 24 24" width={22} height={22}>
+      <Rect x="4" y="3" width="16" height="18" rx="1.5" fill="#1e40af" />
+      <Rect x="7" y="6" width="3" height="2.5" fill="#dbeafe" />
+      <Rect x="14" y="6" width="3" height="2.5" fill="#dbeafe" />
+      <Rect x="7" y="11" width="3" height="2.5" fill="#dbeafe" />
+      <Rect x="14" y="11" width="3" height="2.5" fill="#dbeafe" />
+      <Path d="M10 21 V15 H14 V21" fill="#93c5fd" />
+    </Svg>
+  );
+}
 
 interface Props {
   agency: AgencySettings;
@@ -54,24 +79,16 @@ interface Props {
   logoSrc?: string | null;
 }
 
-function countGuestsFromArray(guests: HotelGuest[]) {
-  const adults = guests.filter((g) => g.type === "adult").length;
-  const children = guests.filter((g) => g.type === "child").length;
-  return { adults: adults || 1, children };
-}
-
-function formatGuestList(guests: HotelGuest[]) {
-  const named = guests.filter((g) => g.name?.trim());
-  if (!named.length) return null;
-  const lead = named[0];
-  const others = named.length - 1;
-  return others > 0 ? `${lead.name} (Primary Guest) + ${others} Other(s)` : `${lead.name} (Primary Guest)`;
-}
-
 export function HotelVoucherPDF({ agency, booking, hotel, customer, guests, logoSrc }: Props) {
-  const fallback = countGuestsFromArray(guests);
-  const adults = hotel.adultsCount > 0 ? hotel.adultsCount : fallback.adults;
-  const children = hotel.childrenCount > 0 ? hotel.childrenCount : fallback.children;
+  const rooms = normalizeHotelRooms({
+    rooms: hotel.rooms,
+    roomsCount: hotel.roomsCount,
+    adultsCount: hotel.adultsCount,
+    childrenCount: hotel.childrenCount,
+    guests: guests?.length ? guests : hotel.guests,
+  });
+  const adults = rooms.reduce((sum, r) => sum + r.adultsCount, 0) || hotel.adultsCount || 1;
+  const children = rooms.reduce((sum, r) => sum + r.childrenCount, 0) || hotel.childrenCount || 0;
   const supplierConfirmation = hotel.confirmationNo || booking.pnr || "";
   const isConfirmed = Boolean(supplierConfirmation);
   const mealPlanLabel = MEAL_PLAN_LABELS[hotel.mealPlan] || hotel.mealPlan;
@@ -132,7 +149,12 @@ export function HotelVoucherPDF({ agency, booking, hotel, customer, guests, logo
           </Text>
         )}
 
-        <Text style={styles.hotelName}>{hotel.propertyName}</Text>
+        <View style={styles.hotelTitleRow}>
+          <View style={styles.hotelIconWrap}>
+            <HotelBuildingIcon />
+          </View>
+          <Text style={styles.hotelName}>{hotel.propertyName}</Text>
+        </View>
         <Text style={styles.hotelAddress}>{hotel.propertyAddress}</Text>
         {hotel.propertyPhone && <Text style={styles.contactLine}>Contact Number - {hotel.propertyPhone}</Text>}
         {hotel.propertyEmail && <Text style={styles.contactLine}>Email ID - {hotel.propertyEmail}</Text>}
@@ -151,21 +173,31 @@ export function HotelVoucherPDF({ agency, booking, hotel, customer, guests, logo
         </View>
 
         <Text style={styles.reservationLine}>
-          Reservation for - {hotel.nights} Night{hotel.nights !== 1 ? "s" : ""} | {adults} Adult{adults !== 1 ? "s" : ""}, {children} Children | {hotel.roomsCount} Room{hotel.roomsCount !== 1 ? "s" : ""}
+          Reservation for - {hotel.nights} Night{hotel.nights !== 1 ? "s" : ""} | {adults} Adult{adults !== 1 ? "s" : ""}, {children} Children | {rooms.length} Room{rooms.length !== 1 ? "s" : ""}
         </Text>
-        {formatGuestList(guests) && (
-          <Text style={styles.guestLine}>{formatGuestList(guests)}</Text>
-        )}
 
-        <View style={styles.roomBox}>
-          <Text style={styles.roomTitle}>Room 1 - {hotel.roomType}</Text>
-          <Text style={styles.roomMeta}>{adults} Adult(s), {children} Children</Text>
-          <View style={styles.divider} />
-          <Text style={styles.roomMeta}>Meal Plan - {mealPlanLabel}</Text>
-          {hotel.inclusions && (
-            <Text style={styles.roomMeta}>Inclusions - {hotel.inclusions}</Text>
-          )}
-        </View>
+        {rooms.map((room) => {
+          const guestNames = formatRoomGuestNames(room);
+          return (
+            <View key={room.roomNumber} style={styles.roomBox} wrap={false}>
+              <Text style={styles.roomTitle}>
+                Room {room.roomNumber} - {hotel.roomType}
+              </Text>
+              <Text style={styles.roomMeta}>
+                {room.adultsCount} Adult{room.adultsCount !== 1 ? "s" : ""}
+                {room.childrenCount > 0
+                  ? `, ${room.childrenCount} Child${room.childrenCount !== 1 ? "ren" : ""}`
+                  : ""}
+              </Text>
+              {guestNames ? <Text style={styles.roomGuests}>Guests: {guestNames}</Text> : null}
+              <View style={styles.divider} />
+              <Text style={styles.roomMeta}>Meal Plan - {mealPlanLabel}</Text>
+              {hotel.inclusions ? (
+                <Text style={styles.roomMeta}>Inclusions - {hotel.inclusions}</Text>
+              ) : null}
+            </View>
+          );
+        })}
 
         {hotel.roomAmenities.length > 0 && (
           <View>

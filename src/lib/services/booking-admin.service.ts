@@ -14,6 +14,7 @@ import {
 import { applyCardGatewayCharge } from "@/lib/payment-gateway";
 import type { FlightPassenger, FlightSegment, HotelGuest } from "@/types/booking";
 import { normalizeFlightSegments } from "@/lib/flight-datetime";
+import { normalizeHotelRooms, totalsFromHotelRooms } from "@/lib/hotel-rooms";
 import { logActivity } from "./activity.service";
 import { generateBookingDocuments } from "./document.service";
 import { recordBookingPayment } from "./booking-payment.service";
@@ -25,6 +26,7 @@ import { updateExistingCustomerFromBooking } from "./customer.service";
 import type { CashCustomerSnapshot, CashBillTo } from "@/lib/cash-customer";
 import { parseCashCustomerSnapshot } from "@/lib/cash-customer";
 import { upsertHotelProfile } from "./hotel.service";
+import { validateCashBillAmountAndPan } from "@/lib/cash-compliance";
 
 import type { z } from "zod";
 import type { adminBookingUpdateSchema } from "@/lib/validators/booking-admin";
@@ -64,6 +66,19 @@ export async function updateBookingAsAdmin(
     include: { flightBooking: true, hotelBooking: true, customer: true, payments: true },
   });
   if (!booking) throw new Error("Booking not found");
+
+  if (booking.billingType === "CASH") {
+    const nextAmount =
+      input.totalAmount !== undefined ? Number(input.totalAmount) : Number(booking.totalAmount);
+    const existingSnap = parseCashCustomerSnapshot(booking.metadata);
+    const nextPan = input.customer?.pan ?? existingSnap?.pan;
+    const cashError = validateCashBillAmountAndPan({
+      billingType: "CASH",
+      totalAmount: nextAmount,
+      pan: nextPan,
+    });
+    if (cashError) throw new Error(cashError);
+  }
 
   const bookingData: Record<string, unknown> = {
     lastEditedAt: new Date(),
@@ -228,6 +243,7 @@ export async function updateBookingAsAdmin(
       input.checkOut !== undefined ||
       input.roomType !== undefined ||
       input.guests !== undefined ||
+      input.rooms !== undefined ||
       input.mealPlan !== undefined ||
       input.roomsCount !== undefined ||
       input.adultsCount !== undefined ||
@@ -271,6 +287,17 @@ export async function updateBookingAsAdmin(
         checkOutTime,
       });
 
+      const rooms = normalizeHotelRooms({
+        rooms: input.rooms ?? booking.hotelBooking.rooms,
+        roomsCount: input.roomsCount ?? booking.hotelBooking.roomsCount,
+        adultsCount: input.adultsCount ?? booking.hotelBooking.adultsCount,
+        childrenCount: input.childrenCount ?? booking.hotelBooking.childrenCount,
+        guests:
+          (input.guests as HotelGuest[] | undefined) ??
+          (booking.hotelBooking.guests as unknown as HotelGuest[]),
+      });
+      const roomTotals = totalsFromHotelRooms(rooms);
+
       hotelData.hotelProfileId = hotelProfile.id;
       hotelData.propertyName = propertyName;
       hotelData.propertyAddress = propertyAddress;
@@ -283,14 +310,13 @@ export async function updateBookingAsAdmin(
       hotelData.checkOutTime = checkOutTime || "12:00 PM";
       hotelData.nights = nights;
       hotelData.roomType = input.roomType ?? booking.hotelBooking.roomType;
-      hotelData.roomsCount = input.roomsCount ?? booking.hotelBooking.roomsCount;
+      hotelData.roomsCount = roomTotals.roomsCount;
       hotelData.mealPlan = input.mealPlan ?? booking.hotelBooking.mealPlan;
       hotelData.roomAmenities = input.roomAmenities ?? booking.hotelBooking.roomAmenities;
-      hotelData.adultsCount = input.adultsCount ?? booking.hotelBooking.adultsCount;
-      hotelData.childrenCount = input.childrenCount ?? booking.hotelBooking.childrenCount;
-      hotelData.guests =
-        (input.guests as HotelGuest[] | undefined) ??
-        (booking.hotelBooking.guests as unknown as HotelGuest[]);
+      hotelData.adultsCount = roomTotals.adultsCount;
+      hotelData.childrenCount = roomTotals.childrenCount;
+      hotelData.guests = roomTotals.guests;
+      hotelData.rooms = rooms;
       hotelData.inclusions =
         input.inclusions !== undefined ? input.inclusions || null : booking.hotelBooking.inclusions;
       hotelData.cancellationPolicy =

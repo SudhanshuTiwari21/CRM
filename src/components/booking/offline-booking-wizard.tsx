@@ -32,6 +32,7 @@ import {
 } from "@/lib/validators/booking";
 import { normalizePhone } from "@/lib/phone";
 import type { ParsedTicketResult } from "@/lib/services/ticket-parse.service";
+import { normalizeHotelRooms, totalsFromHotelRooms } from "@/lib/hotel-rooms";
 
 const baseCustomer = {
   title: "Mr",
@@ -116,7 +117,31 @@ const wizardSchema = z
   inclusions: z.string().optional(),
   cancellationPolicy: z.string().optional(),
   includeCancellationPolicy: z.boolean().optional(),
-  guests: z.array(z.object({ name: z.string(), type: z.enum(["adult", "child"]) })).optional(),
+  guests: z
+    .array(
+      z.object({
+        name: z.string(),
+        type: z.enum(["adult", "child"]),
+        roomNumber: z.coerce.number().optional(),
+      })
+    )
+    .optional(),
+  rooms: z
+    .array(
+      z.object({
+        roomNumber: z.coerce.number(),
+        adultsCount: z.coerce.number().min(1),
+        childrenCount: z.coerce.number().min(0),
+        guests: z.array(
+          z.object({
+            name: z.string(),
+            type: z.enum(["adult", "child"]),
+            roomNumber: z.coerce.number().optional(),
+          })
+        ),
+      })
+    )
+    .optional(),
   // Bus
   operator: z.string().optional(),
   route: z.string().optional(),
@@ -222,9 +247,20 @@ export function OfflineBookingWizard() {
       propertyName: "", propertyAddress: "", city: "", propertyPhone: "", propertyEmail: "",
       checkIn: "", checkOut: "", checkInTime: "02:00 PM", checkOutTime: "12:00 PM",
       roomType: "", roomsCount: 1, mealPlan: "ROOM_ONLY", roomAmenities: [],
-      adultsCount: 1, childrenCount: 0,
+      adultsCount: 2, childrenCount: 0,
       inclusions: "", cancellationPolicy: "", includeCancellationPolicy: false,
-      guests: [{ name: "", type: "adult" }],
+      guests: [{ name: "", type: "adult", roomNumber: 1 }, { name: "", type: "adult", roomNumber: 1 }],
+      rooms: [
+        {
+          roomNumber: 1,
+          adultsCount: 2,
+          childrenCount: 0,
+          guests: [
+            { name: "", type: "adult", roomNumber: 1 },
+            { name: "", type: "adult", roomNumber: 1 },
+          ],
+        },
+      ],
       operator: "", route: "", boardingPoint: "", droppingPoint: "",
       departureAt: "", arrivalAt: "",
       busPassengers: [{ name: "", seat: "" }],
@@ -502,6 +538,14 @@ export function OfflineBookingWizard() {
           includeCancellationPolicy: data.includeCancellationPolicy || false,
         };
       } else if (productType === "HOTEL") {
+        const rooms = normalizeHotelRooms({
+          rooms: data.rooms,
+          roomsCount: data.roomsCount,
+          adultsCount: data.adultsCount,
+          childrenCount: data.childrenCount,
+          guests: data.guests,
+        });
+        const roomTotals = totalsFromHotelRooms(rooms);
         payload = {
           productType: "HOTEL",
           channel: "OFFLINE",
@@ -518,12 +562,13 @@ export function OfflineBookingWizard() {
           checkInTime: data.checkInTime,
           checkOutTime: data.checkOutTime,
           roomType: data.roomType,
-          roomsCount: data.roomsCount,
+          roomsCount: roomTotals.roomsCount,
           mealPlan: data.mealPlan,
           roomAmenities: data.roomAmenities,
-          adultsCount: data.adultsCount || 1,
-          childrenCount: data.childrenCount || 0,
-          guests: data.guests?.filter((g) => g.name?.trim()),
+          adultsCount: roomTotals.adultsCount,
+          childrenCount: roomTotals.childrenCount,
+          guests: roomTotals.guests,
+          rooms,
           inclusions: data.inclusions,
           cancellationPolicy: data.cancellationPolicy,
           includeCancellationPolicy: data.includeCancellationPolicy,
