@@ -474,6 +474,29 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                   </div>
                 </div>
               )}
+              {booking.hotelBooking?.baseFare != null && (
+                <div className="rounded-lg border p-4 text-sm space-y-2">
+                  <p className="font-medium">
+                    Invoice: {booking.hotelBooking.invoiceTaxType === "ITC" ? "ITC (B2B)" : "Non-ITC (B2C)"}
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <p><span className="text-muted-foreground">Hotel Charges:</span> {formatCurrency(Number(booking.hotelBooking.baseFare))}</p>
+                    <p><span className="text-muted-foreground">Service Charge:</span> {formatCurrency(Number(booking.hotelBooking.serviceCharge || 0))}</p>
+                    {Number(booking.hotelBooking.cgstAmount) > 0 && (
+                      <p><span className="text-muted-foreground">CGST ({Number(booking.hotelBooking.cgstRate)}%):</span> {formatCurrency(Number(booking.hotelBooking.cgstAmount))}</p>
+                    )}
+                    {Number(booking.hotelBooking.sgstAmount) > 0 && (
+                      <p><span className="text-muted-foreground">SGST ({Number(booking.hotelBooking.sgstRate)}%):</span> {formatCurrency(Number(booking.hotelBooking.sgstAmount))}</p>
+                    )}
+                    {Number(booking.hotelBooking.igstAmount) > 0 && (
+                      <p><span className="text-muted-foreground">IGST ({Number(booking.hotelBooking.igstRate)}%):</span> {formatCurrency(Number(booking.hotelBooking.igstAmount))}</p>
+                    )}
+                    {booking.hotelBooking.buyerGstin && (
+                      <p className="sm:col-span-2"><span className="text-muted-foreground">Buyer GSTIN:</span> {booking.hotelBooking.buyerGstin}</p>
+                    )}
+                  </div>
+                </div>
+              )}
               {booking.payments.length === 0 ? (
                 <p className="text-muted-foreground">No payments recorded</p>
               ) : (

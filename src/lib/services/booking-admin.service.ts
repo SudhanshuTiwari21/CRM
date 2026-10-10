@@ -9,6 +9,7 @@ import {
   calculateFlightGst,
   calculateFlightInvoiceTotal,
   FLIGHT_SERVICE_HSN,
+  HOTEL_SERVICE_HSN,
   getStateCodeFromGstin,
 } from "@/lib/gst-calculator";
 import { applyCardGatewayCharge } from "@/lib/payment-gateway";
@@ -236,6 +237,69 @@ export async function updateBookingAsAdmin(
 
   if (booking.hotelBooking) {
     const hotelData: Record<string, unknown> = {};
+    const agency = await getAgencySettings();
+    const agencyHasGst = Boolean(agency?.gstin?.trim());
+    const agencyStateCode = getStateCodeFromGstin(agency?.gstin);
+    const invoiceTaxType = input.invoiceTaxType ?? booking.hotelBooking.invoiceTaxType;
+    const buyerGstin =
+      input.buyerGstin !== undefined
+        ? input.buyerGstin?.toUpperCase() || null
+        : booking.hotelBooking.buyerGstin;
+    const baseFare = input.baseFare ?? Number(booking.hotelBooking.baseFare || 0);
+    const serviceCharge = input.serviceCharge ?? Number(booking.hotelBooking.serviceCharge || 0);
+    const discountAmount = input.discountAmount ?? Number(booking.hotelBooking.discountAmount || 0);
+
+    if (
+      agencyHasGst &&
+      (input.baseFare !== undefined ||
+        input.serviceCharge !== undefined ||
+        input.discountAmount !== undefined ||
+        input.invoiceTaxType !== undefined ||
+        input.buyerGstin !== undefined)
+    ) {
+      const tax = calculateFlightGst({
+        serviceCharge,
+        agencyStateCode,
+        buyerGstin,
+        buyerState: booking.hotelBooking.buyerState ?? booking.customer.state,
+        invoiceTaxType,
+      });
+      bookingData.totalAmount = calculateFlightInvoiceTotal(
+        baseFare,
+        serviceCharge,
+        tax,
+        discountAmount
+      );
+      hotelData.cgstRate = tax.cgstRate;
+      hotelData.sgstRate = tax.sgstRate;
+      hotelData.igstRate = tax.igstRate;
+      hotelData.cgstAmount = tax.cgstAmount;
+      hotelData.sgstAmount = tax.sgstAmount;
+      hotelData.igstAmount = tax.igstAmount;
+      hotelData.buyerState = tax.buyerState;
+      hotelData.buyerStateCode = tax.buyerStateCode;
+      hotelData.placeOfSupply = tax.placeOfSupply;
+      hotelData.buyerGstin = buyerGstin;
+      hotelData.baseFare = baseFare;
+      hotelData.serviceCharge = serviceCharge;
+      hotelData.discountAmount = discountAmount || null;
+      hotelData.invoiceTaxType = invoiceTaxType;
+      hotelData.hsnSac = HOTEL_SERVICE_HSN;
+    } else {
+      if (input.baseFare !== undefined) hotelData.baseFare = input.baseFare;
+      if (input.serviceCharge !== undefined) hotelData.serviceCharge = input.serviceCharge;
+      if (input.discountAmount !== undefined) hotelData.discountAmount = input.discountAmount;
+      if (input.invoiceTaxType !== undefined) hotelData.invoiceTaxType = input.invoiceTaxType;
+      if (input.buyerGstin !== undefined) hotelData.buyerGstin = input.buyerGstin?.toUpperCase() || null;
+    }
+
+    if (input.invoiceNarration !== undefined) {
+      hotelData.invoiceNarration = input.invoiceNarration || null;
+    }
+    if (input.msmeNumber !== undefined) {
+      hotelData.msmeNumber = input.msmeNumber || null;
+    }
+
     const hasHotelStayUpdate =
       input.propertyName !== undefined ||
       input.propertyAddress !== undefined ||
@@ -330,17 +394,13 @@ export async function updateBookingAsAdmin(
       hotelData.agentRemarks =
         input.agentRemarks !== undefined
           ? input.agentRemarks || null
-          : input.invoiceNarration !== undefined
-            ? input.invoiceNarration || null
-            : booking.hotelBooking.agentRemarks;
+          : booking.hotelBooking.agentRemarks;
       hotelData.confirmationNo =
         input.confirmationNo !== undefined
           ? input.confirmationNo || null
           : input.pnr !== undefined
             ? input.pnr || null
             : booking.hotelBooking.confirmationNo;
-    } else if (input.invoiceNarration !== undefined) {
-      hotelData.agentRemarks = input.invoiceNarration || null;
     }
 
     if (Object.keys(hotelData).length > 0) {

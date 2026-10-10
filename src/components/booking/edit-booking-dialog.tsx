@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FlightBookingFields } from "@/components/booking/flight-booking-fields";
 import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields";
+import { HotelInvoiceFields } from "@/components/booking/hotel-invoice-fields";
 import { HotelBookingFields } from "@/components/booking/hotel-booking-fields";
 import {
   CustomerEditFields,
@@ -606,11 +607,32 @@ function HotelEditForm({
           />
         </EditFormSection>
 
-        <EditFormSection title="Pricing">
-          <div className="space-y-2">
-            <Label htmlFor="edit-hotel-total">Total Amount (INR)</Label>
-            <Input id="edit-hotel-total" type="number" {...form.register("totalAmount")} />
+        <EditFormSection title="Invoice & Pricing" description="Hotel charges, service fee, and GST">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => form.setValue("invoiceTaxType", "NON_ITC")}
+              className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                (form.watch("invoiceTaxType") || "NON_ITC") === "NON_ITC"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background hover:bg-muted"
+              }`}
+            >
+              B2C (Retail)
+            </button>
+            <button
+              type="button"
+              onClick={() => form.setValue("invoiceTaxType", "ITC")}
+              className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                form.watch("invoiceTaxType") === "ITC"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background hover:bg-muted"
+              }`}
+            >
+              B2B (Business)
+            </button>
           </div>
+          <HotelInvoiceFields form={form as unknown as ReturnType<typeof useForm<WizardForm>>} />
         </EditFormSection>
 
         <EditFormSection title="Internal Notes" description="Staff-only - not printed on voucher or invoice">

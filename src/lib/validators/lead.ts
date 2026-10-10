@@ -30,7 +30,7 @@ export const createLeadSchema = z.object({
   temperature: leadTemperatureSchema.optional(),
   serviceType: leadServiceTypeSchema.optional().nullable(),
   customerSegment: leadCustomerSegmentSchema.optional(),
-  productInterest: z.enum(["FLIGHT", "HOTEL", "BUS"]).optional().nullable(),
+  productInterest: leadServiceTypeSchema.optional().nullable(),
   travelDate: z.string().optional().nullable(),
   returnDate: z.string().optional().nullable(),
   destinations: z.string().optional().nullable(),

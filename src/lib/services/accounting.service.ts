@@ -14,6 +14,7 @@ export interface AccountingBillRow {
   buyerGstin: string | null;
   invoiceTaxType: InvoiceTaxType;
   msmeNumber: string | null;
+  productType: "FLIGHT" | "HOTEL";
   segment: string;
   baseFare: number;
   serviceCharge: number;
@@ -56,38 +57,64 @@ export async function getAccountingBills(params: {
   to?: Date;
 }) {
   const brandId = await getActiveDbBrand();
-  const where = {
-    brandId,
-    productType: "FLIGHT" as const,
-    flightBooking: {
-      is: {
-        baseFare: { not: null },
-        ...(params.type && params.type !== "ALL"
-          ? { invoiceTaxType: params.type as InvoiceTaxType }
-          : {}),
-        ...(params.msmeNumber ? { msmeNumber: params.msmeNumber } : {}),
-      },
-    },
-    ...(params.from || params.to
+  const dateFilter =
+    params.from || params.to
       ? {
           createdAt: {
             ...(params.from ? { gte: params.from } : {}),
             ...(params.to ? { lte: params.to } : {}),
           },
         }
-      : {}),
-  };
+      : {};
 
-  const bookings = await prisma.booking.findMany({
-    where,
-    include: {
-      customer: true,
-      flightBooking: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const taxFilter =
+    params.type && params.type !== "ALL"
+      ? { invoiceTaxType: params.type as InvoiceTaxType }
+      : {};
+  const msmeFilter = params.msmeNumber ? { msmeNumber: params.msmeNumber } : {};
 
-  const rows: AccountingBillRow[] = bookings
+  const [flightBookings, hotelBookings] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        brandId,
+        productType: "FLIGHT",
+        flightBooking: {
+          is: {
+            baseFare: { not: null },
+            ...taxFilter,
+            ...msmeFilter,
+          },
+        },
+        ...dateFilter,
+      },
+      include: {
+        customer: true,
+        flightBooking: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.booking.findMany({
+      where: {
+        brandId,
+        productType: "HOTEL",
+        hotelBooking: {
+          is: {
+            baseFare: { not: null },
+            ...taxFilter,
+            ...msmeFilter,
+          },
+        },
+        ...dateFilter,
+      },
+      include: {
+        customer: true,
+        hotelBooking: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  const flightRows: AccountingBillRow[] = flightBookings
     .filter((b) => b.flightBooking?.baseFare != null)
     .map((b) => {
       const f = b.flightBooking!;
@@ -104,6 +131,7 @@ export async function getAccountingBills(params: {
         buyerGstin: f.buyerGstin,
         invoiceTaxType: f.invoiceTaxType,
         msmeNumber: f.msmeNumber,
+        productType: "FLIGHT" as const,
         segment: sectorFromSegments(f.segments),
         baseFare: num(f.baseFare),
         serviceCharge: num(f.serviceCharge),
@@ -117,6 +145,42 @@ export async function getAccountingBills(params: {
         paymentStatus: b.paymentStatus,
       };
     });
+
+  const hotelRows: AccountingBillRow[] = hotelBookings
+    .filter((b) => b.hotelBooking?.baseFare != null)
+    .map((b) => {
+      const h = b.hotelBooking!;
+      const cgst = num(h.cgstAmount);
+      const sgst = num(h.sgstAmount);
+      const igst = num(h.igstAmount);
+      return {
+        id: b.id,
+        publicRef: b.publicRef,
+        pnr: h.confirmationNo || b.pnr,
+        date: b.createdAt.toISOString(),
+        customerName: b.customer.name,
+        customerGstin: b.customer.gstin,
+        buyerGstin: h.buyerGstin,
+        invoiceTaxType: h.invoiceTaxType,
+        msmeNumber: h.msmeNumber,
+        productType: "HOTEL" as const,
+        segment: [h.propertyName, h.city].filter(Boolean).join(" · ") || "Hotel",
+        baseFare: num(h.baseFare),
+        serviceCharge: num(h.serviceCharge),
+        cgst,
+        sgst,
+        igst,
+        totalTax: cgst + sgst + igst,
+        totalAmount: num(b.totalAmount),
+        hsnSac: h.hsnSac || "998552",
+        placeOfSupply: h.placeOfSupply,
+        paymentStatus: b.paymentStatus,
+      };
+    });
+
+  const rows = [...flightRows, ...hotelRows].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
 
   const summary = rows.reduce<AccountingSummary>(
     (acc, r) => ({
@@ -132,25 +196,33 @@ export async function getAccountingBills(params: {
     { count: 0, baseFare: 0, serviceCharge: 0, cgst: 0, sgst: 0, igst: 0, totalTax: 0, totalAmount: 0 }
   );
 
-  const countBookings = await prisma.booking.findMany({
-    where: {
-      brandId,
-      productType: "FLIGHT",
-      flightBooking: { is: { baseFare: { not: null } } },
-      ...(params.from || params.to
-        ? {
-            createdAt: {
-              ...(params.from ? { gte: params.from } : {}),
-              ...(params.to ? { lte: params.to } : {}),
-            },
-          }
-        : {}),
-    },
-    select: { flightBooking: { select: { invoiceTaxType: true } } },
-  });
+  const [flightCountBookings, hotelCountBookings] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        brandId,
+        productType: "FLIGHT",
+        flightBooking: { is: { baseFare: { not: null } } },
+        ...dateFilter,
+      },
+      select: { flightBooking: { select: { invoiceTaxType: true } } },
+    }),
+    prisma.booking.findMany({
+      where: {
+        brandId,
+        productType: "HOTEL",
+        hotelBooking: { is: { baseFare: { not: null } } },
+        ...dateFilter,
+      },
+      select: { hotelBooking: { select: { invoiceTaxType: true } } },
+    }),
+  ]);
 
-  const b2bCount = countBookings.filter((b) => b.flightBooking?.invoiceTaxType === "ITC").length;
-  const b2cCount = countBookings.filter((b) => b.flightBooking?.invoiceTaxType === "NON_ITC").length;
+  const b2bCount =
+    flightCountBookings.filter((b) => b.flightBooking?.invoiceTaxType === "ITC").length +
+    hotelCountBookings.filter((b) => b.hotelBooking?.invoiceTaxType === "ITC").length;
+  const b2cCount =
+    flightCountBookings.filter((b) => b.flightBooking?.invoiceTaxType === "NON_ITC").length +
+    hotelCountBookings.filter((b) => b.hotelBooking?.invoiceTaxType === "NON_ITC").length;
 
   return { rows, summary, b2bCount, b2cCount };
 }
@@ -181,8 +253,13 @@ export function buildTallyXml(
     .map((r) => {
       const vchNo = `${invoicePrefix}-${r.publicRef}`;
       const party = escapeXml(r.customerName);
+      const productLabel = r.productType === "HOTEL" ? "Hotel" : "Flight";
+      const serviceLedger =
+        r.productType === "HOTEL" ? "Service Charges - Hotels" : "Service Charges - Air Tickets";
+      const fareLedger =
+        r.productType === "HOTEL" ? "Hotel Charges Reimbursement" : "Fare Reimbursement";
       const narration = escapeXml(
-        `Flight ${r.segment} PNR ${r.pnr || "-"} Ref ${r.publicRef} (${r.invoiceTaxType === "ITC" ? "B2B ITC" : "B2C"})`
+        `${productLabel} ${r.segment} Ref ${r.publicRef}${r.pnr ? ` ${r.pnr}` : ""} (${r.invoiceTaxType === "ITC" ? "B2B ITC" : "B2C"})`
       );
       const gstin = r.buyerGstin || r.customerGstin || "";
 
@@ -198,7 +275,7 @@ export function buildTallyXml(
 
       if (r.baseFare > 0) {
         entries.push(`<LEDGERENTRIES.LIST>
-          <LEDGERNAME>Fare Reimbursement</LEDGERNAME>
+          <LEDGERNAME>${fareLedger}</LEDGERNAME>
           <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
           <AMOUNT>${r.baseFare.toFixed(2)}</AMOUNT>
         </LEDGERENTRIES.LIST>`);
@@ -206,7 +283,7 @@ export function buildTallyXml(
 
       if (r.serviceCharge > 0) {
         entries.push(`<LEDGERENTRIES.LIST>
-          <LEDGERNAME>Service Charges - Air Tickets</LEDGERNAME>
+          <LEDGERNAME>${serviceLedger}</LEDGERNAME>
           <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
           <AMOUNT>${r.serviceCharge.toFixed(2)}</AMOUNT>
         </LEDGERENTRIES.LIST>`);
@@ -277,6 +354,7 @@ export function buildAccountingCsv(rows: AccountingBillRow[], invoicePrefix: str
     "Voucher No",
     "Booking Ref",
     "PNR",
+    "Product",
     "Customer",
     "GSTIN",
     "Type",
@@ -299,6 +377,7 @@ export function buildAccountingCsv(rows: AccountingBillRow[], invoicePrefix: str
       `${invoicePrefix}-${r.publicRef}`,
       r.publicRef,
       r.pnr || "",
+      r.productType,
       `"${r.customerName.replace(/"/g, '""')}"`,
       r.buyerGstin || r.customerGstin || "",
       r.invoiceTaxType === "ITC" ? "B2B ITC" : "B2C Non-ITC",

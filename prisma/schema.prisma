@@ -526,7 +526,7 @@ model Lead {
   temperature     LeadTemperature      @default(NONE)
   serviceType     LeadServiceType?
   customerSegment LeadCustomerSegment  @default(B2C)
-  productInterest ProductType?
+  productInterest LeadServiceType?
   travelDate      DateTime?
   returnDate      DateTime?
   destinations    String?
@@ -723,6 +723,23 @@ model HotelBooking {
   includeCancellationPolicy Boolean   @default(false)
   policies                  String?
   agentRemarks              String?
+  baseFare                  Decimal?        @db.Decimal(12, 2)
+  serviceCharge             Decimal?        @db.Decimal(12, 2)
+  discountAmount            Decimal?        @db.Decimal(12, 2)
+  invoiceTaxType            InvoiceTaxType  @default(NON_ITC)
+  buyerGstin                String?
+  buyerState                String?
+  buyerStateCode            String?
+  placeOfSupply             String?
+  invoiceNarration          String?
+  msmeNumber                String?
+  hsnSac                    String          @default("998552")
+  cgstRate                  Decimal?        @db.Decimal(5, 2)
+  sgstRate                  Decimal?        @db.Decimal(5, 2)
+  igstRate                  Decimal?        @db.Decimal(5, 2)
+  cgstAmount                Decimal?        @db.Decimal(12, 2)
+  sgstAmount                Decimal?        @db.Decimal(12, 2)
+  igstAmount                Decimal?        @db.Decimal(12, 2)
 
   booking      Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   hotelProfile HotelProfile? @relation(fields: [hotelProfileId], references: [id], onDelete: SetNull)

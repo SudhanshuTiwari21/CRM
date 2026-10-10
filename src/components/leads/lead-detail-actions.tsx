@@ -25,7 +25,6 @@ import type {
   LeadSource,
   LeadStatus,
   LeadTemperature,
-  ProductType,
 } from "@prisma/client";
 
 interface LeadDetail {
@@ -40,7 +39,7 @@ interface LeadDetail {
   temperature: LeadTemperature;
   serviceType: LeadServiceType | null;
   customerSegment: LeadCustomerSegment;
-  productInterest: ProductType | null;
+  productInterest: LeadServiceType | null;
   travelDate: string | null;
   returnDate: string | null;
   destinations: string | null;

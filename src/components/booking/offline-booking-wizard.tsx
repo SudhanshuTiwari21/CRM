@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HotelBookingFields } from "@/components/booking/hotel-booking-fields";
 import { FlightBookingFields } from "@/components/booking/flight-booking-fields";
 import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields";
+import { HotelInvoiceFields } from "@/components/booking/hotel-invoice-fields";
 import { TicketUploadPanel } from "@/components/booking/ticket-upload-panel";
 import { parseApiResponse } from "@/lib/parse-api-response";
 import { formatCustomerName } from "@/lib/utils";
@@ -546,12 +547,22 @@ export function OfflineBookingWizard() {
           guests: data.guests,
         });
         const roomTotals = totalsFromHotelRooms(rooms);
+        if (data.totalAmount <= 0) {
+          throw new Error("Enter hotel charges and service charge for the invoice");
+        }
         payload = {
           productType: "HOTEL",
           channel: "OFFLINE",
           ...billingPayload,
           totalAmount: data.totalAmount,
           internalNotes: data.internalNotes,
+          invoiceTaxType: data.invoiceTaxType || "NON_ITC",
+          buyerGstin: (data.buyerGstin || data.customer.gstin || "").trim() || undefined,
+          baseFare: data.baseFare ?? 0,
+          serviceCharge: data.serviceCharge ?? 0,
+          discountAmount: data.discountAmount || undefined,
+          invoiceNarration: data.invoiceNarration?.trim() || undefined,
+          msmeNumber: data.msmeNumber?.trim() || undefined,
           propertyName: data.propertyName,
           propertyAddress: data.propertyAddress,
           city: data.city,
@@ -699,6 +710,8 @@ export function OfflineBookingWizard() {
         <CardContent className="grid gap-4 sm:grid-cols-2">
           {productType === "FLIGHT" ? (
             <FlightInvoiceFields form={form} />
+          ) : productType === "HOTEL" ? (
+            <HotelInvoiceFields form={form} />
           ) : (
             <div className="space-y-2">
               <Label>Total Amount (INR) *</Label>

@@ -189,6 +189,7 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
       customer: customerForDocs,
       payments: booking.payments,
       flight: booking.flightBooking,
+      hotel: booking.hotelBooking,
       segments: booking.flightBooking
         ? (booking.flightBooking.segments as unknown as FlightSegment[])
         : undefined,

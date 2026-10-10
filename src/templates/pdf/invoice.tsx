@@ -1,6 +1,6 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import type { AgencySettings, Booking, Customer, FlightBooking, Payment } from "@prisma/client";
+import type { AgencySettings, Booking, Customer, FlightBooking, HotelBooking, Payment } from "@prisma/client";
 import type { FlightPassenger, FlightSegment } from "@/types/booking";
 import { format } from "date-fns";
 import { extractPanFromGstin } from "@/lib/gstin-lookup";
@@ -97,6 +97,7 @@ interface Props {
   customer: Customer;
   payments: Payment[];
   flight?: FlightBooking | null;
+  hotel?: HotelBooking | null;
   segments?: FlightSegment[];
   passengers?: FlightPassenger[];
   logoSrc?: string | null;
@@ -108,6 +109,7 @@ export function InvoicePDF({
   customer,
   payments,
   flight,
+  hotel,
   segments = [],
   passengers = [],
   logoSrc,
@@ -116,17 +118,22 @@ export function InvoicePDF({
   const payment = payments[0];
   const agencyStateCode = getStateCodeFromGstin(agency.gstin);
   const agencyPan = agency.pan || (agency.gstin ? extractPanFromGstin(agency.gstin) : null);
-  const isB2B = flight?.invoiceTaxType === "ITC";
-  const hasGstInvoice = Boolean(agency.gstin?.trim() && flight?.baseFare != null && flight?.serviceCharge != null);
+  const taxSource = flight?.baseFare != null ? flight : hotel?.baseFare != null ? hotel : null;
+  const isHotelInvoice = Boolean(hotel && !flight?.baseFare && hotel.baseFare != null);
+  const isB2B = taxSource?.invoiceTaxType === "ITC";
+  const hasGstInvoice = Boolean(
+    agency.gstin?.trim() && taxSource?.baseFare != null && taxSource?.serviceCharge != null
+  );
 
-  const baseFare = hasGstInvoice ? Number(flight!.baseFare) : Number(booking.totalAmount);
-  const serviceCharge = hasGstInvoice ? Number(flight!.serviceCharge) : 0;
-  const discount = hasGstInvoice ? Number(flight!.discountAmount || 0) : 0;
-  const cgst = hasGstInvoice ? Number(flight!.cgstAmount || 0) : 0;
-  const sgst = hasGstInvoice ? Number(flight!.sgstAmount || 0) : 0;
-  const igst = hasGstInvoice ? Number(flight!.igstAmount || 0) : 0;
+  const baseFare = hasGstInvoice ? Number(taxSource!.baseFare) : Number(booking.totalAmount);
+  const serviceCharge = hasGstInvoice ? Number(taxSource!.serviceCharge) : 0;
+  const discount = hasGstInvoice ? Number(taxSource!.discountAmount || 0) : 0;
+  const cgst = hasGstInvoice ? Number(taxSource!.cgstAmount || 0) : 0;
+  const sgst = hasGstInvoice ? Number(taxSource!.sgstAmount || 0) : 0;
+  const igst = hasGstInvoice ? Number(taxSource!.igstAmount || 0) : 0;
   const totalTax = cgst + sgst + igst;
-  const gatewayCharge = hasGstInvoice ? Number(flight!.paymentGatewayCharge || 0) : 0;
+  const gatewayCharge =
+    hasGstInvoice && flight?.baseFare != null ? Number(flight.paymentGatewayCharge || 0) : 0;
   const grandTotal = hasGstInvoice
     ? baseFare + serviceCharge + totalTax - discount + gatewayCharge
     : Number(booking.totalAmount);
@@ -137,45 +144,60 @@ export function InvoicePDF({
   const pnrLine = [
     booking.pnr ? `PNR: ${booking.pnr}` : null,
     flight?.secondaryPnr ? `Return PNR: ${flight.secondaryPnr}` : null,
+    hotel?.confirmationNo ? `Confirmation: ${hotel.confirmationNo}` : null,
   ]
     .filter(Boolean)
     .join(" | ");
 
-  const buyerGstin = flight?.buyerGstin || customer.gstin;
-  const buyerState = flight?.buyerState || customer.state;
-  const placeOfSupply = flight?.placeOfSupply || buyerState || agency.state;
-  const msmeNumber = flight?.msmeNumber || (agency.msmeRegistered ? agency.msmeNumber : null);
-  const fareLines = buildBaseFareLines(passengers, baseFare);
-  const qtyLabel = farePassengerQtyLabel(fareLines);
+  const buyerGstin = taxSource?.buyerGstin || customer.gstin;
+  const buyerState = taxSource?.buyerState || customer.state;
+  const placeOfSupply = taxSource?.placeOfSupply || buyerState || agency.state;
+  const msmeNumber = taxSource?.msmeNumber || (agency.msmeRegistered ? agency.msmeNumber : null);
+  const hsnSac = taxSource?.hsnSac || (isHotelInvoice ? "998552" : "998551");
+  const fareLines = flight ? buildBaseFareLines(passengers, baseFare) : [];
+  const qtyLabel = flight ? farePassengerQtyLabel(fareLines) : "1";
 
   const fareDescription = flight
     ? flight.tripType === "ADDON_SERVICES"
       ? `${flight.airline} - ${addonTypeLabel(flight.addonType, flight.addonCustomLabel)}`
       : `${flight.airline} Airlines (Fare Reimbursement) Domestic`
-    : `${booking.productType} Booking`;
+    : hotel
+      ? `${hotel.propertyName} (Hotel Charges Reimbursement)`
+      : `${booking.productType} Booking`;
 
   const showPassengerName = flight?.showPassengerName !== false;
+  const invoiceNarration = flight?.invoiceNarration || hotel?.invoiceNarration || null;
 
-  const itineraryDetailLines = [
-    pnrLine,
-    ...(flight?.tripType === "ADDON_SERVICES"
-      ? addonDetailLines(flight.addonType, flight.addonCustomLabel, flight.addonCustomValue, passengers)
-      : []),
-    sector && flight?.tripType !== "ADDON_SERVICES" ? `Sector: ${sector}` : null,
-    ...sectorLegs.map((leg) => `${leg.label}: ${leg.sector} (${leg.date || "-"})`),
-    segments.length > 1 && flight?.tripType !== "ROUND_TRIP"
-      ? `Route: ${buildFullRoute(segments)}`
-      : null,
-    travelDate ? `Travel Date: ${travelDate}` : null,
-    flight?.cabinClass ? `Class: ${cabinLabel(flight.cabinClass)}` : null,
-    flight?.fareType ? `Fare Type: ${fareTypeLabel(flight.fareType)}` : null,
-  ].filter(Boolean) as string[];
+  const itineraryDetailLines = flight
+    ? ([
+        pnrLine,
+        ...(flight.tripType === "ADDON_SERVICES"
+          ? addonDetailLines(flight.addonType, flight.addonCustomLabel, flight.addonCustomValue, passengers)
+          : []),
+        sector && flight.tripType !== "ADDON_SERVICES" ? `Sector: ${sector}` : null,
+        ...sectorLegs.map((leg) => `${leg.label}: ${leg.sector} (${leg.date || "-"})`),
+        segments.length > 1 && flight.tripType !== "ROUND_TRIP"
+          ? `Route: ${buildFullRoute(segments)}`
+          : null,
+        travelDate ? `Travel Date: ${travelDate}` : null,
+        flight.cabinClass ? `Class: ${cabinLabel(flight.cabinClass)}` : null,
+        flight.fareType ? `Fare Type: ${fareTypeLabel(flight.fareType)}` : null,
+      ].filter(Boolean) as string[])
+    : hotel
+      ? ([
+          pnrLine,
+          hotel.city ? `City: ${hotel.city}` : null,
+          `Check-in: ${format(hotel.checkIn, "dd/MM/yyyy")} ${hotel.checkInTime || ""}`.trim(),
+          `Check-out: ${format(hotel.checkOut, "dd/MM/yyyy")} ${hotel.checkOutTime || ""}`.trim(),
+          `${hotel.nights} night(s) · ${hotel.roomsCount} room(s) · ${hotel.roomType}`,
+        ].filter(Boolean) as string[])
+      : [];
 
   const gstRateLabel =
     igst > 0
-      ? `${Number(flight?.igstRate || 0)}%`
+      ? `${Number(taxSource?.igstRate || 0)}%`
       : cgst > 0
-        ? `${Number(flight?.cgstRate || 0)}% + ${Number(flight?.sgstRate || 0)}%`
+        ? `${Number(taxSource?.cgstRate || 0)}% + ${Number(taxSource?.sgstRate || 0)}%`
         : "18%";
 
   // Same main-table layout for B2B and B2C: fare row + Other Charges column; B2B tax detail only in breakup section below.
@@ -249,7 +271,7 @@ export function InvoicePDF({
           </View>
         </View>
 
-        {hasGstInvoice && booking.productType === "FLIGHT" && flight ? (
+        {hasGstInvoice && taxSource ? (
           <>
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -264,46 +286,69 @@ export function InvoicePDF({
                 <Text style={[styles.th, col.amt, styles.right]}>Amount</Text>
               </View>
 
-              {fareLines.map((line, idx) => {
-                const typeLabel = paxTypeUnitLabel(line.passenger);
-                const typeCounters = fareLines
-                  .slice(0, idx + 1)
-                  .filter((l) => (l.passenger.paxType || "adult") === (line.passenger.paxType || "adult"))
-                  .length;
-                const paxName = showPassengerName
-                  ? passengerDisplayName(line.passenger)
-                  : `${typeLabel} ${typeCounters}`;
-                return (
-                  <View style={styles.tableRow} key={`fare-row-${idx}`}>
-                    <Text style={[styles.td, col.sl]}>{idx + 1}</Text>
-                    <View style={[styles.td, col.desc]}>
-                      <Text style={styles.descTitle}>
-                        {fareDescription} - {paxName}
-                      </Text>
-                      {idx === 0 &&
-                        itineraryDetailLines.map((detail) => (
-                          <Text key={detail} style={styles.descBullet}>
-                            • {detail}
+              {flight
+                ? fareLines.map((line, idx) => {
+                    const typeLabel = paxTypeUnitLabel(line.passenger);
+                    const typeCounters = fareLines
+                      .slice(0, idx + 1)
+                      .filter((l) => (l.passenger.paxType || "adult") === (line.passenger.paxType || "adult"))
+                      .length;
+                    const paxName = showPassengerName
+                      ? passengerDisplayName(line.passenger)
+                      : `${typeLabel} ${typeCounters}`;
+                    return (
+                      <View style={styles.tableRow} key={`fare-row-${idx}`}>
+                        <Text style={[styles.td, col.sl]}>{idx + 1}</Text>
+                        <View style={[styles.td, col.desc]}>
+                          <Text style={styles.descTitle}>
+                            {fareDescription} - {paxName}
                           </Text>
-                        ))}
+                          {idx === 0 &&
+                            itineraryDetailLines.map((detail) => (
+                              <Text key={detail} style={styles.descBullet}>
+                                • {detail}
+                              </Text>
+                            ))}
+                        </View>
+                        <Text style={[styles.td, col.hsn]}>-</Text>
+                        <Text style={[styles.td, col.gst, styles.right]}>-</Text>
+                        <Text style={[styles.td, col.qty, styles.right]}>1</Text>
+                        <Text style={[styles.td, col.rate, styles.right]}>{inr(line.amount)}</Text>
+                        <Text style={[styles.td, col.per]}>{typeLabel}</Text>
+                        <Text style={[styles.td, col.other, styles.right]}>{inr(0)}</Text>
+                        <Text style={[styles.td, col.amt, styles.right]}>{inr(line.amount)}</Text>
+                      </View>
+                    );
+                  })
+                : (
+                  <View style={styles.tableRow}>
+                    <Text style={[styles.td, col.sl]}>1</Text>
+                    <View style={[styles.td, col.desc]}>
+                      <Text style={styles.descTitle}>{fareDescription}</Text>
+                      {itineraryDetailLines.map((detail) => (
+                        <Text key={detail} style={styles.descBullet}>
+                          • {detail}
+                        </Text>
+                      ))}
                     </View>
                     <Text style={[styles.td, col.hsn]}>-</Text>
                     <Text style={[styles.td, col.gst, styles.right]}>-</Text>
                     <Text style={[styles.td, col.qty, styles.right]}>1</Text>
-                    <Text style={[styles.td, col.rate, styles.right]}>{inr(line.amount)}</Text>
-                    <Text style={[styles.td, col.per]}>{typeLabel}</Text>
+                    <Text style={[styles.td, col.rate, styles.right]}>{inr(baseFare)}</Text>
+                    <Text style={[styles.td, col.per]}>Stay</Text>
                     <Text style={[styles.td, col.other, styles.right]}>{inr(0)}</Text>
-                    <Text style={[styles.td, col.amt, styles.right]}>{inr(line.amount)}</Text>
+                    <Text style={[styles.td, col.amt, styles.right]}>{inr(baseFare)}</Text>
                   </View>
-                );
-              })}
+                )}
 
               <View style={styles.tableRow}>
-                <Text style={[styles.td, col.sl]}>{fareLines.length + 1}</Text>
+                <Text style={[styles.td, col.sl]}>{(flight ? fareLines.length : 1) + 1}</Text>
                 <View style={[styles.td, col.desc]}>
-                  <Text style={styles.descTitle}>Booking / Service Fee (Domestic)</Text>
+                  <Text style={styles.descTitle}>
+                    {isHotelInvoice ? "Booking / Service Fee (Hotel)" : "Booking / Service Fee (Domestic)"}
+                  </Text>
                 </View>
-                <Text style={[styles.td, col.hsn]}>{flight.hsnSac || "998551"}</Text>
+                <Text style={[styles.td, col.hsn]}>{hsnSac}</Text>
                 <Text style={[styles.td, col.gst, styles.right]}>{gstRateLabel}</Text>
                 <Text style={[styles.td, col.qty, styles.right]}>1</Text>
                 <Text style={[styles.td, col.rate, styles.right]}>{inr(serviceCharge)}</Text>
@@ -341,12 +386,12 @@ export function InvoicePDF({
                     <Text style={[styles.th, { width: "14%" }, styles.right]}>Total Tax</Text>
                   </View>
                   <View style={styles.tableRow}>
-                    <Text style={[styles.td, { width: "14%" }]}>{flight.hsnSac || "998551"}</Text>
+                    <Text style={[styles.td, { width: "14%" }]}>{hsnSac}</Text>
                     <Text style={[styles.td, { width: "16%" }, styles.right]}>{inr(serviceCharge)}</Text>
                     <View style={[styles.td, { width: "14%" }]}>
                       {cgst > 0 ? (
                         <>
-                          <Text style={styles.taxThSub}>Rate: {Number(flight.cgstRate)}%</Text>
+                          <Text style={styles.taxThSub}>Rate: {Number(taxSource.cgstRate)}%</Text>
                           <Text>Amt: {inr(cgst)}</Text>
                         </>
                       ) : (
@@ -356,7 +401,7 @@ export function InvoicePDF({
                     <View style={[styles.td, { width: "14%" }]}>
                       {sgst > 0 ? (
                         <>
-                          <Text style={styles.taxThSub}>Rate: {Number(flight.sgstRate)}%</Text>
+                          <Text style={styles.taxThSub}>Rate: {Number(taxSource.sgstRate)}%</Text>
                           <Text>Amt: {inr(sgst)}</Text>
                         </>
                       ) : (
@@ -366,7 +411,7 @@ export function InvoicePDF({
                     <View style={[styles.td, { width: "14%" }]}>
                       {igst > 0 ? (
                         <>
-                          <Text style={styles.taxThSub}>Rate: {Number(flight.igstRate)}%</Text>
+                          <Text style={styles.taxThSub}>Rate: {Number(taxSource.igstRate)}%</Text>
                           <Text>Amt: {inr(igst)}</Text>
                         </>
                       ) : (
@@ -409,10 +454,10 @@ export function InvoicePDF({
           </View>
         )}
 
-        {flight?.invoiceNarration && (
+        {invoiceNarration && (
           <View style={styles.remarksBox}>
             <Text style={styles.remarksLabel}>Remarks</Text>
-            <Text style={styles.remarksText}>{flight.invoiceNarration}</Text>
+            <Text style={styles.remarksText}>{invoiceNarration}</Text>
           </View>
         )}
 

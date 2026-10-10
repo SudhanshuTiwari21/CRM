@@ -1,6 +1,8 @@
 import { getStateFromGstin } from "@/lib/gstin-lookup";
 
 export const FLIGHT_SERVICE_HSN = "998551";
+/** Tour operator / hotel booking agency service (SAC) */
+export const HOTEL_SERVICE_HSN = "998552";
 export const FLIGHT_GST_RATE = 18;
 export const INTRA_STATE_SPLIT_RATE = 9;
 

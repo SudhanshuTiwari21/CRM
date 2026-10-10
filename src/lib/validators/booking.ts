@@ -376,6 +376,17 @@ export const offlineHotelBookingSchema = z
   agentRemarks: z.string().optional(),
   paymentMethod: z.enum(["UPI", "Cash", "Card", "Bank Transfer", "CREDIT"]).optional(),
   internalNotes: z.string().optional(),
+  invoiceTaxType: z.enum(["ITC", "NON_ITC"]),
+  buyerGstin: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || gstinRegex.test(v.toUpperCase()), "Invalid GSTIN format"),
+  baseFare: z.coerce.number().min(0),
+  serviceCharge: z.coerce.number().min(0),
+  discountAmount: z.coerce.number().min(0).optional(),
+  invoiceNarration: z.string().optional(),
+  msmeNumber: z.string().optional(),
   })
   .superRefine(refineOfflineBilling);
 

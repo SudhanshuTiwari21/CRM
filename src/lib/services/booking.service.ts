@@ -24,18 +24,25 @@ import type {
   Prisma,
 } from "@prisma/client";
 import type { z } from "zod";
-import type { offlineBookingSchema, offlineFlightBookingSchema, webhookLiveBookingSchema } from "@/lib/validators/booking";
+import type {
+  offlineBookingSchema,
+  offlineFlightBookingSchema,
+  offlineHotelBookingSchema,
+  webhookLiveBookingSchema,
+} from "@/lib/validators/booking";
 import { differenceInDays } from "date-fns";
 import {
   calculateFlightGst,
   calculateFlightInvoiceTotal,
   FLIGHT_SERVICE_HSN,
+  HOTEL_SERVICE_HSN,
   getStateCodeFromGstin,
 } from "@/lib/gst-calculator";
 import type { FlightPassenger } from "@/types/booking";
 
 type OfflineBookingInput = z.infer<typeof offlineBookingSchema>;
 type OfflineFlightBookingInput = z.infer<typeof offlineFlightBookingSchema>;
+type OfflineHotelBookingInput = z.infer<typeof offlineHotelBookingSchema>;
 type WebhookBookingInput = z.infer<typeof webhookLiveBookingSchema>;
 
 async function resolveBookingCustomer(input: {
@@ -149,6 +156,63 @@ function validateFlightInvoice(input: OfflineFlightBookingInput, agencyHasGst: b
   if (!agencyHasGst && input.totalAmount <= 0) {
     throw new Error("Total amount must be greater than 0");
   }
+}
+
+function validateHotelInvoice(input: OfflineHotelBookingInput, agencyHasGst: boolean) {
+  if (agencyHasGst && input.baseFare + input.serviceCharge <= 0) {
+    throw new Error("Enter hotel charges and/or service charge");
+  }
+  if (!agencyHasGst && input.totalAmount <= 0) {
+    throw new Error("Total amount must be greater than 0");
+  }
+}
+
+function buildHotelTaxData(
+  input: OfflineHotelBookingInput,
+  agencyStateCode: string | null,
+  customerContact: { gstin?: string | null; state?: string | null }
+) {
+  const buyerGstin =
+    (input.buyerGstin || customerContact.gstin || "").toUpperCase() || null;
+
+  const tax = calculateFlightGst({
+    serviceCharge: input.serviceCharge,
+    agencyStateCode,
+    buyerGstin,
+    buyerState: customerContact.state,
+    invoiceTaxType: input.invoiceTaxType,
+  });
+
+  const discountAmount = input.discountAmount || 0;
+  const totalAmount = calculateFlightInvoiceTotal(
+    input.baseFare,
+    input.serviceCharge,
+    tax,
+    discountAmount
+  );
+
+  return {
+    totalAmount,
+    taxFields: {
+      baseFare: input.baseFare,
+      serviceCharge: input.serviceCharge,
+      discountAmount: discountAmount || null,
+      invoiceTaxType: input.invoiceTaxType,
+      buyerGstin,
+      buyerState: tax.buyerState,
+      buyerStateCode: tax.buyerStateCode,
+      placeOfSupply: tax.placeOfSupply,
+      invoiceNarration: input.invoiceNarration || null,
+      msmeNumber: input.msmeNumber || null,
+      hsnSac: HOTEL_SERVICE_HSN,
+      cgstRate: tax.cgstRate,
+      sgstRate: tax.sgstRate,
+      igstRate: tax.igstRate,
+      cgstAmount: tax.cgstAmount,
+      sgstAmount: tax.sgstAmount,
+      igstAmount: tax.igstAmount,
+    },
+  };
 }
 
 function buildFlightTaxData(
@@ -329,56 +393,81 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
         include: { customer: true, flightBooking: true },
       });
     } else if (input.productType === "HOTEL") {
-      const nights = differenceInDays(new Date(input.checkOut), new Date(input.checkIn));
+      const agency = await getAgencySettings();
+      const agencyStateCode = getStateCodeFromGstin(agency?.gstin);
+      const agencyHasGst = Boolean(agency?.gstin?.trim());
+      const hotelInput = input as OfflineHotelBookingInput;
+      validateHotelInvoice(hotelInput, agencyHasGst);
+
+      const nights = differenceInDays(new Date(hotelInput.checkOut), new Date(hotelInput.checkIn));
       const hotelProfile = await upsertHotelProfile({
-        name: input.propertyName,
-        address: input.propertyAddress,
-        city: input.city,
-        phone: input.propertyPhone,
-        email: input.propertyEmail,
-        checkInTime: input.checkInTime,
-        checkOutTime: input.checkOutTime,
+        name: hotelInput.propertyName,
+        address: hotelInput.propertyAddress,
+        city: hotelInput.city,
+        phone: hotelInput.propertyPhone,
+        email: hotelInput.propertyEmail,
+        checkInTime: hotelInput.checkInTime,
+        checkOutTime: hotelInput.checkOutTime,
       });
 
       const rooms = normalizeHotelRooms({
-        rooms: input.rooms,
-        roomsCount: input.roomsCount,
-        adultsCount: input.adultsCount,
-        childrenCount: input.childrenCount,
-        guests: input.guests,
+        rooms: hotelInput.rooms,
+        roomsCount: hotelInput.roomsCount,
+        adultsCount: hotelInput.adultsCount,
+        childrenCount: hotelInput.childrenCount,
+        guests: hotelInput.guests,
       });
       const roomTotals = totalsFromHotelRooms(rooms);
+
+      let totalAmount = hotelInput.totalAmount;
+      let taxFields: Record<string, unknown> = {
+        invoiceTaxType: hotelInput.invoiceTaxType || "NON_ITC",
+        buyerGstin: (hotelInput.buyerGstin || "").toUpperCase() || null,
+        invoiceNarration: hotelInput.invoiceNarration || null,
+        msmeNumber: hotelInput.msmeNumber || null,
+        hsnSac: HOTEL_SERVICE_HSN,
+      };
+
+      if (agencyHasGst) {
+        const built = buildHotelTaxData(hotelInput, agencyStateCode, {
+          gstin: input.customer?.gstin ?? customer.gstin,
+          state: input.customer?.state ?? customer.state,
+        });
+        totalAmount = built.totalAmount;
+        taxFields = built.taxFields;
+      }
 
       created = await tx.booking.create({
         data: {
           ...baseData,
-          totalAmount: input.totalAmount,
+          totalAmount,
           hotelBooking: {
             create: {
               hotelProfileId: hotelProfile.id,
-              propertyName: input.propertyName,
-              propertyAddress: input.propertyAddress,
-              city: input.city,
-              propertyPhone: input.propertyPhone,
-              propertyEmail: input.propertyEmail || undefined,
-              checkIn: new Date(input.checkIn),
-              checkOut: new Date(input.checkOut),
-              checkInTime: input.checkInTime || "02:00 PM",
-              checkOutTime: input.checkOutTime || "12:00 PM",
+              propertyName: hotelInput.propertyName,
+              propertyAddress: hotelInput.propertyAddress,
+              city: hotelInput.city,
+              propertyPhone: hotelInput.propertyPhone,
+              propertyEmail: hotelInput.propertyEmail || undefined,
+              checkIn: new Date(hotelInput.checkIn),
+              checkOut: new Date(hotelInput.checkOut),
+              checkInTime: hotelInput.checkInTime || "02:00 PM",
+              checkOutTime: hotelInput.checkOutTime || "12:00 PM",
               nights: Math.max(nights, 1),
               roomsCount: roomTotals.roomsCount,
-              roomType: input.roomType,
-              mealPlan: input.mealPlan || "ROOM_ONLY",
-              roomAmenities: input.roomAmenities || [],
+              roomType: hotelInput.roomType,
+              mealPlan: hotelInput.mealPlan || "ROOM_ONLY",
+              roomAmenities: hotelInput.roomAmenities || [],
               adultsCount: roomTotals.adultsCount,
               childrenCount: roomTotals.childrenCount,
               guests: roomTotals.guests as unknown as Prisma.InputJsonValue,
               rooms: rooms as unknown as Prisma.InputJsonValue,
-              inclusions: input.inclusions,
-              cancellationPolicy: input.cancellationPolicy,
-              includeCancellationPolicy: input.includeCancellationPolicy || false,
-              policies: input.policies,
-              agentRemarks: input.agentRemarks,
+              inclusions: hotelInput.inclusions,
+              cancellationPolicy: hotelInput.cancellationPolicy,
+              includeCancellationPolicy: hotelInput.includeCancellationPolicy || false,
+              policies: hotelInput.policies,
+              agentRemarks: hotelInput.agentRemarks,
+              ...taxFields,
             },
           },
         },

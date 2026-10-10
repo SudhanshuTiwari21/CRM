@@ -58,7 +58,7 @@ export function AddLeadDialog({
       temperature: "NONE",
       serviceType: "PACKAGE",
       customerSegment: "B2C",
-      productInterest: "FLIGHT",
+      productInterest: "PACKAGE",
       travelDate: "",
       returnDate: "",
       destinations: "",
@@ -267,9 +267,9 @@ export function AddLeadDialog({
             <div className="space-y-2">
               <Label>Product interest</Label>
               <Select
-                value={form.watch("productInterest") || "FLIGHT"}
+                value={form.watch("productInterest") || "PACKAGE"}
                 onValueChange={(v) =>
-                  form.setValue("productInterest", v as "FLIGHT" | "HOTEL" | "BUS")
+                  form.setValue("productInterest", v as CreateLeadInput["productInterest"])
                 }
               >
                 <SelectTrigger>

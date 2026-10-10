@@ -362,7 +362,7 @@ export async function getCustomerWithRelations(id: string) {
 export function customerListInclude(): Prisma.CustomerInclude {
   return {
     _count: { select: { bookings: true } },
-    branches: { where: { isPrimary: true }, take: 1 },
+    branches: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
     contacts: { where: { isPrimary: true }, take: 1 },
     bookings: { select: { totalAmount: true, paymentStatus: true } },
   };

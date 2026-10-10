@@ -15,6 +15,17 @@ import type { WizardForm } from "@/components/booking/offline-booking-wizard";
 
 
 
+interface CustomerBranchOption {
+  id: string;
+  name: string;
+  gstin: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  isPrimary: boolean;
+}
+
 interface CustomerOption {
   id: string;
   name: string;
@@ -27,6 +38,7 @@ interface CustomerOption {
   state: string | null;
   pincode: string | null;
   type: string;
+  branches?: CustomerBranchOption[];
 }
 
 interface CustomerBillingSectionProps {
@@ -67,6 +79,8 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [selectedBranches, setSelectedBranches] = useState<CustomerBranchOption[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
 
   const showManualFields =
     billingType === "CASH" ||
@@ -145,6 +159,17 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
     return () => clearTimeout(timer);
   }, [billingType, ledgerMode, customerPhone, onCreditAvailabilityChange]);
 
+  function applyBranchBilling(branch: CustomerBranchOption) {
+    form.setValue("customer.gstin", branch.gstin || "");
+    form.setValue("customer.address", branch.address || "");
+    form.setValue("customer.city", branch.city || "");
+    form.setValue("customer.state", branch.state || "");
+    form.setValue("customer.pincode", branch.pincode || "");
+    if (branch.gstin) {
+      form.setValue("buyerGstin", branch.gstin.toUpperCase());
+    }
+  }
+
   function applyCustomer(c: CustomerOption) {
     const { title, name } = splitCustomerName(c.name);
     form.setValue("customerId", c.id);
@@ -153,16 +178,32 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
     form.setValue("customer.phone", c.phone);
     form.setValue("customer.email", c.email || "");
     form.setValue("customer.pan", c.pan || "");
-    form.setValue("customer.gstin", c.gstin || "");
-    form.setValue("customer.address", c.address || "");
-    form.setValue("customer.city", c.city || "");
-    form.setValue("customer.state", c.state || "");
-    form.setValue("customer.pincode", c.pincode || "");
-    if (c.gstin) form.setValue("buyerGstin", c.gstin);
+
+    const branches = c.branches || [];
+    setSelectedBranches(branches);
+    const primary = branches.find((b) => b.isPrimary) || branches[0];
+    if (primary) {
+      setSelectedBranchId(primary.id);
+      applyBranchBilling(primary);
+    } else {
+      setSelectedBranchId("");
+      form.setValue("customer.gstin", c.gstin || "");
+      form.setValue("customer.address", c.address || "");
+      form.setValue("customer.city", c.city || "");
+      form.setValue("customer.state", c.state || "");
+      form.setValue("customer.pincode", c.pincode || "");
+      if (c.gstin) form.setValue("buyerGstin", c.gstin.toUpperCase());
+    }
+
+    if (c.type === "BUSINESS" && (productType === "FLIGHT" || productType === "HOTEL")) {
+      form.setValue("invoiceTaxType", "ITC");
+    }
   }
 
   function handleBillingTypeChange(value: "CASH" | "LEDGER") {
     form.setValue("billingType", value);
+    setSelectedBranches([]);
+    setSelectedBranchId("");
     if (value === "CASH") {
       form.setValue("cashBillTo", "INDIVIDUAL");
       form.setValue("ledgerMode", undefined);
@@ -181,7 +222,10 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
       form.setValue("ledgerBillTo", value);
     }
     if (value === "COMPANY") {
-      if (productType === "FLIGHT" && form.getValues("invoiceTaxType") !== "ITC") {
+      if (
+        (productType === "FLIGHT" || productType === "HOTEL") &&
+        form.getValues("invoiceTaxType") !== "ITC"
+      ) {
         form.setValue("invoiceTaxType", "ITC");
       }
     } else {
@@ -250,7 +294,7 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
           </div>
         )}
 
-        {productType === "FLIGHT" && (
+        {(productType === "FLIGHT" || productType === "HOTEL") && (
           <div className="space-y-2">
             <Label>Booking Category</Label>
             <div className="flex flex-wrap gap-2">
@@ -317,7 +361,7 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
               </div>
               {cashBillTo === "COMPANY" && (
                 <p className="text-xs text-muted-foreground">
-                  Company name appears on the invoice. For flight bookings, B2B is selected automatically — GSTIN is optional.
+                  Company name appears on the invoice. For flight/hotel bookings, B2B is selected automatically — GSTIN is optional.
                 </p>
               )}
             </div>
@@ -332,6 +376,8 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
                 onClick={() => {
                   form.setValue("ledgerMode", "EXISTING");
                   form.setValue("customerId", undefined);
+                  setSelectedBranches([]);
+                  setSelectedBranchId("");
                 }}
                 className={`rounded-lg border px-3 py-1.5 text-sm ${
                   ledgerMode === "EXISTING" ? "border-primary bg-primary/10 text-primary" : "border-border"
@@ -345,6 +391,8 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
                   form.setValue("ledgerMode", "NEW");
                   form.setValue("ledgerBillTo", "INDIVIDUAL");
                   form.setValue("customerId", undefined);
+                  setSelectedBranches([]);
+                  setSelectedBranchId("");
                 }}
                 className={`rounded-lg border px-3 py-1.5 text-sm ${
                   ledgerMode === "NEW" ? "border-primary bg-primary/10 text-primary" : "border-border"
@@ -433,6 +481,35 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
                     </button>
                   ))
                 )}
+              </div>
+            )}
+            {customerId && selectedBranches.length > 0 && (
+              <div className="space-y-2 border-t pt-3">
+                <Label>Billing Branch / GSTIN</Label>
+                <Select
+                  value={selectedBranchId}
+                  onValueChange={(id) => {
+                    setSelectedBranchId(id);
+                    const branch = selectedBranches.find((b) => b.id === id);
+                    if (branch) applyBranchBilling(branch);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedBranches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.name}
+                        {branch.gstin ? ` — ${branch.gstin}` : " — No GSTIN"}
+                        {branch.isPrimary ? " (Primary)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Branch GSTIN is used on the tax invoice and appears in Accounting → GST bills for flight and hotel.
+                </p>
               </div>
             )}
           </div>

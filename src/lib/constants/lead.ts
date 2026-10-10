@@ -136,9 +136,12 @@ export const LEAD_QUICK_SCHEDULE_OPTIONS = [
 ] as const;
 
 export const LEAD_PRODUCT_OPTIONS = [
+  { value: "PACKAGE", label: "Package" },
   { value: "FLIGHT", label: "Flight" },
   { value: "HOTEL", label: "Hotel" },
   { value: "BUS", label: "Bus" },
+  { value: "VISA", label: "Visa" },
+  { value: "OTHER", label: "Other" },
 ] as const;
 
 export function formatLeadPax(adultCount?: number | null, childCount?: number | null, infantCount?: number | null) {

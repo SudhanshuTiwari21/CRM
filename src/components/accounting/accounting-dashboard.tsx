@@ -22,6 +22,7 @@ interface BillRow {
   buyerGstin: string | null;
   invoiceTaxType: "ITC" | "NON_ITC";
   msmeNumber: string | null;
+  productType?: "FLIGHT" | "HOTEL";
   segment: string;
   baseFare: number;
   serviceCharge: number;
@@ -106,6 +107,9 @@ function BillsTable({ rows }: { rows: BillRow[] }) {
                 <Link href={`/bookings/${r.id}`} className="font-medium text-primary hover:underline">
                   {r.publicRef}
                 </Link>
+                {r.productType && (
+                  <p className="text-xs text-muted-foreground">{r.productType === "HOTEL" ? "Hotel" : "Flight"}</p>
+                )}
                 {r.pnr && <p className="text-xs text-muted-foreground">PNR {r.pnr}</p>}
                 <p className="text-xs text-muted-foreground">{r.segment}</p>
               </TableCell>
