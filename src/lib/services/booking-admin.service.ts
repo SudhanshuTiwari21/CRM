@@ -544,6 +544,18 @@ export async function deleteBookingWithRenumber(bookingId: string, userId: strin
       });
       renumberedIds.push(b.id);
     }
+
+    // Keep serial counter aligned with highest remaining booking for this brand+year
+    const maxRemaining = await tx.booking.aggregate({
+      where: { brandId: booking.brandId, serialYear },
+      _max: { serialNumber: true },
+    });
+    const lastNumber = maxRemaining._max.serialNumber ?? 0;
+    await tx.bookingSerialCounter.upsert({
+      where: { brandId_year: { brandId: booking.brandId, year: serialYear } },
+      create: { brandId: booking.brandId, year: serialYear, lastNumber },
+      update: { lastNumber },
+    });
   });
 
   for (const id of renumberedIds) {

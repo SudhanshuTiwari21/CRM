@@ -16,7 +16,7 @@ export async function POST(request: Request) {
       : undefined) as ParsedProductType | undefined;
 
     if (!(file instanceof File)) {
-      return jsonError("Upload a ticket PDF file", 400);
+      return jsonError("Upload a ticket PDF or image file", 400);
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
