@@ -916,6 +916,27 @@ model EmailTemplate {
   @@index([brandId])
 }
 
+model Activity {
+  id          String   @id @default(cuid())
+  brandId     CrmBrand @default(BOOK_TO_ROAM)
+  city        String
+  country     String?
+  name        String
+  description String?  @db.Text
+  tag         String?
+  startTimes  String?
+  duration    String?
+  costPrice   Decimal  @default(0) @db.Decimal(12, 2)
+  sellPrice   Decimal  @default(0) @db.Decimal(12, 2)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([brandId])
+  @@index([brandId, city])
+  @@index([name])
+}
+
 model TripPlan {
   id             String         @id @default(cuid())
   brandId        CrmBrand       @default(BOOK_TO_ROAM)
@@ -926,6 +947,9 @@ model TripPlan {
   travelDate     DateTime?
   returnDate     DateTime?
   destinations   String?
+  leavingFrom    String?
+  nationality    String?
+  roomCount      Int?
   adultCount     Int?
   childCount     Int?
   infantCount    Int?
@@ -940,6 +964,8 @@ model TripPlan {
   exclusions     String?
   terms          String?
   internalNotes  String?
+  /// Nexus-style structured itinerary (destinations with nights, builder nav state)
+  itineraryJson  Json?
   sentAt         DateTime?
   pdfGeneratedAt DateTime?
   createdById    String?

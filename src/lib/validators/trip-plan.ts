@@ -26,6 +26,7 @@ export const tripPlanItemSchema = z.object({
   markupType: z.enum(["FIXED", "PERCENT"]).default("FIXED"),
   markupValue: z.coerce.number().min(0).default(0),
   sellPrice: z.coerce.number().min(0).optional(),
+  metadata: z.record(z.unknown()).optional().nullable(),
 });
 
 export const createTripPlanSchema = z.object({
@@ -33,6 +34,9 @@ export const createTripPlanSchema = z.object({
   travelDate: z.string().optional().nullable(),
   returnDate: z.string().optional().nullable(),
   destinations: z.string().optional().nullable(),
+  leavingFrom: z.string().optional().nullable(),
+  nationality: z.string().optional().nullable(),
+  roomCount: z.coerce.number().int().min(1).optional().nullable(),
   adultCount: z.coerce.number().int().min(0).optional().nullable(),
   childCount: z.coerce.number().int().min(0).optional().nullable(),
   infantCount: z.coerce.number().int().min(0).optional().nullable(),
@@ -44,6 +48,7 @@ export const createTripPlanSchema = z.object({
   exclusions: z.string().optional().nullable(),
   terms: z.string().optional().nullable(),
   internalNotes: z.string().optional().nullable(),
+  itineraryJson: z.unknown().optional().nullable(),
   items: z.array(tripPlanItemSchema).default([]),
 });
 

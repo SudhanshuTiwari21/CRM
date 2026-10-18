@@ -24,6 +24,7 @@ import {
   Receipt,
   PanelLeftClose,
   PanelLeftOpen,
+  Compass,
   type LucideIcon,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
@@ -73,6 +74,7 @@ const navSections: NavSection[] = [
     items: [
       { href: "/customers", label: "Customers", icon: Users },
       { href: "/leads", label: "Leads", icon: Target },
+      { href: "/activities", label: "Activities", icon: Compass },
     ],
   },
   {

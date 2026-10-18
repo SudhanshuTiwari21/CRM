@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getLeadById } from "@/lib/services/lead.service";
-import { TripPlanBuilder, type TripPlanFormState } from "@/components/trip-plan/trip-plan-builder";
+import { NexusTripPlanBuilder } from "@/components/trip-plan/nexus-trip-plan-builder";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export default async function NewTripPlanPage({
   if (!lead) notFound();
 
   return (
-    <TripPlanBuilder
+    <NexusTripPlanBuilder
       leadId={lead.id}
       lead={{
         id: lead.id,

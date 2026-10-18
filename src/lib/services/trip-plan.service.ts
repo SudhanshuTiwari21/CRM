@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getActiveDbBrand } from "@/lib/brand-context";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import type { CreateTripPlanInput, TripPlanItemInput, UpdateTripPlanInput } from "@/lib/validators/trip-plan";
 import { DEFAULT_TRIP_TERMS } from "@/lib/constants/trip-plan";
 import { computeItemSellPrice, computeTripTotals } from "@/lib/trip-plan-costing";
@@ -56,6 +56,7 @@ function normalizeItems(items: TripPlanItemInput[]) {
       markupType,
       markupValue,
       sellPrice,
+      metadata: (item.metadata as Prisma.InputJsonValue) ?? undefined,
     };
   });
 }
@@ -147,6 +148,9 @@ export async function createTripPlan(leadId: string, input: CreateTripPlanInput,
         travelDate: parseDate(input.travelDate) ?? lead.travelDate,
         returnDate: parseDate(input.returnDate) ?? lead.returnDate,
         destinations: input.destinations?.trim() || lead.destinations,
+        leavingFrom: input.leavingFrom?.trim() || null,
+        nationality: input.nationality?.trim() || null,
+        roomCount: input.roomCount ?? null,
         adultCount: input.adultCount ?? lead.adultCount,
         childCount: input.childCount ?? lead.childCount,
         infantCount: input.infantCount ?? lead.infantCount,
@@ -161,6 +165,10 @@ export async function createTripPlan(leadId: string, input: CreateTripPlanInput,
         exclusions: input.exclusions?.trim() || null,
         terms: input.terms?.trim() || DEFAULT_TRIP_TERMS,
         internalNotes: input.internalNotes?.trim() || null,
+        itineraryJson:
+          input.itineraryJson !== undefined && input.itineraryJson !== null
+            ? (input.itineraryJson as Prisma.InputJsonValue)
+            : undefined,
         createdById: userId,
         items: { create: items },
       },
@@ -217,6 +225,9 @@ export async function updateTripPlan(id: string, input: UpdateTripPlanInput, use
         travelDate: input.travelDate !== undefined ? parseDate(input.travelDate) : undefined,
         returnDate: input.returnDate !== undefined ? parseDate(input.returnDate) : undefined,
         destinations: input.destinations !== undefined ? input.destinations?.trim() || null : undefined,
+        leavingFrom: input.leavingFrom !== undefined ? input.leavingFrom?.trim() || null : undefined,
+        nationality: input.nationality !== undefined ? input.nationality?.trim() || null : undefined,
+        roomCount: input.roomCount !== undefined ? input.roomCount : undefined,
         adultCount: input.adultCount !== undefined ? input.adultCount : undefined,
         childCount: input.childCount !== undefined ? input.childCount : undefined,
         infantCount: input.infantCount !== undefined ? input.infantCount : undefined,
@@ -231,6 +242,12 @@ export async function updateTripPlan(id: string, input: UpdateTripPlanInput, use
         exclusions: input.exclusions !== undefined ? input.exclusions?.trim() || null : undefined,
         terms: input.terms !== undefined ? input.terms?.trim() || null : undefined,
         internalNotes: input.internalNotes !== undefined ? input.internalNotes?.trim() || null : undefined,
+        itineraryJson:
+          input.itineraryJson !== undefined && input.itineraryJson !== null
+            ? (input.itineraryJson as Prisma.InputJsonValue)
+            : input.itineraryJson === null
+              ? Prisma.DbNull
+              : undefined,
         sentAt,
         ...(items ? { items: { create: items } } : {}),
       },
@@ -276,6 +293,9 @@ export async function duplicateTripPlan(id: string, userId: string) {
       travelDate: existing.travelDate?.toISOString() || null,
       returnDate: existing.returnDate?.toISOString() || null,
       destinations: existing.destinations,
+      leavingFrom: existing.leavingFrom,
+      nationality: existing.nationality,
+      roomCount: existing.roomCount,
       adultCount: existing.adultCount,
       childCount: existing.childCount,
       infantCount: existing.infantCount,
@@ -286,12 +306,14 @@ export async function duplicateTripPlan(id: string, userId: string) {
       exclusions: existing.exclusions,
       terms: existing.terms,
       internalNotes: existing.internalNotes,
+      itineraryJson: existing.itineraryJson,
       items: existing.items.map((item) => ({
         dayNumber: item.dayNumber,
         sortOrder: item.sortOrder,
         serviceType: item.serviceType,
         title: item.title,
         description: item.description,
+        metadata: (item.metadata as Record<string, unknown> | null) || null,
         supplierName: item.supplierName,
         location: item.location,
         serviceDate: item.serviceDate?.toISOString() || null,
