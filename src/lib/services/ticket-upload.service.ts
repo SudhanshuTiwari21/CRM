@@ -1,4 +1,4 @@
-import { PDFParse } from "pdf-parse";
+import { extractText, getDocumentProxy } from "unpdf";
 import { parseTicketText, type ParsedProductType, type ParsedTicketResult } from "@/lib/services/ticket-parse.service";
 import {
   isOpenAITicketParseEnabled,
@@ -45,15 +45,16 @@ export async function extractTextFromUpload(
     throw new Error("Unsupported file type. Upload a PDF, PNG, JPG, or WEBP ticket.");
   }
 
-  const parser = new PDFParse({ data: buffer });
+  // unpdf uses a serverless PDF.js build — no @napi-rs/canvas (breaks on Vercel).
   try {
-    const result = await parser.getText();
-    return (result?.text || "").trim();
-  } finally {
-    const maybeDestroy = (parser as { destroy?: () => Promise<void> }).destroy;
-    if (typeof maybeDestroy === "function") {
-      await maybeDestroy.call(parser).catch(() => undefined);
-    }
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const { text } = await extractText(pdf, { mergePages: true });
+    const joined = Array.isArray(text) ? text.join("\n") : text || "";
+    return joined.trim();
+  } catch (error) {
+    console.error("[ticket-import] PDF text extraction failed:", error);
+    // Allow OpenAI file/vision path to proceed with empty local text.
+    return "";
   }
 }
 

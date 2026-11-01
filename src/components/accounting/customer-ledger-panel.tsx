@@ -27,9 +27,12 @@ import { formatCurrency } from "@/lib/utils";
 
 interface CustomerOption {
   id: string;
+  customerId: string;
+  branchId: string | null;
   name: string;
   phone: string;
   gstin: string | null;
+  branchName: string | null;
 }
 
 interface LedgerRow {
@@ -53,6 +56,8 @@ interface LedgerReport {
     address: string | null;
     city: string | null;
     state: string | null;
+    branchId: string | null;
+    branchName: string | null;
   };
   period: { from: string | null; to: string | null };
   openingBalance: number;
@@ -157,21 +162,26 @@ export function CustomerLedgerPanel() {
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-2 sm:col-span-2">
-            <Label>Ledger customer</Label>
+            <Label>Ledger account</Label>
             <div className="flex gap-2">
               <Select value={customerId} onValueChange={setCustomerId}>
                 <SelectTrigger>
-                  <SelectValue placeholder={loadingCustomers ? "Loading…" : "Select customer"} />
+                  <SelectValue
+                    placeholder={loadingCustomers ? "Loading…" : "Select customer / branch"}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {customers.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.name} ({c.phone})
+                      {c.name} · {c.phone}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Customers with multiple branches appear once per branch (GSTIN-wise ledger).
+            </p>
           </div>
           <div className="space-y-2">
             <Label>From</Label>
@@ -208,9 +218,10 @@ export function CustomerLedgerPanel() {
           <CardHeader className="space-y-2 border-b pb-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <CardTitle className="text-lg">{report.customer.name} - Ledger Account</CardTitle>
+                <CardTitle className="text-lg">{report.customer.name}</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
                   Period: {periodLabel}
+                  {report.customer.branchName ? ` · Branch ${report.customer.branchName}` : ""}
                   {report.customer.gstin && ` · GSTIN ${report.customer.gstin}`}
                 </p>
                 {(report.customer.address || report.customer.city) && (

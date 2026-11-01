@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { CASH_WALK_IN_PHONE } from "@/lib/cash-customer";
+import { getActiveDbBrand } from "@/lib/brand-context";
 import {
   buildPaymentBookingTypeLines,
   buildSaleBookingTypeLines,
@@ -29,6 +30,8 @@ export interface CustomerLedgerReport {
     address: string | null;
     city: string | null;
     state: string | null;
+    branchId: string | null;
+    branchName: string | null;
   };
   period: { from: string | null; to: string | null };
   openingBalance: number;
@@ -42,6 +45,17 @@ export interface CustomerLedgerReport {
   };
 }
 
+export type LedgerAccountOption = {
+  /** Selection key: customerId or customerId::branchId */
+  id: string;
+  customerId: string;
+  branchId: string | null;
+  name: string;
+  phone: string;
+  gstin: string | null;
+  branchName: string | null;
+};
+
 type LedgerEntry = {
   id: string;
   sortAt: Date;
@@ -50,6 +64,17 @@ type LedgerEntry = {
   voucherNo: string;
   debit: number;
   credit: number;
+};
+
+type BranchRow = {
+  id: string;
+  name: string;
+  gstin: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  isPrimary: boolean;
 };
 
 function round2(n: number) {
@@ -64,13 +89,66 @@ function signedBalance(balance: number) {
   return Math.abs(round2(balance));
 }
 
+function normalizeGstin(value?: string | null) {
+  const gstin = value?.trim().toUpperCase() || "";
+  return gstin || null;
+}
+
+function bookingBuyerGstin(booking: {
+  flightBooking?: { buyerGstin?: string | null } | null;
+  hotelBooking?: { buyerGstin?: string | null } | null;
+}) {
+  return (
+    normalizeGstin(booking.flightBooking?.buyerGstin) ||
+    normalizeGstin(booking.hotelBooking?.buyerGstin)
+  );
+}
+
+function parseLedgerSelection(selectionId: string) {
+  const [customerId, branchId] = selectionId.split("::");
+  return {
+    customerId,
+    branchId: branchId || null,
+  };
+}
+
+function accountSelectionId(customerId: string, branchId?: string | null) {
+  return branchId ? `${customerId}::${branchId}` : customerId;
+}
+
+function displayAccountName(customerName: string, branch: BranchRow | null) {
+  if (!branch) return customerName;
+  const gstin = normalizeGstin(branch.gstin);
+  return gstin ? `${customerName} — ${branch.name} (${gstin})` : `${customerName} — ${branch.name}`;
+}
+
+function resolveBranchForBooking(
+  branches: BranchRow[],
+  buyerGstin: string | null
+): BranchRow | null {
+  if (branches.length === 0) return null;
+  if (branches.length === 1) return branches[0];
+
+  if (buyerGstin) {
+    const byGstin = branches.find((b) => normalizeGstin(b.gstin) === buyerGstin);
+    if (byGstin) return byGstin;
+  }
+
+  const primary = branches.find((b) => b.isPrimary) || branches[0];
+  // Bookings without GSTIN (or unknown GSTIN) fall under primary
+  if (!buyerGstin) return primary;
+  return primary;
+}
+
 export async function getCustomerLedger(params: {
   customerId: string;
+  branchId?: string | null;
   from?: Date;
   to?: Date;
 }): Promise<CustomerLedgerReport> {
-  const customer = await prisma.customer.findUnique({
-    where: { id: params.customerId },
+  const brandId = await getActiveDbBrand();
+  const customer = await prisma.customer.findFirst({
+    where: { id: params.customerId, brandId },
     select: {
       id: true,
       name: true,
@@ -79,12 +157,30 @@ export async function getCustomerLedger(params: {
       address: true,
       city: true,
       state: true,
+      branches: {
+        orderBy: [{ isPrimary: "desc" }, { name: "asc" }],
+      },
     },
   });
   if (!customer) throw new Error("Customer not found");
 
-  const bookings = await prisma.booking.findMany({
+  const branches = customer.branches as BranchRow[];
+  const selectedBranch =
+    (params.branchId
+      ? branches.find((b) => b.id === params.branchId)
+      : null) ||
+    (branches.length === 1 ? branches[0] : null) ||
+    (branches.length > 1 ? branches.find((b) => b.isPrimary) || branches[0] : null);
+
+  if (params.branchId && !selectedBranch) {
+    throw new Error("Branch not found for this customer");
+  }
+
+  const filterByBranch = Boolean(params.branchId && selectedBranch && branches.length > 1);
+
+  const allBookings = await prisma.booking.findMany({
     where: {
+      brandId,
       customerId: params.customerId,
       billingType: "LEDGER",
     },
@@ -97,6 +193,14 @@ export async function getCustomerLedger(params: {
     orderBy: { createdAt: "asc" },
   });
 
+  const bookings = filterByBranch
+    ? allBookings.filter((booking) => {
+        const matched = resolveBranchForBooking(branches, bookingBuyerGstin(booking));
+        return matched?.id === selectedBranch!.id;
+      })
+    : allBookings;
+
+  const bookingIds = new Set(bookings.map((b) => b.id));
 
   const [advancePayments, creditNotes] = await Promise.all([
     prisma.payment.findMany({
@@ -110,11 +214,24 @@ export async function getCustomerLedger(params: {
     prisma.creditNote.findMany({
       where: { customerId: params.customerId },
       include: {
-        booking: { select: { publicRef: true, serialYear: true, serialNumber: true } },
+        booking: {
+          select: {
+            id: true,
+            publicRef: true,
+            serialYear: true,
+            serialNumber: true,
+            flightBooking: { select: { buyerGstin: true } },
+            hotelBooking: { select: { buyerGstin: true } },
+          },
+        },
       },
       orderBy: { createdAt: "asc" },
     }),
   ]);
+
+  const accountLabel = selectedBranch
+    ? displayAccountName(customer.name, selectedBranch)
+    : customer.name;
 
   const entries: LedgerEntry[] = [];
 
@@ -131,49 +248,72 @@ export async function getCustomerLedger(params: {
         booking.hotelBooking,
         booking.busBooking
       ),
-      voucherTypeLines: ["SALES", customer.name.toUpperCase()],
+      voucherTypeLines: ["SALES", accountLabel.toUpperCase()],
       voucherNo,
       debit: Number(booking.totalAmount),
       credit: 0,
     });
 
     for (const payment of booking.payments) {
-      const againstVoucher = voucherNo;
       entries.push({
         id: `pay-${payment.id}`,
         sortAt: payment.paidAt,
-        bookingTypeLines: buildPaymentBookingTypeLines(againstVoucher, false),
+        bookingTypeLines: buildPaymentBookingTypeLines(voucherNo, false),
         voucherTypeLines: ["RECEIPT"],
-        voucherNo: payment.referenceNumber || payment.gatewayRef || `RCT-${payment.id.slice(-6).toUpperCase()}`,
+        voucherNo:
+          payment.referenceNumber ||
+          payment.gatewayRef ||
+          `RCT-${payment.id.slice(-6).toUpperCase()}`,
         debit: 0,
         credit: Number(payment.amount),
       });
     }
   }
 
-  for (const payment of advancePayments) {
-    entries.push({
-      id: `adv-${payment.id}`,
-      sortAt: payment.paidAt,
-      bookingTypeLines: buildPaymentBookingTypeLines(null, true),
-      voucherTypeLines: ["RECEIPT", "ADVANCE"],
-      voucherNo:
-        payment.referenceNumber ||
-        payment.gatewayRef ||
-        `ADV-${payment.id.slice(-6).toUpperCase()}`,
-      debit: 0,
-      credit: Number(payment.amount),
-    });
+  // Advances / unlinked credit notes sit on the primary (or sole) branch ledger
+  const primaryBranch = branches.find((b) => b.isPrimary) || branches[0] || null;
+  const includeUnassigned =
+    !filterByBranch ||
+    !selectedBranch ||
+    !primaryBranch ||
+    selectedBranch.id === primaryBranch.id;
+
+  if (includeUnassigned) {
+    for (const payment of advancePayments) {
+      entries.push({
+        id: `adv-${payment.id}`,
+        sortAt: payment.paidAt,
+        bookingTypeLines: buildPaymentBookingTypeLines(null, true),
+        voucherTypeLines: ["RECEIPT", "ADVANCE"],
+        voucherNo:
+          payment.referenceNumber ||
+          payment.gatewayRef ||
+          `ADV-${payment.id.slice(-6).toUpperCase()}`,
+        debit: 0,
+        credit: Number(payment.amount),
+      });
+    }
   }
 
   for (const note of creditNotes) {
+    if (filterByBranch) {
+      if (note.bookingId) {
+        if (!bookingIds.has(note.bookingId)) {
+          // Booking may have been filtered out — resolve by GSTIN on linked booking
+          if (!note.booking) continue;
+          const matched = resolveBranchForBooking(branches, bookingBuyerGstin(note.booking));
+          if (matched?.id !== selectedBranch!.id) continue;
+        }
+      } else if (!includeUnassigned) {
+        continue;
+      }
+    }
+
     const againstVoucher = note.booking ? formatLedgerVoucherNo(note.booking) : null;
     entries.push({
       id: `cn-${note.id}`,
       sortAt: note.createdAt,
-      bookingTypeLines: againstVoucher
-        ? ["CREDIT NOTE", againstVoucher]
-        : ["CREDIT NOTE"],
+      bookingTypeLines: againstVoucher ? ["CREDIT NOTE", againstVoucher] : ["CREDIT NOTE"],
       voucherTypeLines: ["CREDIT NOTE"],
       voucherNo: note.publicRef,
       debit: 0,
@@ -246,7 +386,17 @@ export async function getCustomerLedger(params: {
   }
 
   return {
-    customer,
+    customer: {
+      id: customer.id,
+      name: accountLabel,
+      phone: customer.phone,
+      gstin: normalizeGstin(selectedBranch?.gstin) || normalizeGstin(customer.gstin),
+      address: selectedBranch?.address || customer.address,
+      city: selectedBranch?.city || customer.city,
+      state: selectedBranch?.state || customer.state,
+      branchId: selectedBranch?.id || null,
+      branchName: selectedBranch?.name || null,
+    },
     period: {
       from: params.from?.toISOString() ?? null,
       to: params.to?.toISOString() ?? null,
@@ -263,25 +413,78 @@ export async function getCustomerLedger(params: {
   };
 }
 
-export async function listLedgerCustomers(search?: string) {
+export async function listLedgerCustomers(search?: string): Promise<LedgerAccountOption[]> {
+  const brandId = await getActiveDbBrand();
   const where: Prisma.CustomerWhereInput = {
+    brandId,
     phone: { not: CASH_WALK_IN_PHONE },
-    bookings: { some: { billingType: "LEDGER" } },
+    bookings: { some: { brandId, billingType: "LEDGER" } },
     ...(search?.trim()
       ? {
           OR: [
             { name: { contains: search, mode: "insensitive" } },
             { phone: { contains: search } },
             { gstin: { contains: search, mode: "insensitive" } },
+            { branches: { some: { gstin: { contains: search, mode: "insensitive" } } } },
+            { branches: { some: { name: { contains: search, mode: "insensitive" } } } },
           ],
         }
       : {}),
   };
 
-  return prisma.customer.findMany({
+  const customers = await prisma.customer.findMany({
     where,
-    select: { id: true, name: true, phone: true, gstin: true },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      gstin: true,
+      branches: {
+        orderBy: [{ isPrimary: "desc" }, { name: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          gstin: true,
+          isPrimary: true,
+        },
+      },
+    },
     orderBy: { name: "asc" },
     take: 100,
   });
+
+  const accounts: LedgerAccountOption[] = [];
+
+  for (const customer of customers) {
+    if (customer.branches.length > 1) {
+      for (const branch of customer.branches) {
+        accounts.push({
+          id: accountSelectionId(customer.id, branch.id),
+          customerId: customer.id,
+          branchId: branch.id,
+          name: displayAccountName(customer.name, branch as BranchRow),
+          phone: customer.phone,
+          gstin: normalizeGstin(branch.gstin) || normalizeGstin(customer.gstin),
+          branchName: branch.name,
+        });
+      }
+    } else {
+      const branch = customer.branches[0] || null;
+      accounts.push({
+        id: accountSelectionId(customer.id, branch?.id),
+        customerId: customer.id,
+        branchId: branch?.id || null,
+        name: branch ? displayAccountName(customer.name, branch as BranchRow) : customer.name,
+        phone: customer.phone,
+        gstin: normalizeGstin(branch?.gstin) || normalizeGstin(customer.gstin),
+        branchName: branch?.name || null,
+      });
+    }
+  }
+
+  return accounts;
+}
+
+export function resolveLedgerSelection(selectionId: string) {
+  return parseLedgerSelection(selectionId);
 }

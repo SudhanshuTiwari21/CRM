@@ -14,27 +14,46 @@ function getStorageDir() {
   return path.join(process.cwd(), "storage", "trip-proposals");
 }
 
+/** Keep PDF names filesystem-safe (query refs like Q/26/1 must not create nested dirs). */
+export function tripPlanPdfFileName(queryRef: string | null | undefined, leadId: string, version: number) {
+  const raw = (queryRef || leadId || "trip").trim();
+  const safe = raw
+    .replace(/[\\/]+/g, "-")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
+  return `trip-proposal-${safe || "trip"}-v${version}.pdf`;
+}
+
 export async function generateTripPlanPdf(tripPlanId: string) {
   const plan = await getTripPlanById(tripPlanId);
   const agency = await getAgencySettings();
   if (!agency) throw new Error("Agency settings not found");
 
   const logoSrc = await getPdfLogoDataUri(agency.companyName);
-  const buffer = await renderToBuffer(
-    TripProposalPDF({
-      agency,
-      plan,
-      lead: plan.lead,
-      items: plan.items,
-      logoSrc,
-    })
+  const buffer = Buffer.from(
+    await renderToBuffer(
+      TripProposalPDF({
+        agency,
+        plan,
+        lead: plan.lead,
+        items: plan.items,
+        logoSrc,
+      })
+    )
   );
 
-  const storageDir = getStorageDir();
-  await fs.mkdir(storageDir, { recursive: true });
-  const fileName = `trip-proposal-${plan.lead.queryRef || plan.leadId}-v${plan.version}.pdf`;
-  const storagePath = path.join(storageDir, fileName);
-  await fs.writeFile(storagePath, buffer);
+  const fileName = tripPlanPdfFileName(plan.lead.queryRef, plan.leadId, plan.version);
+
+  // On Vercel /tmp is ephemeral and PDF is regenerated on each download — skip disk write.
+  let storagePath: string | null = null;
+  if (process.env.VERCEL !== "1") {
+    const storageDir = getStorageDir();
+    await fs.mkdir(storageDir, { recursive: true });
+    storagePath = path.join(storageDir, fileName);
+    await fs.writeFile(storagePath, buffer);
+  }
 
   await prisma.tripPlan.update({
     where: { id: tripPlanId },
