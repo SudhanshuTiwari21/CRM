@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 import { getAgencySettings } from "@/lib/brand-context";
 import type { Prisma } from "@prisma/client";
 import { formatPublicRef, parsePublicRef } from "@/lib/booking-ref";
-import { getAirlineLogoUrl } from "@/lib/airline-logo";
+import { getAirlineLogoUrl, resolveAirlineIata } from "@/lib/airline-logo";
+import { canonicalizeAirlineName, upsertAirlineProfile } from "./airline.service";
 import {
   calculateFlightGst,
   calculateFlightInvoiceTotal,
@@ -135,7 +136,7 @@ export async function updateBookingAsAdmin(
     const agencyHasGst = Boolean(agency?.gstin?.trim());
     const agencyStateCode = getStateCodeFromGstin(agency?.gstin);
 
-    const airline = input.airline ?? booking.flightBooking.airline;
+    const airline = canonicalizeAirlineName(input.airline ?? booking.flightBooking.airline);
     const segments = (input.segments ?? booking.flightBooking.segments) as unknown as FlightSegment[];
     const passengers = (input.passengers ?? booking.flightBooking.passengers) as unknown as FlightPassenger[];
     const tripType = input.tripType ?? booking.flightBooking.tripType;
@@ -425,6 +426,20 @@ export async function updateBookingAsAdmin(
       where: { bookingId },
       data: flightData,
     });
+    const airlineName =
+      typeof flightData.airline === "string"
+        ? flightData.airline
+        : booking.flightBooking.airline;
+    if (airlineName) {
+      await upsertAirlineProfile({
+        name: airlineName,
+        iataCode: resolveAirlineIata(airlineName) || undefined,
+        logoUrl:
+          typeof flightData.airlineLogoUrl === "string"
+            ? flightData.airlineLogoUrl
+            : booking.flightBooking.airlineLogoUrl || undefined,
+      });
+    }
   }
 
   if (markingPaid) {

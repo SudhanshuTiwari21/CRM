@@ -7,7 +7,7 @@ import { sendBookingNotifications } from "./notification.service";
 import { flightFieldsWithDeparture, maybeSendImmediateCheckInAssistanceAlert } from "./checkin-assistance.service";
 import { getFlightProvider } from "./provider/flight-provider";
 import { upsertHotelProfile } from "./hotel.service";
-import { upsertAirlineProfile } from "./airline.service";
+import { canonicalizeAirlineName, upsertAirlineProfile } from "./airline.service";
 import { getAirlineLogoUrl, resolveAirlineIata } from "@/lib/airline-logo";
 import { toDbAddonType, validateAddonBooking } from "@/lib/flight-addon";
 import { normalizeFlightSegments } from "@/lib/flight-datetime";
@@ -243,13 +243,14 @@ function buildFlightTaxData(
   const paymentGatewayCharge = 0;
   const totalAmount = invoiceSubtotal;
 
-  const airlineLogoUrl = getAirlineLogoUrl(input.airline) || undefined;
+  const airline = canonicalizeAirlineName(input.airline);
+  const airlineLogoUrl = getAirlineLogoUrl(airline) || undefined;
   const segments = normalizeFlightSegments(input.segments);
 
   return {
     totalAmount,
     flightData: flightFieldsWithDeparture({
-      airline: input.airline,
+      airline,
       airlineLogoUrl,
       segments,
       passengers: input.passengers,
@@ -346,9 +347,10 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
       const flightInput = input as OfflineFlightBookingInput;
       validateFlightInvoice(flightInput, agencyHasGst);
 
+      const airline = canonicalizeAirlineName(flightInput.airline);
       let totalAmount = flightInput.totalAmount;
       let flightData: Record<string, unknown> = flightFieldsWithDeparture({
-        airline: flightInput.airline,
+        airline,
         segments: flightInput.segments,
         passengers: flightInput.passengers,
         tripType: flightInput.tripType || "ONE_WAY",
@@ -362,7 +364,7 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
         showEticket: flightInput.showEticket || false,
         showPassengerName: flightInput.showPassengerName !== false,
         checkInAssistance: flightInput.checkInAssistance || false,
-        airlineLogoUrl: getAirlineLogoUrl(flightInput.airline) || undefined,
+        airlineLogoUrl: getAirlineLogoUrl(airline) || undefined,
         invoiceNarration: flightInput.invoiceNarration || null,
         msmeNumber: flightInput.msmeNumber || null,
         invoiceTaxType: flightInput.invoiceTaxType,
@@ -536,6 +538,14 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
     }
 
     return hotelBooking;
+  }
+
+  if (input.productType === "FLIGHT" && booking.flightBooking?.airline) {
+    await upsertAirlineProfile({
+      name: booking.flightBooking.airline,
+      iataCode: resolveAirlineIata(booking.flightBooking.airline) || undefined,
+      logoUrl: booking.flightBooking.airlineLogoUrl || undefined,
+    });
   }
 
   try {

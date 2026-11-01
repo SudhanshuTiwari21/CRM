@@ -95,7 +95,18 @@ export function FlightBookingFields({
   useEffect(() => {
     fetch("/api/crm/airlines")
       .then((r) => r.json())
-      .then((d) => setSavedAirlines(d.airlines || []))
+      .then((d) => {
+        const commonKeys = new Set(COMMON_AIRLINES.map((a) => a.name.toLowerCase()));
+        const unique: { name: string; logoUrl?: string | null }[] = [];
+        const seen = new Set<string>();
+        for (const row of d.airlines || []) {
+          const key = String(row.name || "").trim().toLowerCase();
+          if (!key || seen.has(key) || commonKeys.has(key)) continue;
+          seen.add(key);
+          unique.push(row);
+        }
+        setSavedAirlines(unique);
+      })
       .catch(() => setSavedAirlines([]));
   }, []);
 
@@ -893,16 +904,27 @@ export function FlightBookingFields({
                                 <SelectValue placeholder="Select airline" />
                               </SelectTrigger>
                               <SelectContent>
-                                {[...new Set([
-                                  airline?.trim(),
-                                  ...COMMON_AIRLINES.map((a) => a.name),
-                                  ...savedAirlines.map((a) => a.name),
-                                  ffAirline.trim(),
-                                ].filter(Boolean) as string[])].map((name) => (
-                                  <SelectItem key={name} value={name}>
-                                    {name}
-                                  </SelectItem>
-                                ))}
+                                {(() => {
+                                  const names: string[] = [];
+                                  const seen = new Set<string>();
+                                  for (const raw of [
+                                    airline?.trim(),
+                                    ...COMMON_AIRLINES.map((a) => a.name),
+                                    ...savedAirlines.map((a) => a.name),
+                                    ffAirline.trim(),
+                                  ]) {
+                                    const name = (raw || "").trim();
+                                    const key = name.toLowerCase();
+                                    if (!name || seen.has(key)) continue;
+                                    seen.add(key);
+                                    names.push(name);
+                                  }
+                                  return names.map((name) => (
+                                    <SelectItem key={name} value={name}>
+                                      {name}
+                                    </SelectItem>
+                                  ));
+                                })()}
                               </SelectContent>
                             </Select>
                           </div>
