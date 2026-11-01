@@ -24,12 +24,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!session?.user) return jsonError("Unauthorized", 401);
 
     const { id } = await params;
+    const existing = await prisma.hotelProfile.findUnique({ where: { id } });
+    if (!existing) return jsonError("Hotel not found", 404);
+
     const body = await request.json();
     const input = hotelProfileUpdateSchema.parse(body);
 
+    if (input.name && input.name.trim() !== existing.name) {
+      const clash = await prisma.hotelProfile.findUnique({
+        where: { name: input.name.trim() },
+      });
+      if (clash) return jsonError("Another hotel already uses this name", 400);
+    }
+
     const hotel = await prisma.hotelProfile.update({
       where: { id },
-      data: input,
+      data: {
+        ...input,
+        name: input.name?.trim(),
+        address: input.address?.trim(),
+        city: input.city?.trim() || null,
+        phone: input.phone?.trim() || null,
+        email: input.email?.trim() || null,
+      },
     });
     return jsonOk(hotel);
   } catch (error) {

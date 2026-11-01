@@ -109,13 +109,14 @@ export async function findAirlineProfileByName(name: string) {
   return matches[0];
 }
 
-export async function listAirlineProfiles(search?: string) {
+export async function listAirlineProfiles(search?: string, options?: { limit?: number }) {
+  const limit = options?.limit ?? 20;
   const rows = await prisma.airlineProfile.findMany({
     where: search
       ? { name: { contains: search, mode: "insensitive" } }
       : undefined,
     orderBy: { name: "asc" },
-    take: 50,
+    take: Math.max(limit * 2, 50),
   });
 
   // Dedupe case variants in the suggestion list (and heal DB as a side effect)
@@ -146,5 +147,116 @@ export async function listAirlineProfiles(search?: string) {
 
   return Array.from(seen.values())
     .sort((a, b) => a.name.localeCompare(b.name))
-    .slice(0, 20);
+    .slice(0, limit);
+}
+
+export async function listAirlineCatalog(search?: string) {
+  const airlines = await prisma.airlineProfile.findMany({
+    where: search
+      ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { iataCode: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      : undefined,
+    orderBy: { name: "asc" },
+  });
+
+  const bookingGroups = await prisma.flightBooking.groupBy({
+    by: ["airline"],
+    _count: { _all: true },
+  });
+  const countByAirline = new Map<string, number>();
+  for (const row of bookingGroups) {
+    const key = row.airline.trim().toLowerCase();
+    countByAirline.set(key, (countByAirline.get(key) || 0) + row._count._all);
+  }
+
+  return airlines.map((airline) => ({
+    ...airline,
+    bookingCount: countByAirline.get(airline.name.trim().toLowerCase()) || 0,
+  }));
+}
+
+export async function getAirlineProfile(id: string) {
+  const airline = await prisma.airlineProfile.findUnique({ where: { id } });
+  if (!airline) return null;
+
+  const recentBookings = await prisma.flightBooking.findMany({
+    where: { airline: { equals: airline.name, mode: "insensitive" } },
+    orderBy: { booking: { createdAt: "desc" } },
+    take: 20,
+    include: {
+      booking: {
+        select: {
+          id: true,
+          publicRef: true,
+          status: true,
+          createdAt: true,
+          customer: { select: { name: true } },
+        },
+      },
+    },
+  });
+
+  return { ...airline, recentBookings };
+}
+
+export async function updateAirlineProfile(
+  id: string,
+  input: { name?: string; iataCode?: string | null; logoUrl?: string | null }
+) {
+  const existing = await prisma.airlineProfile.findUnique({ where: { id } });
+  if (!existing) throw new Error("Airline not found");
+
+  const nextName = input.name !== undefined ? canonicalizeAirlineName(input.name) : existing.name;
+  if (!nextName) throw new Error("Airline name is required");
+
+  if (nextName.toLowerCase() !== existing.name.toLowerCase()) {
+    const clash = await prisma.airlineProfile.findFirst({
+      where: {
+        id: { not: id },
+        name: { equals: nextName, mode: "insensitive" },
+      },
+    });
+    if (clash) throw new Error("Another airline already uses this name");
+  }
+
+  const iataCode =
+    input.iataCode !== undefined
+      ? input.iataCode?.trim().toUpperCase() || null
+      : existing.iataCode;
+  const resolvedIata = iataCode || resolveAirlineIata(nextName) || null;
+  const logoUrl =
+    input.logoUrl !== undefined
+      ? input.logoUrl?.trim() || null
+      : existing.logoUrl || getAirlineLogoUrl(nextName);
+
+  const updated = await prisma.airlineProfile.update({
+    where: { id },
+    data: {
+      name: nextName,
+      iataCode: resolvedIata,
+      logoUrl,
+    },
+  });
+
+  // Keep flight bookings aligned when the display name changes
+  if (nextName !== existing.name) {
+    await prisma.flightBooking.updateMany({
+      where: { airline: { equals: existing.name, mode: "insensitive" } },
+      data: {
+        airline: nextName,
+        airlineLogoUrl: logoUrl,
+      },
+    });
+  } else if (logoUrl !== existing.logoUrl) {
+    await prisma.flightBooking.updateMany({
+      where: { airline: { equals: nextName, mode: "insensitive" } },
+      data: { airlineLogoUrl: logoUrl },
+    });
+  }
+
+  return updated;
 }

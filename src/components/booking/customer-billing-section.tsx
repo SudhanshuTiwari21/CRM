@@ -12,6 +12,10 @@ import { CUSTOMER_TITLE_OPTIONS } from "@/lib/constants/flight";
 import { parseApiResponse } from "@/lib/parse-api-response";
 import { Loader2, Search } from "lucide-react";
 import type { WizardForm } from "@/components/booking/offline-booking-wizard";
+import {
+  CustomerNameAutocomplete,
+  type CustomerProfileFill,
+} from "@/components/booking/customer-name-autocomplete";
 
 
 
@@ -546,10 +550,30 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
                         ))}
                       </SelectContent>
                     </Select>
-                    <Input
-                      {...form.register("customer.name")}
-                      placeholder="Full name (without title)"
-                      className="flex-1"
+                    <CustomerNameAutocomplete
+                      value={form.watch("customer.name") || ""}
+                      onChange={(name) => form.setValue("customer.name", name, { shouldDirty: true })}
+                      onSelectCustomer={(profile: CustomerProfileFill) => {
+                        if (profile.title) form.setValue("customer.title", profile.title);
+                        form.setValue("customer.name", profile.name);
+                        form.setValue("customer.phone", profile.phone);
+                        form.setValue("customer.email", profile.email || "");
+                        form.setValue("customer.pan", profile.pan || "");
+                        form.setValue("customer.gstin", profile.gstin || "");
+                        form.setValue("customer.address", profile.address || "");
+                        form.setValue("customer.city", profile.city || "");
+                        form.setValue("customer.state", profile.state || "");
+                        form.setValue("customer.pincode", profile.pincode || "");
+                        if (profile.gstin && productType === "FLIGHT") {
+                          form.setValue("buyerGstin", profile.gstin.toUpperCase());
+                        }
+                        if (billingType === "LEDGER" && profile.customerId) {
+                          form.setValue("ledgerMode", "EXISTING");
+                          form.setValue("customerId", profile.customerId);
+                          setCustomerSearch(profile.name);
+                          void fetchCustomers(profile.name);
+                        }
+                      }}
                     />
                   </div>
                 </>

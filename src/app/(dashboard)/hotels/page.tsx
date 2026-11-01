@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EditHotelProfileDialog } from "@/components/hotels/edit-hotel-profile-dialog";
 
 export default async function HotelsPage({
   searchParams,
@@ -52,6 +53,18 @@ export default async function HotelsPage({
                   <span className="text-xs text-muted-foreground">
                     {hotel._count.hotelBookings} booking(s)
                   </span>
+                  <EditHotelProfileDialog
+                    hotel={{
+                      id: hotel.id,
+                      name: hotel.name,
+                      address: hotel.address,
+                      city: hotel.city,
+                      phone: hotel.phone,
+                      email: hotel.email,
+                      checkInTime: hotel.checkInTime,
+                      checkOutTime: hotel.checkOutTime,
+                    }}
+                  />
                   <Button variant="outline" size="sm" asChild>
                     <Link href={`/hotels/${hotel.id}`}>View</Link>
                   </Button>

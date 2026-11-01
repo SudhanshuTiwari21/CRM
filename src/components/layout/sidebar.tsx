@@ -25,6 +25,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Compass,
+  PlaneTakeoff,
   type LucideIcon,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
@@ -67,6 +68,7 @@ const navSections: NavSection[] = [
       { href: "/bookings/upcoming-48h", label: "Within 48 hrs", icon: Clock },
       { href: "/cancellations", label: "Cancellations", icon: Ban },
       { href: "/hotels", label: "Hotels", icon: Building2 },
+      { href: "/airlines", label: "Airlines", icon: PlaneTakeoff },
     ],
   },
   {

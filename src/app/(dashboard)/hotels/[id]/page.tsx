@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
+import { EditHotelProfileDialog } from "@/components/hotels/edit-hotel-profile-dialog";
 
 export default async function HotelDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -37,7 +38,24 @@ export default async function HotelDetailPage({ params }: { params: Promise<{ id
       <Button variant="ghost" size="sm" asChild className="mb-4">
         <Link href="/hotels"><ArrowLeft className="mr-2 h-4 w-4" />Back to Hotels</Link>
       </Button>
-      <Header title={hotel.name} description="Hotel profile" />
+      <Header
+        title={hotel.name}
+        description="Hotel profile"
+        actions={
+          <EditHotelProfileDialog
+            hotel={{
+              id: hotel.id,
+              name: hotel.name,
+              address: hotel.address,
+              city: hotel.city,
+              phone: hotel.phone,
+              email: hotel.email,
+              checkInTime: hotel.checkInTime,
+              checkOutTime: hotel.checkOutTime,
+            }}
+          />
+        }
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
