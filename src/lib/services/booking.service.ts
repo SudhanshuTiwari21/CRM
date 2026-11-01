@@ -540,12 +540,16 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
     return hotelBooking;
   }
 
-  if (input.productType === "FLIGHT" && booking.flightBooking?.airline) {
-    await upsertAirlineProfile({
-      name: booking.flightBooking.airline,
-      iataCode: resolveAirlineIata(booking.flightBooking.airline) || undefined,
-      logoUrl: booking.flightBooking.airlineLogoUrl || undefined,
-    });
+  if (input.productType === "FLIGHT") {
+    const flightInput = input as OfflineFlightBookingInput;
+    const airline = canonicalizeAirlineName(flightInput.airline);
+    if (airline) {
+      await upsertAirlineProfile({
+        name: airline,
+        iataCode: resolveAirlineIata(airline) || undefined,
+        logoUrl: getAirlineLogoUrl(airline) || undefined,
+      });
+    }
   }
 
   try {
