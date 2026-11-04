@@ -42,7 +42,7 @@ export function TicketUploadPanel({
       const result = data as unknown as ParsedTicketResult;
       if (!result?.fields || !result.productType) {
         throw new Error(
-          "Ticket was read but no usable high-confidence fields were found. Fill details manually or try a clearer upload."
+          "Ticket was read but no usable fields were found. Fill details manually or try a clearer upload."
         );
       }
       onExtracted(result);
@@ -52,15 +52,15 @@ export function TicketUploadPanel({
       if (fieldKeys.length === 0 || result.confidence === "low") {
         toast.warning(
           warnCount
-            ? `Nothing auto-filled (high-confidence only). ${result.warnings[0]}`
-            : "Nothing auto-filled — OpenAI was not confident enough. Enter fields manually."
+            ? `Nothing auto-filled. ${result.warnings[0]}`
+            : "Nothing auto-filled — OpenAI could not read enough fields. Enter them manually."
         );
       } else if (warnCount) {
         toast.success(
-          `Filled ${fieldKeys.length} high-confidence field(s). ${warnCount} note(s) — review skipped fields.`
+          `Filled ${fieldKeys.length} field(s). ${warnCount} note(s) — please review before saving.`
         );
       } else {
-        toast.success(`Filled ${fieldKeys.length} high-confidence field(s) from ticket`);
+        toast.success(`Filled ${fieldKeys.length} field(s) from ticket — please review`);
       }
     } catch (error) {
       const message =
@@ -83,11 +83,11 @@ export function TicketUploadPanel({
               Import booked ticket
             </CardTitle>
             <CardDescription className="mt-1">
-              Upload a ticket PDF or clear photo (PNG/JPG). OpenAI fills only very high-confidence fields —
-              uncertain values are left blank for you to enter.
+              Upload a ticket PDF or clear photo (PNG/JPG). OpenAI fills likely fields from the ticket —
+              always review before saving; unclear values may still be blank.
             </CardDescription>
           </div>
-          <Badge variant="secondary">OpenAI · high confidence</Badge>
+          <Badge variant="secondary">OpenAI · review filled fields</Badge>
         </div>
       </CardHeader>
       <CardContent className="flex flex-wrap items-center gap-3">

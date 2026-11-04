@@ -316,6 +316,9 @@ export async function updateBookingAsAdmin(
       input.roomAmenities !== undefined ||
       input.inclusions !== undefined ||
       input.agentRemarks !== undefined ||
+      input.extraServicesOpted !== undefined ||
+      input.extraServicesNotes !== undefined ||
+      input.extraServicesNotifiedToHotel !== undefined ||
       input.confirmationNo !== undefined ||
       input.cancellationPolicy !== undefined ||
       input.includeCancellationPolicy !== undefined ||
@@ -396,6 +399,23 @@ export async function updateBookingAsAdmin(
         input.agentRemarks !== undefined
           ? input.agentRemarks || null
           : booking.hotelBooking.agentRemarks;
+      const extraServicesOpted =
+        input.extraServicesOpted ?? booking.hotelBooking.extraServicesOpted;
+      hotelData.extraServicesOpted = extraServicesOpted;
+      hotelData.extraServicesNotes = extraServicesOpted
+        ? input.extraServicesNotes !== undefined
+          ? input.extraServicesNotes || null
+          : booking.hotelBooking.extraServicesNotes
+        : null;
+      if (!extraServicesOpted) {
+        hotelData.extraServicesNotifiedToHotel = false;
+        hotelData.extraServicesNotifiedAt = null;
+      } else if (input.extraServicesNotifiedToHotel !== undefined) {
+        hotelData.extraServicesNotifiedToHotel = input.extraServicesNotifiedToHotel;
+        hotelData.extraServicesNotifiedAt = input.extraServicesNotifiedToHotel
+          ? new Date()
+          : null;
+      }
       hotelData.confirmationNo =
         input.confirmationNo !== undefined
           ? input.confirmationNo || null

@@ -118,6 +118,9 @@ const wizardSchema = z
   inclusions: z.string().optional(),
   cancellationPolicy: z.string().optional(),
   includeCancellationPolicy: z.boolean().optional(),
+  agentRemarks: z.string().optional(),
+  extraServicesOpted: z.boolean().optional(),
+  extraServicesNotes: z.string().optional(),
   guests: z
     .array(
       z.object({
@@ -250,6 +253,9 @@ export function OfflineBookingWizard() {
       roomType: "", roomsCount: 1, mealPlan: "ROOM_ONLY", roomAmenities: [],
       adultsCount: 2, childrenCount: 0,
       inclusions: "", cancellationPolicy: "", includeCancellationPolicy: false,
+      agentRemarks: "",
+      extraServicesOpted: false,
+      extraServicesNotes: "",
       guests: [{ name: "", type: "adult", roomNumber: 1 }, { name: "", type: "adult", roomNumber: 1 }],
       rooms: [
         {
@@ -583,6 +589,11 @@ export function OfflineBookingWizard() {
           inclusions: data.inclusions,
           cancellationPolicy: data.cancellationPolicy,
           includeCancellationPolicy: data.includeCancellationPolicy,
+          agentRemarks: data.agentRemarks?.trim() || undefined,
+          extraServicesOpted: data.extraServicesOpted || false,
+          extraServicesNotes: data.extraServicesOpted
+            ? data.extraServicesNotes?.trim() || undefined
+            : undefined,
         };
       } else {
         payload = {

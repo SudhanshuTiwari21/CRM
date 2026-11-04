@@ -374,6 +374,8 @@ export const offlineHotelBookingSchema = z
   includeCancellationPolicy: z.boolean().optional(),
   policies: z.string().optional(),
   agentRemarks: z.string().optional(),
+  extraServicesOpted: z.boolean().optional(),
+  extraServicesNotes: z.string().optional(),
   paymentMethod: z.enum(["UPI", "Cash", "Card", "Bank Transfer", "CREDIT"]).optional(),
   internalNotes: z.string().optional(),
   invoiceTaxType: z.enum(["ITC", "NON_ITC"]),

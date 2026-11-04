@@ -66,6 +66,8 @@ export const hotelEditFormSchema = z.object({
   includeCancellationPolicy: z.boolean().optional(),
   policies: z.string().optional(),
   agentRemarks: z.string().optional(),
+  extraServicesOpted: z.boolean().optional(),
+  extraServicesNotes: z.string().optional(),
 });
 
 export type HotelEditFormValues = z.infer<typeof hotelEditFormSchema>;
@@ -119,6 +121,8 @@ export function buildHotelEditFormValues(
     includeCancellationPolicy: hotel.includeCancellationPolicy,
     policies: hotel.policies || "",
     agentRemarks: hotel.agentRemarks || "",
+    extraServicesOpted: hotel.extraServicesOpted || false,
+    extraServicesNotes: hotel.extraServicesNotes || "",
   };
 }
 
@@ -177,6 +181,10 @@ export function normalizeHotelEditPayload(data: HotelEditFormValues) {
     includeCancellationPolicy: data.includeCancellationPolicy || false,
     policies: data.policies?.trim() || undefined,
     agentRemarks: data.agentRemarks?.trim() || undefined,
+    extraServicesOpted: data.extraServicesOpted || false,
+    extraServicesNotes: data.extraServicesOpted
+      ? data.extraServicesNotes?.trim() || undefined
+      : undefined,
     confirmationNo: data.pnr?.trim() || undefined,
     regenerateDocuments: true,
   };

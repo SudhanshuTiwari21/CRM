@@ -3,9 +3,9 @@ import { z } from "zod";
 import { getAirportDisplay } from "@/lib/airport-names";
 import { toFormDateTime, type ParsedProductType, type ParsedTicketResult } from "@/lib/services/ticket-parse.service";
 
-/** Only auto-fill when the model is this sure or higher (0–1). */
+/** Auto-fill when the model is this sure or higher (0–1). Lower = more fields filled for review. */
 export const TICKET_AI_CONFIDENCE_THRESHOLD = Number(
-  process.env.OPENAI_TICKET_MIN_CONFIDENCE || "0.92"
+  process.env.OPENAI_TICKET_MIN_CONFIDENCE || "0.55"
 );
 
 const CONFIDENT_TITLES = ["Mr", "Mrs", "Ms", "Miss", "Mstr", "Dr"] as const;
@@ -59,14 +59,15 @@ export function isOpenAITicketParseEnabled() {
 function buildSystemPrompt(productHint?: ParsedProductType) {
   return `You extract booking details from airline/hotel/bus tickets for a travel CRM form.
 
-CRITICAL RULES (zero false positives):
-- Never invent, guess, or infer missing values.
-- If a value is unclear, blurred, cut off, or ambiguous, either omit the field or set confidence below 0.85.
-- Only use confidence >= 0.92 when the value is explicitly printed and unambiguous.
+CRITICAL RULES:
+- Prefer extracting a field when it appears on the ticket, even if partially unclear — set a lower confidence instead of omitting.
+- Never invent values that are not on the ticket at all (no made-up PNRs, airports, names, or amounts).
+- Confidence guide: 0.9+ crystal clear; 0.7–0.89 readable with minor doubt; 0.55–0.69 imperfect OCR / partial / slightly ambiguous but best reading; below 0.55 omit.
+- Extract as many matching fields as possible; leave blank only when the value is missing or would be pure guesswork.
 - Dates/times must come from the ticket; format as ISO-like local wall time: YYYY-MM-DDTHH:mm
-- Airport codes must be IATA (3 letters) only when clearly shown.
-- Passenger names: use exact spelling from the ticket; split into firstName/lastName carefully.
-- Amounts: numbers only (INR), no currency symbols; omit if not clearly total/fare.
+- Airport codes must be IATA (3 letters) when shown (or clearly mappable from a printed city+airport name).
+- Passenger names: prefer exact ticket spelling; split into firstName/lastName carefully.
+- Amounts: numbers only (INR), no currency symbols; include fare/total when printed.
 - productType must match the document${productHint ? ` (user expects ${productHint} — use it only if the document agrees)` : ""}.
 
 Return ONLY valid JSON matching:
@@ -79,7 +80,7 @@ Return ONLY valid JSON matching:
   "notes": ["optional human notes about uncertainty"]
 }
 
-FLIGHT field names (use only when sure):
+FLIGHT field names (extract whenever present on the ticket):
 airline, tripType ("ONE_WAY"|"ROUND_TRIP"|"MULTI_CITY"), cabinClass ("ECONOMY"|"PREMIUM_ECONOMY"|"BUSINESS"),
 segments (array of {flightNumber, airline?, fromAirport, fromCity?, toAirport, toCity?, departureAt, arrivalAt, pnr?, terminal?, departureTerminal?}),
 passengers (array of {title?, firstName, lastName?, gender?, paxType?, ticketNumber?, seat?}),
@@ -394,7 +395,7 @@ async function callOpenAI(params: {
   const content: OpenAI.Chat.ChatCompletionContentPart[] = [
     {
       type: "text",
-      text: `Extract ticket fields from this upload (${params.fileName}). Remember: high confidence only when explicit; never invent.`,
+      text: `Extract as many ticket fields as you can from this upload (${params.fileName}). Prefer filling with lower confidence over omitting; never invent missing values.`,
     },
   ];
 
@@ -435,7 +436,7 @@ async function callOpenAI(params: {
             },
             {
               type: "input_text",
-              text: "Extract ticket fields as JSON. High confidence only when explicit; never invent.",
+              text: "Extract as many ticket fields as JSON. Prefer lower confidence over omitting; never invent missing values.",
             },
           ],
         },
@@ -531,7 +532,7 @@ export async function parseTicketWithOpenAI(params: {
 
   if (filledCount === 0) {
     warnings.unshift(
-      "No fields met the high-confidence bar — nothing was auto-filled. Enter details manually or upload a clearer ticket."
+      "No fields met the confidence threshold — nothing was auto-filled. Enter details manually or upload a clearer ticket."
     );
   }
 

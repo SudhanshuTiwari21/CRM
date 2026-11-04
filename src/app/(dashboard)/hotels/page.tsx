@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { AddHotelProfileDialog } from "@/components/hotels/add-hotel-profile-dialog";
 import { EditHotelProfileDialog } from "@/components/hotels/edit-hotel-profile-dialog";
 
 export default async function HotelsPage({
@@ -26,7 +27,11 @@ export default async function HotelsPage({
 
   return (
     <div>
-      <Header title="Hotels" description="Saved hotel profiles - auto-fill when booking" />
+      <Header
+        title="Hotels"
+        description="Saved hotel profiles - auto-fill when booking"
+        actions={<AddHotelProfileDialog />}
+      />
       <Card>
         <CardHeader>
           <CardTitle className="text-base">All Hotels ({hotels.length})</CardTitle>
@@ -34,7 +39,7 @@ export default async function HotelsPage({
         <CardContent className="space-y-3">
           {hotels.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No hotel profiles yet. Create a hotel booking to save a profile automatically.
+              No hotel profiles yet. Use Add hotel, or create a hotel booking to save one automatically.
             </p>
           ) : (
             hotels.map((hotel) => (

@@ -469,6 +469,10 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
               includeCancellationPolicy: hotelInput.includeCancellationPolicy || false,
               policies: hotelInput.policies,
               agentRemarks: hotelInput.agentRemarks,
+              extraServicesOpted: hotelInput.extraServicesOpted || false,
+              extraServicesNotes: hotelInput.extraServicesOpted
+                ? hotelInput.extraServicesNotes?.trim() || null
+                : null,
               ...taxFields,
             },
           },

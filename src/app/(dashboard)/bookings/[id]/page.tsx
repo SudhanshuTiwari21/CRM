@@ -318,6 +318,28 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 <p>Check-out: {formatDate(booking.hotelBooking.checkOut)}</p>
                 <p>Nights: {booking.hotelBooking.nights} • Room: {booking.hotelBooking.roomType}</p>
                 {booking.hotelBooking.confirmationNo && <p>Confirmation: {booking.hotelBooking.confirmationNo}</p>}
+                <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900 dark:bg-amber-950/20">
+                  <p className="font-medium">
+                    Extra Services opted: {booking.hotelBooking.extraServicesOpted ? "Yes" : "No"}
+                  </p>
+                  {booking.hotelBooking.extraServicesOpted ? (
+                    <>
+                      {booking.hotelBooking.extraServicesNotes ? (
+                        <p className="mt-1 text-muted-foreground whitespace-pre-wrap">
+                          {booking.hotelBooking.extraServicesNotes}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Notified to hotel:{" "}
+                        {booking.hotelBooking.extraServicesNotifiedToHotel ? "Yes" : "No"}
+                        {booking.hotelBooking.extraServicesNotifiedAt
+                          ? ` · ${formatDateTime(booking.hotelBooking.extraServicesNotifiedAt)}`
+                          : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">Internal only — not on client voucher</p>
+                    </>
+                  ) : null}
+                </div>
               </CardContent>
             </Card>
           )}

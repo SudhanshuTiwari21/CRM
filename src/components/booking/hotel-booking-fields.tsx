@@ -389,6 +389,49 @@ export function HotelBookingFields({ form }: HotelBookingFieldsProps) {
         <Label>Agent Remarks</Label>
         <Textarea {...form.register("agentRemarks")} placeholder="Internal remarks" rows={2} />
       </div>
+
+      <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/40 p-4 sm:col-span-2 dark:border-amber-900 dark:bg-amber-950/20">
+        <div>
+          <Label className="text-base">Extra Services opted</Label>
+          <p className="text-xs text-muted-foreground">
+            Internal only — not shown on the hotel voucher sent to the client.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => form.setValue("extraServicesOpted", false, { shouldDirty: true })}
+            className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+              !form.watch("extraServicesOpted")
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background hover:bg-muted"
+            }`}
+          >
+            No
+          </button>
+          <button
+            type="button"
+            onClick={() => form.setValue("extraServicesOpted", true, { shouldDirty: true })}
+            className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+              form.watch("extraServicesOpted")
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background hover:bg-muted"
+            }`}
+          >
+            Yes
+          </button>
+        </div>
+        {form.watch("extraServicesOpted") ? (
+          <div className="space-y-2">
+            <Label>Extra services notes</Label>
+            <Textarea
+              {...form.register("extraServicesNotes")}
+              placeholder="e.g. Late checkout, cake, airport pickup…"
+              rows={3}
+            />
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

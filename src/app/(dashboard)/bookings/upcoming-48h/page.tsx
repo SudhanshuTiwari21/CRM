@@ -6,7 +6,7 @@ export default function Upcoming48hPage() {
     <div>
       <Header
         title="Travelling within 48 hrs"
-        description="All flight bookings departing in the next 48 hours. Check-in assistance bookings trigger admin alerts."
+        description="Flights departing and hotel check-ins in the next 48 hours. Flight check-in assistance bookings trigger admin alerts."
       />
       <Upcoming48hTable />
     </div>

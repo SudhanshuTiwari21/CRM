@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { listAirlineCatalog } from "@/lib/services/airline.service";
 import { getAirlineLogoUrl } from "@/lib/airline-logo";
+import { AddAirlineProfileDialog } from "@/components/airlines/add-airline-profile-dialog";
 import { EditAirlineProfileDialog } from "@/components/airlines/edit-airline-profile-dialog";
 
 export default async function AirlinesPage({
@@ -16,7 +17,11 @@ export default async function AirlinesPage({
 
   return (
     <div>
-      <Header title="Airlines" description="Saved airline profiles — auto-fill when booking" />
+      <Header
+        title="Airlines"
+        description="Saved airline profiles — auto-fill when booking"
+        actions={<AddAirlineProfileDialog />}
+      />
       <Card>
         <CardHeader>
           <CardTitle className="text-base">All Airlines ({airlines.length})</CardTitle>
@@ -24,7 +29,7 @@ export default async function AirlinesPage({
         <CardContent className="space-y-3">
           {airlines.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No airline profiles yet. Create a flight booking to save a profile automatically.
+              No airline profiles yet. Use Add airline, or create a flight booking to save one automatically.
             </p>
           ) : (
             airlines.map((airline) => {

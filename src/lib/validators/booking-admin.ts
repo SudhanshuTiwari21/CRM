@@ -76,6 +76,9 @@ export const adminBookingUpdateSchema = z.object({
   inclusions: z.string().optional(),
   policies: z.string().optional(),
   agentRemarks: z.string().optional(),
+  extraServicesOpted: z.boolean().optional(),
+  extraServicesNotes: z.string().optional(),
+  extraServicesNotifiedToHotel: z.boolean().optional(),
   confirmationNo: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.paymentStatus === "PAID" && !data.paymentMethod?.trim()) {

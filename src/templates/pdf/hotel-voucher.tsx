@@ -401,15 +401,6 @@ export function HotelVoucherPDF({ agency, booking, hotel, guests, logoSrc }: Pro
           </View>
         )}
 
-        {hotel.agentRemarks?.trim() ? (
-          <View>
-            <Text style={styles.sectionTitle}>Remarks</Text>
-            <View style={styles.policyBox}>
-              <Text style={styles.policyText}>{hotel.agentRemarks}</Text>
-            </View>
-          </View>
-        ) : null}
-
         <Text style={styles.footer}>
           Present a valid photo ID at check-in. Early check-in / late check-out subject to availability.
           {"  ·  "}
