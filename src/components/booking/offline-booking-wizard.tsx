@@ -19,7 +19,7 @@ import { FlightInvoiceFields } from "@/components/booking/flight-invoice-fields"
 import { HotelInvoiceFields } from "@/components/booking/hotel-invoice-fields";
 import { TicketUploadPanel } from "@/components/booking/ticket-upload-panel";
 import { parseApiResponse } from "@/lib/parse-api-response";
-import { formatCustomerName } from "@/lib/utils";
+import { formatCompanyBillingName, formatCustomerName } from "@/lib/utils";
 import { getFirstFormErrorMessage } from "@/lib/form-errors";
 import { buildAddonPlaceholderSegment, validateAddonBooking } from "@/lib/flight-addon";
 import { getReturnLegStartIndex } from "@/lib/flight-layover";
@@ -103,6 +103,7 @@ const wizardSchema = z
   propertyName: z.string().optional(),
   propertyAddress: z.string().optional(),
   city: z.string().optional(),
+  country: z.string().optional(),
   propertyPhone: z.string().optional(),
   propertyEmail: z.string().optional(),
   checkIn: z.string().optional(),
@@ -121,6 +122,7 @@ const wizardSchema = z
   agentRemarks: z.string().optional(),
   extraServicesOpted: z.boolean().optional(),
   extraServicesNotes: z.string().optional(),
+  extraServicesReservationsEmail: z.string().email().optional().or(z.literal("")),
   guests: z
     .array(
       z.object({
@@ -248,7 +250,7 @@ export function OfflineBookingWizard() {
         passportIssueDate: "",
         passportExpiryDate: "",
       }],
-      propertyName: "", propertyAddress: "", city: "", propertyPhone: "", propertyEmail: "",
+      propertyName: "", propertyAddress: "", city: "", country: "", propertyPhone: "", propertyEmail: "",
       checkIn: "", checkOut: "", checkInTime: "02:00 PM", checkOutTime: "12:00 PM",
       roomType: "", roomsCount: 1, mealPlan: "ROOM_ONLY", roomAmenities: [],
       adultsCount: 2, childrenCount: 0,
@@ -256,6 +258,7 @@ export function OfflineBookingWizard() {
       agentRemarks: "",
       extraServicesOpted: false,
       extraServicesNotes: "",
+      extraServicesReservationsEmail: "",
       guests: [{ name: "", type: "adult", roomNumber: 1 }, { name: "", type: "adult", roomNumber: 1 }],
       rooms: [
         {
@@ -449,7 +452,7 @@ export function OfflineBookingWizard() {
         ...customerRest,
         name:
           isCashCompany || isLedgerCompany
-            ? data.customer.name.trim()
+            ? formatCompanyBillingName(data.customer.name)
             : formatCustomerName(data.customer.title, data.customer.name),
         phone: normalizePhone(customerRest.phone),
         email: data.customer.email?.trim() || undefined,
@@ -556,6 +559,9 @@ export function OfflineBookingWizard() {
         if (data.totalAmount <= 0) {
           throw new Error("Enter hotel charges and service charge for the invoice");
         }
+        if (data.extraServicesOpted && !data.extraServicesReservationsEmail?.trim()) {
+          throw new Error("Reservations email is required when Extra Services is Yes");
+        }
         payload = {
           productType: "HOTEL",
           channel: "OFFLINE",
@@ -572,6 +578,7 @@ export function OfflineBookingWizard() {
           propertyName: data.propertyName,
           propertyAddress: data.propertyAddress,
           city: data.city,
+          country: data.country?.trim() || undefined,
           propertyPhone: data.propertyPhone,
           propertyEmail: data.propertyEmail?.trim() || undefined,
           checkIn: data.checkIn,
@@ -593,6 +600,9 @@ export function OfflineBookingWizard() {
           extraServicesOpted: data.extraServicesOpted || false,
           extraServicesNotes: data.extraServicesOpted
             ? data.extraServicesNotes?.trim() || undefined
+            : undefined,
+          extraServicesReservationsEmail: data.extraServicesOpted
+            ? data.extraServicesReservationsEmail?.trim() || undefined
             : undefined,
         };
       } else {

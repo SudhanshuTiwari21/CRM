@@ -23,7 +23,7 @@ import { recordBookingPayment } from "./booking-payment.service";
 import { computeAmountDue, sumPaidPayments } from "@/lib/payment-utils";
 import { flightFieldsWithDeparture, maybeSendImmediateCheckInAssistanceAlert } from "./checkin-assistance.service";
 import { toDbAddonType } from "@/lib/flight-addon";
-import { formatCustomerName } from "@/lib/utils";
+import { formatCompanyBillingName, formatCustomerName } from "@/lib/utils";
 import { updateExistingCustomerFromBooking } from "./customer.service";
 import type { CashCustomerSnapshot, CashBillTo } from "@/lib/cash-customer";
 import { parseCashCustomerSnapshot } from "@/lib/cash-customer";
@@ -42,7 +42,9 @@ function buildCustomerSnapshot(
 ): CashCustomerSnapshot {
   const isCompany = billTo === "COMPANY";
   return {
-    name: isCompany ? input.name.trim() : formatCustomerName(input.title, input.name.trim()),
+    name: isCompany
+      ? formatCompanyBillingName(input.name)
+      : formatCustomerName(input.title, input.name.trim()),
     phone: input.phone,
     email: input.email?.trim() || null,
     pan: input.pan?.trim().toUpperCase() || null,
@@ -318,12 +320,14 @@ export async function updateBookingAsAdmin(
       input.agentRemarks !== undefined ||
       input.extraServicesOpted !== undefined ||
       input.extraServicesNotes !== undefined ||
+      input.extraServicesReservationsEmail !== undefined ||
       input.extraServicesNotifiedToHotel !== undefined ||
       input.confirmationNo !== undefined ||
       input.cancellationPolicy !== undefined ||
       input.includeCancellationPolicy !== undefined ||
       input.policies !== undefined ||
       input.city !== undefined ||
+      input.country !== undefined ||
       input.propertyPhone !== undefined ||
       input.propertyEmail !== undefined ||
       input.checkInTime !== undefined ||
@@ -333,6 +337,8 @@ export async function updateBookingAsAdmin(
       const propertyName = input.propertyName ?? booking.hotelBooking.propertyName;
       const propertyAddress = input.propertyAddress ?? booking.hotelBooking.propertyAddress;
       const city = input.city !== undefined ? input.city || null : booking.hotelBooking.city;
+      const country =
+        input.country !== undefined ? input.country || null : booking.hotelBooking.country;
       const propertyPhone =
         input.propertyPhone !== undefined ? input.propertyPhone || null : booking.hotelBooking.propertyPhone;
       const propertyEmail =
@@ -349,6 +355,7 @@ export async function updateBookingAsAdmin(
         name: propertyName,
         address: propertyAddress,
         city: city || undefined,
+        country: country || undefined,
         phone: propertyPhone || undefined,
         email: propertyEmail || undefined,
         checkInTime,
@@ -370,6 +377,7 @@ export async function updateBookingAsAdmin(
       hotelData.propertyName = propertyName;
       hotelData.propertyAddress = propertyAddress;
       hotelData.city = city;
+      hotelData.country = country;
       hotelData.propertyPhone = propertyPhone;
       hotelData.propertyEmail = propertyEmail;
       hotelData.checkIn = checkIn;
@@ -407,7 +415,14 @@ export async function updateBookingAsAdmin(
           ? input.extraServicesNotes || null
           : booking.hotelBooking.extraServicesNotes
         : null;
+      hotelData.extraServicesReservationsEmail = extraServicesOpted
+        ? input.extraServicesReservationsEmail !== undefined
+          ? input.extraServicesReservationsEmail?.trim() || null
+          : booking.hotelBooking.extraServicesReservationsEmail
+        : null;
+      // Never promote edit-time opt-in to create-time; clear if services turned off.
       if (!extraServicesOpted) {
+        hotelData.extraServicesRequestedAtCreate = false;
         hotelData.extraServicesNotifiedToHotel = false;
         hotelData.extraServicesNotifiedAt = null;
       } else if (input.extraServicesNotifiedToHotel !== undefined) {
@@ -496,6 +511,22 @@ export async function updateBookingAsAdmin(
 
   if (booking.flightBooking && input.checkInAssistance) {
     await maybeSendImmediateCheckInAssistanceAlert(bookingId);
+  }
+
+  if (booking.hotelBooking) {
+    const nowOpted =
+      input.extraServicesOpted !== undefined
+        ? input.extraServicesOpted
+        : booking.hotelBooking.extraServicesOpted;
+    const nowReservationsEmail =
+      input.extraServicesReservationsEmail !== undefined
+        ? input.extraServicesReservationsEmail || ""
+        : booking.hotelBooking.extraServicesReservationsEmail || "";
+    if (nowOpted && !nowReservationsEmail.trim()) {
+      throw new Error("Reservations email is required when Extra Services is Yes");
+    }
+    // Extra-services hotel email is sent only after hotel supplier confirmation (confirm dialog),
+    // not on create/edit. Use Within 48 hrs → Email hotel to resend.
   }
 
   return prisma.booking.findUnique({

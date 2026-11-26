@@ -5,8 +5,10 @@ import { UseFormReturn } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { PhoneWithCountry } from "@/components/ui/phone-with-country";
 import { HOTEL_ROOM_AMENITIES, MEAL_PLAN_OPTIONS } from "@/lib/constants/hotel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { COUNTRY_DIAL_CODES } from "@/lib/country-dial-codes";
 import {
   MAX_ADULTS_PER_ROOM,
   MAX_CHILDREN_PER_ROOM,
@@ -18,6 +20,10 @@ import {
 } from "@/lib/hotel-rooms";
 import type { HotelRoom } from "@/types/booking";
 import { Users } from "lucide-react";
+
+const HOTEL_COUNTRY_OPTIONS = [...COUNTRY_DIAL_CODES].sort((a, b) =>
+  a.name.localeCompare(b.name)
+);
 
 function CheckBox({
   checked,
@@ -101,8 +107,12 @@ export function HotelBookingFields({ form }: HotelBookingFieldsProps) {
         if (data.found) {
           form.setValue("propertyAddress", data.address || "");
           form.setValue("city", data.city || "");
+          if (data.country) form.setValue("country", data.country);
           form.setValue("propertyPhone", data.phone || "");
           form.setValue("propertyEmail", data.email || "");
+          if (data.email && !form.getValues("extraServicesReservationsEmail")) {
+            form.setValue("extraServicesReservationsEmail", data.email);
+          }
           form.setValue("checkInTime", data.checkInTime || "02:00 PM");
           form.setValue("checkOutTime", data.checkOutTime || "12:00 PM");
         }
@@ -164,11 +174,41 @@ export function HotelBookingFields({ form }: HotelBookingFieldsProps) {
       </div>
       <div className="space-y-2">
         <Label>City</Label>
-        <Input {...form.register("city")} placeholder="Patna" />
+        <Input {...form.register("city")} placeholder="Phu Quoc" />
       </div>
       <div className="space-y-2">
+        <Label>Country</Label>
+        <Select
+          value={form.watch("country") || ""}
+          onValueChange={(v) => form.setValue("country", v, { shouldDirty: true })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select country" />
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            {HOTEL_COUNTRY_OPTIONS.map((c) => (
+              <SelectItem key={c.iso2} value={c.name}>
+                <span className="flex items-center gap-2">
+                  <span aria-hidden>{c.flag}</span>
+                  <span>{c.name}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <input type="hidden" {...form.register("country")} />
+      </div>
+      <div className="space-y-2 sm:col-span-2">
         <Label>Hotel Phone</Label>
-        <Input {...form.register("propertyPhone")} placeholder="9297871703" />
+        <PhoneWithCountry
+          value={form.watch("propertyPhone") || ""}
+          defaultCountryIso2={
+            HOTEL_COUNTRY_OPTIONS.find((c) => c.name === form.watch("country"))?.iso2 || "IN"
+          }
+          placeholder="Phone number"
+          onChange={(full) => form.setValue("propertyPhone", full, { shouldDirty: true })}
+        />
+        <input type="hidden" {...form.register("propertyPhone")} />
       </div>
       <div className="space-y-2">
         <Label>Hotel Email</Label>
@@ -394,7 +434,9 @@ export function HotelBookingFields({ form }: HotelBookingFieldsProps) {
         <div>
           <Label className="text-base">Extra Services opted</Label>
           <p className="text-xs text-muted-foreground">
-            Internal only — not shown on the hotel voucher sent to the client.
+            Not shown on the client voucher. Choose Yes at booking create to auto-email
+            reservations (with confirmation, guest details, notes, and voucher) only after hotel
+            confirmation is added — not if this is turned on later via edit.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -422,13 +464,26 @@ export function HotelBookingFields({ form }: HotelBookingFieldsProps) {
           </button>
         </div>
         {form.watch("extraServicesOpted") ? (
-          <div className="space-y-2">
-            <Label>Extra services notes</Label>
-            <Textarea
-              {...form.register("extraServicesNotes")}
-              placeholder="e.g. Late checkout, cake, airport pickup…"
-              rows={3}
-            />
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Reservations email *</Label>
+              <Input
+                {...form.register("extraServicesReservationsEmail")}
+                type="email"
+                placeholder="reservations@hotel.com"
+              />
+              <p className="text-xs text-muted-foreground">
+                Extra-services mail (with voucher) is sent only to this address.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Extra services notes</Label>
+              <Textarea
+                {...form.register("extraServicesNotes")}
+                placeholder="e.g. Late checkout, cake, airport pickup…"
+                rows={3}
+              />
+            </div>
           </div>
         ) : null}
       </div>

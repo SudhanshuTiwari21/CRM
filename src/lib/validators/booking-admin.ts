@@ -59,6 +59,7 @@ export const adminBookingUpdateSchema = z.object({
   propertyName: z.string().min(1).optional(),
   propertyAddress: z.string().min(1).optional(),
   city: z.string().optional(),
+  country: z.string().optional(),
   propertyPhone: z.string().optional(),
   propertyEmail: z.string().email().optional().or(z.literal("")),
   checkIn: z.string().min(1).optional(),
@@ -78,6 +79,7 @@ export const adminBookingUpdateSchema = z.object({
   agentRemarks: z.string().optional(),
   extraServicesOpted: z.boolean().optional(),
   extraServicesNotes: z.string().optional(),
+  extraServicesReservationsEmail: z.string().email().optional().or(z.literal("")),
   extraServicesNotifiedToHotel: z.boolean().optional(),
   confirmationNo: z.string().optional(),
 }).superRefine((data, ctx) => {

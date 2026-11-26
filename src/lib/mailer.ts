@@ -18,6 +18,7 @@ export type EmailAttachment = {
 
 interface SendEmailParams {
   to: string;
+  cc?: string | string[];
   subject: string;
   html: string;
   bookingId?: string;
@@ -151,6 +152,9 @@ export async function sendEmail(params: SendEmailParams) {
     await transporter.sendMail({
       from: config.from,
       to: params.to,
+      ...(params.cc
+        ? { cc: Array.isArray(params.cc) ? params.cc.join(", ") : params.cc }
+        : {}),
       subject: params.subject,
       html: params.html,
       attachments: [...(params.inlineAttachments || []), ...(params.attachments || [])],

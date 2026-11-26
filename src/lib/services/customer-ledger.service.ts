@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { Prisma } from "@prisma/client";
+import type { CustomerType, Prisma } from "@prisma/client";
 import { CASH_WALK_IN_PHONE } from "@/lib/cash-customer";
 import { getActiveDbBrand } from "@/lib/brand-context";
 import {
@@ -7,6 +7,7 @@ import {
   buildSaleBookingTypeLines,
   formatLedgerVoucherNo,
 } from "@/lib/ledger-voucher";
+import { formatCompanyBillingName } from "@/lib/utils";
 
 export interface CustomerLedgerRow {
   id: string;
@@ -116,10 +117,19 @@ function accountSelectionId(customerId: string, branchId?: string | null) {
   return branchId ? `${customerId}::${branchId}` : customerId;
 }
 
-function displayAccountName(customerName: string, branch: BranchRow | null) {
-  if (!branch) return customerName;
+function companyLedgerTitle(name: string, type?: CustomerType | null) {
+  return type === "BUSINESS" ? formatCompanyBillingName(name) : name;
+}
+
+function displayAccountName(
+  customerName: string,
+  branch: BranchRow | null,
+  type?: CustomerType | null
+) {
+  const title = companyLedgerTitle(customerName, type);
+  if (!branch) return title;
   const gstin = normalizeGstin(branch.gstin);
-  return gstin ? `${customerName} — ${branch.name} (${gstin})` : `${customerName} — ${branch.name}`;
+  return gstin ? `${title} — ${branch.name} (${gstin})` : `${title} — ${branch.name}`;
 }
 
 function resolveBranchForBooking(
@@ -151,6 +161,7 @@ export async function getCustomerLedger(params: {
     where: { id: params.customerId, brandId },
     select: {
       id: true,
+      type: true,
       name: true,
       phone: true,
       gstin: true,
@@ -230,8 +241,8 @@ export async function getCustomerLedger(params: {
   ]);
 
   const accountLabel = selectedBranch
-    ? displayAccountName(customer.name, selectedBranch)
-    : customer.name;
+    ? displayAccountName(customer.name, selectedBranch, customer.type)
+    : companyLedgerTitle(customer.name, customer.type);
 
   const entries: LedgerEntry[] = [];
 
@@ -436,6 +447,7 @@ export async function listLedgerCustomers(search?: string): Promise<LedgerAccoun
     where,
     select: {
       id: true,
+      type: true,
       name: true,
       phone: true,
       gstin: true,
@@ -462,7 +474,7 @@ export async function listLedgerCustomers(search?: string): Promise<LedgerAccoun
           id: accountSelectionId(customer.id, branch.id),
           customerId: customer.id,
           branchId: branch.id,
-          name: displayAccountName(customer.name, branch as BranchRow),
+          name: displayAccountName(customer.name, branch as BranchRow, customer.type),
           phone: customer.phone,
           gstin: normalizeGstin(branch.gstin) || normalizeGstin(customer.gstin),
           branchName: branch.name,
@@ -474,7 +486,9 @@ export async function listLedgerCustomers(search?: string): Promise<LedgerAccoun
         id: accountSelectionId(customer.id, branch?.id),
         customerId: customer.id,
         branchId: branch?.id || null,
-        name: branch ? displayAccountName(customer.name, branch as BranchRow) : customer.name,
+        name: branch
+          ? displayAccountName(customer.name, branch as BranchRow, customer.type)
+          : companyLedgerTitle(customer.name, customer.type),
         phone: customer.phone,
         gstin: normalizeGstin(branch?.gstin) || normalizeGstin(customer.gstin),
         branchName: branch?.name || null,

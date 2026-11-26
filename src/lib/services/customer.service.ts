@@ -5,6 +5,7 @@ import type { createCustomerSchema } from "@/lib/validators/customer";
 import { normalizePhone, phoneLookupVariants } from "@/lib/phone";
 import { CASH_WALK_IN_PHONE } from "@/lib/cash-customer";
 import { getActiveDbBrand } from "@/lib/brand-context";
+import { formatCompanyBillingName } from "@/lib/utils";
 
 type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
 
@@ -101,7 +102,7 @@ export async function createBusinessCustomerFromBooking(customer: {
 
   return createCustomerRecord({
     type: "BUSINESS",
-    name: customer.name.trim(),
+    name: formatCompanyBillingName(customer.name),
     phone: normalizedPhone,
     email: customer.email || "",
     pan: customer.pan || "",

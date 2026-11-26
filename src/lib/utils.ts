@@ -65,6 +65,16 @@ export function formatCustomerName(title: string | undefined, name: string) {
   return `${t} ${trimmed}`;
 }
 
+/** Prefix company / B2B buyer names with M/s for invoices and ledgers. */
+export function formatCompanyBillingName(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return trimmed;
+  if (/^m\/s\.?\s/i.test(trimmed) || /^messrs\.?\s/i.test(trimmed)) {
+    return trimmed;
+  }
+  return `M/s ${trimmed}`;
+}
+
 /** Capitalize the first letter of each word (e.g. "kolkata" → "Kolkata", "MR JOHN" → "Mr John"). */
 export function toTitleCase(text: string) {
   return text

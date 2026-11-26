@@ -4,6 +4,7 @@ import { allocatePublicRef } from "@/lib/booking-ref";
 import { logActivity } from "./activity.service";
 import { generateBookingDocuments } from "./document.service";
 import { sendBookingNotifications } from "./notification.service";
+import { notifyHotelExtraServices } from "./hotel-extra-services-notify.service";
 import { flightFieldsWithDeparture, maybeSendImmediateCheckInAssistanceAlert } from "./checkin-assistance.service";
 import { getFlightProvider } from "./provider/flight-provider";
 import { upsertHotelProfile } from "./hotel.service";
@@ -16,6 +17,7 @@ import { assertCashBillingAllowed, validateCashBillAmountAndPan } from "@/lib/ca
 import { upsertCustomerFromBooking, getOrCreateCashWalkInCustomer, updateExistingCustomerFromBooking, createBusinessCustomerFromBooking } from "./customer.service";
 import { recordCreditTransaction } from "./credit.service";
 import type { CashCustomerSnapshot } from "@/lib/cash-customer";
+import { formatCompanyBillingName } from "@/lib/utils";
 import type {
   BookingChannel,
   BookingStatus,
@@ -69,7 +71,10 @@ async function resolveBookingCustomer(input: {
     const walkIn = await getOrCreateCashWalkInCustomer();
     const billTo = input.cashBillTo === "COMPANY" ? "COMPANY" : "INDIVIDUAL";
     const cashCustomer: CashCustomerSnapshot = {
-      name: input.customer.name,
+      name:
+        billTo === "COMPANY"
+          ? formatCompanyBillingName(input.customer.name)
+          : input.customer.name,
       phone: input.customer.phone,
       email: input.customer.email || null,
       pan: input.customer.pan?.toUpperCase() || null,
@@ -164,6 +169,9 @@ function validateHotelInvoice(input: OfflineHotelBookingInput, agencyHasGst: boo
   }
   if (!agencyHasGst && input.totalAmount <= 0) {
     throw new Error("Total amount must be greater than 0");
+  }
+  if (input.extraServicesOpted && !input.extraServicesReservationsEmail?.trim()) {
+    throw new Error("Reservations email is required when Extra Services is Yes");
   }
 }
 
@@ -406,6 +414,7 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
         name: hotelInput.propertyName,
         address: hotelInput.propertyAddress,
         city: hotelInput.city,
+        country: hotelInput.country,
         phone: hotelInput.propertyPhone,
         email: hotelInput.propertyEmail,
         checkInTime: hotelInput.checkInTime,
@@ -449,6 +458,7 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
               propertyName: hotelInput.propertyName,
               propertyAddress: hotelInput.propertyAddress,
               city: hotelInput.city,
+              country: hotelInput.country || undefined,
               propertyPhone: hotelInput.propertyPhone,
               propertyEmail: hotelInput.propertyEmail || undefined,
               checkIn: new Date(hotelInput.checkIn),
@@ -470,8 +480,12 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
               policies: hotelInput.policies,
               agentRemarks: hotelInput.agentRemarks,
               extraServicesOpted: hotelInput.extraServicesOpted || false,
+              extraServicesRequestedAtCreate: hotelInput.extraServicesOpted || false,
               extraServicesNotes: hotelInput.extraServicesOpted
                 ? hotelInput.extraServicesNotes?.trim() || null
+                : null,
+              extraServicesReservationsEmail: hotelInput.extraServicesOpted
+                ? hotelInput.extraServicesReservationsEmail?.trim() || null
                 : null,
               ...taxFields,
             },
@@ -521,6 +535,7 @@ export async function createOfflineBooking(input: OfflineBookingInput, userId?: 
       documentPaths: documents.map((doc) => doc.storagePath),
       userId,
     });
+    // Extra-services hotel email waits until supplier confirmation (confirm PNR / confirmation no.).
     await prisma.booking.update({
       where: { id: booking.id },
       data: { status: "TICKET_SENT" },
@@ -892,6 +907,19 @@ export async function confirmBookingPnr(
     documentPaths: documents.map((doc) => doc.storagePath),
     userId,
   });
+
+  if (booking.productType === "HOTEL") {
+    try {
+      // Auto-send only when Extra Services was opted at booking create (not if added later via edit).
+      await notifyHotelExtraServices(bookingId, {
+        userId,
+        force: true,
+        requireRequestedAtCreate: true,
+      });
+    } catch (error) {
+      console.error("[hotel-extra-services] notify failed after hotel confirm", error);
+    }
+  }
 
   return prisma.booking.findUnique({
     where: { id: bookingId },

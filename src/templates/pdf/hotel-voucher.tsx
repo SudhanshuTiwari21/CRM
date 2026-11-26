@@ -290,9 +290,10 @@ export function HotelVoucherPDF({ agency, booking, hotel, guests, logoSrc }: Pro
             <Text style={styles.confirmLabel}>Hotel Confirmation Number</Text>
             <Text style={styles.confirmValue}>{supplierConfirmation || "—"}</Text>
           </View>
-          {hotel.city ? (
+          {hotel.city || hotel.country ? (
             <Text style={styles.cityLine}>
-              {hotel.city} · {hotel.nights} Night{hotel.nights !== 1 ? "s" : ""}
+              {[hotel.city, hotel.country].filter(Boolean).join(", ")} · {hotel.nights} Night
+              {hotel.nights !== 1 ? "s" : ""}
             </Text>
           ) : null}
         </View>
@@ -304,7 +305,9 @@ export function HotelVoucherPDF({ agency, booking, hotel, guests, logoSrc }: Pro
             </View>
             <Text style={styles.hotelName}>{hotel.propertyName}</Text>
           </View>
-          <Text style={styles.hotelAddress}>{hotel.propertyAddress}</Text>
+          <Text style={styles.hotelAddress}>
+            {[hotel.propertyAddress, hotel.city, hotel.country].filter(Boolean).join(", ")}
+          </Text>
           {hotel.propertyPhone ? (
             <Text style={styles.hotelContact}>Hotel contact: {hotel.propertyPhone}</Text>
           ) : null}

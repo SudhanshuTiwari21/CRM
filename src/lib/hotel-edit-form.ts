@@ -47,6 +47,7 @@ export const hotelEditFormSchema = z.object({
   propertyName: z.string().min(1, "Hotel name is required"),
   propertyAddress: z.string().min(1, "Address is required"),
   city: z.string().optional(),
+  country: z.string().optional(),
   propertyPhone: z.string().optional(),
   propertyEmail: z.string().email().optional().or(z.literal("")),
   checkIn: z.string().min(1, "Check-in date is required"),
@@ -68,6 +69,7 @@ export const hotelEditFormSchema = z.object({
   agentRemarks: z.string().optional(),
   extraServicesOpted: z.boolean().optional(),
   extraServicesNotes: z.string().optional(),
+  extraServicesReservationsEmail: z.string().email().optional().or(z.literal("")),
 });
 
 export type HotelEditFormValues = z.infer<typeof hotelEditFormSchema>;
@@ -102,6 +104,7 @@ export function buildHotelEditFormValues(
     propertyName: hotel.propertyName || "",
     propertyAddress: hotel.propertyAddress || "",
     city: hotel.city || "",
+    country: hotel.country || "",
     propertyPhone: hotel.propertyPhone || "",
     propertyEmail: hotel.propertyEmail || "",
     checkIn: toDateInputValue(hotel.checkIn),
@@ -123,6 +126,7 @@ export function buildHotelEditFormValues(
     agentRemarks: hotel.agentRemarks || "",
     extraServicesOpted: hotel.extraServicesOpted || false,
     extraServicesNotes: hotel.extraServicesNotes || "",
+    extraServicesReservationsEmail: hotel.extraServicesReservationsEmail || "",
   };
 }
 
@@ -162,6 +166,7 @@ export function normalizeHotelEditPayload(data: HotelEditFormValues) {
     propertyName: data.propertyName.trim(),
     propertyAddress: data.propertyAddress.trim(),
     city: data.city?.trim() || undefined,
+    country: data.country?.trim() || undefined,
     propertyPhone: data.propertyPhone?.trim() || undefined,
     propertyEmail: data.propertyEmail?.trim() || undefined,
     checkIn: data.checkIn,
@@ -184,6 +189,9 @@ export function normalizeHotelEditPayload(data: HotelEditFormValues) {
     extraServicesOpted: data.extraServicesOpted || false,
     extraServicesNotes: data.extraServicesOpted
       ? data.extraServicesNotes?.trim() || undefined
+      : undefined,
+    extraServicesReservationsEmail: data.extraServicesOpted
+      ? data.extraServicesReservationsEmail?.trim() || undefined
       : undefined,
     confirmationNo: data.pnr?.trim() || undefined,
     regenerateDocuments: true,

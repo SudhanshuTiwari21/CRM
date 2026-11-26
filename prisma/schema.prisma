@@ -683,8 +683,12 @@ model HotelProfile {
   name         String   @unique
   address      String
   city         String?
+  country      String?
   phone        String?
+  /// Primary email (first of emails[]) — kept for lookup/autofill compatibility
   email        String?
+  /// Up to 3 hotel contact emails
+  emails       String[] @default([])
   checkInTime  String   @default("02:00 PM")
   checkOutTime String   @default("12:00 PM")
   createdAt    DateTime @default(now())
@@ -702,6 +706,7 @@ model HotelBooking {
   propertyName              String
   propertyAddress           String
   city                      String?
+  country                   String?
   propertyPhone             String?
   propertyEmail             String?
   confirmationNo            String?
@@ -725,7 +730,11 @@ model HotelBooking {
   agentRemarks              String?
   /// CRM-only: guest opted for extra hotel services (never shown on client voucher)
   extraServicesOpted        Boolean   @default(false)
+  /// Set only at booking create — auto hotel email on confirm requires this
+  extraServicesRequestedAtCreate Boolean @default(false)
   extraServicesNotes        String?
+  /// CRM-only: reservations inbox that receives the extra-services notify email + voucher
+  extraServicesReservationsEmail String?
   /// CRM-only: ops marked hotel as notified about extra services
   extraServicesNotifiedToHotel Boolean @default(false)
   extraServicesNotifiedAt   DateTime?

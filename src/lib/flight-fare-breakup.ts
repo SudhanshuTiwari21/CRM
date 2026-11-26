@@ -1,10 +1,10 @@
 import type { FlightPassenger } from "@/types/booking";
 import { paxTypeLabel } from "@/lib/voucher-format";
 
-/** Adults and children are included in base-fare reimbursement lines (infants excluded). */
+/** All pax types (adult, child, infant) get base-fare reimbursement lines when present. */
 export function isFarePassenger(p: FlightPassenger): boolean {
   const type = p.paxType || "adult";
-  return type === "adult" || type === "child";
+  return type === "adult" || type === "child" || type === "infant";
 }
 
 export function isAdultPassenger(p: FlightPassenger): boolean {
@@ -83,17 +83,21 @@ export function passengerFareLabel(p: FlightPassenger, indexAmongType: number): 
   return `${type} ${indexAmongType}`;
 }
 
-/** e.g. "1 Adult + 1 Child" or "2 Adults" */
+/** e.g. "1 Adult + 1 Child + 1 Infant" or "2 Adults" */
 export function farePassengerQtyLabel(lines: FareLine[]): string {
   let adults = 0;
   let children = 0;
+  let infants = 0;
   for (const line of lines) {
-    if ((line.passenger.paxType || "adult") === "child") children += 1;
+    const type = line.passenger.paxType || "adult";
+    if (type === "child") children += 1;
+    else if (type === "infant") infants += 1;
     else adults += 1;
   }
   const parts: string[] = [];
   if (adults > 0) parts.push(`${adults} Adult${adults === 1 ? "" : "s"}`);
   if (children > 0) parts.push(`${children} Child${children === 1 ? "" : "ren"}`);
+  if (infants > 0) parts.push(`${infants} Infant${infants === 1 ? "" : "s"}`);
   return parts.join(" + ") || "1 Adult";
 }
 

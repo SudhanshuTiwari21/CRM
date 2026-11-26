@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { EditHotelProfileDialog } from "@/components/hotels/edit-hotel-profile-dialog";
+import { hotelEmailsForForm } from "@/lib/validators/hotel";
 
 export default async function HotelDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -48,8 +49,10 @@ export default async function HotelDetailPage({ params }: { params: Promise<{ id
               name: hotel.name,
               address: hotel.address,
               city: hotel.city,
+              country: hotel.country,
               phone: hotel.phone,
               email: hotel.email,
+              emails: hotel.emails,
               checkInTime: hotel.checkInTime,
               checkOutTime: hotel.checkOutTime,
             }}
@@ -63,8 +66,18 @@ export default async function HotelDetailPage({ params }: { params: Promise<{ id
           <CardContent className="space-y-2 text-sm">
             <p><span className="font-medium">Address:</span> {hotel.address}</p>
             {hotel.city && <p><span className="font-medium">City:</span> {hotel.city}</p>}
+            {hotel.country && <p><span className="font-medium">Country:</span> {hotel.country}</p>}
             {hotel.phone && <p><span className="font-medium">Phone:</span> {hotel.phone}</p>}
-            {hotel.email && <p><span className="font-medium">Email:</span> {hotel.email}</p>}
+            {(() => {
+              const emails = hotelEmailsForForm(hotel).filter(Boolean);
+              if (emails.length === 0) return null;
+              return (
+                <p>
+                  <span className="font-medium">Email{emails.length > 1 ? "s" : ""}:</span>{" "}
+                  {emails.join(", ")}
+                </p>
+              );
+            })()}
             <p><span className="font-medium">Check-in:</span> {hotel.checkInTime}</p>
             <p><span className="font-medium">Check-out:</span> {hotel.checkOutTime}</p>
           </CardContent>

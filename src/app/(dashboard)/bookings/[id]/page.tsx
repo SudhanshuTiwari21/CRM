@@ -314,6 +314,16 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
               <CardHeader><CardTitle className="text-base">{booking.hotelBooking.propertyName}</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p>{booking.hotelBooking.propertyAddress}</p>
+                {(booking.hotelBooking.city || booking.hotelBooking.country) && (
+                  <p>
+                    {[booking.hotelBooking.city, booking.hotelBooking.country]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </p>
+                )}
+                {booking.hotelBooking.propertyPhone && (
+                  <p>Phone: {booking.hotelBooking.propertyPhone}</p>
+                )}
                 <p>Check-in: {formatDate(booking.hotelBooking.checkIn)}</p>
                 <p>Check-out: {formatDate(booking.hotelBooking.checkOut)}</p>
                 <p>Nights: {booking.hotelBooking.nights} • Room: {booking.hotelBooking.roomType}</p>
@@ -324,6 +334,18 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                   </p>
                   {booking.hotelBooking.extraServicesOpted ? (
                     <>
+                      {booking.hotelBooking.extraServicesReservationsEmail ? (
+                        <p className="mt-1 text-sm">
+                          Reservations email:{" "}
+                          <span className="font-medium">
+                            {booking.hotelBooking.extraServicesReservationsEmail}
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
+                          Reservations email missing — add it to notify the hotel
+                        </p>
+                      )}
                       {booking.hotelBooking.extraServicesNotes ? (
                         <p className="mt-1 text-muted-foreground whitespace-pre-wrap">
                           {booking.hotelBooking.extraServicesNotes}

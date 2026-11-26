@@ -13,8 +13,13 @@ import { getBookingCustomerContact } from "@/lib/cash-customer";
 import { getPdfLogoDataUri } from "@/lib/pdf-logo";
 import { resolveSegmentAirline } from "@/lib/airline-logo";
 import { getAirlineLogoDataUri } from "@/lib/airline-logo-pdf";
-import { brandFromCompanyName, type BrandId } from "@/lib/branding";
+import { brandFromCompanyName } from "@/lib/branding";
 import { getAgencySettings } from "@/lib/brand-context";
+import {
+  brandedPdfName,
+  flightTicketPdfFileName,
+  hotelVoucherPdfFileName,
+} from "@/lib/document-filenames";
 
 function getStorageDir() {
   // Vercel serverless only allows writes to /tmp
@@ -49,11 +54,7 @@ export async function resolveDocumentPath(storagePath: string, fileName: string)
   return null;
 }
 
-function brandedPdfName(publicRef: string, kind: string, brandId: BrandId) {
-  return `${publicRef}-${kind}-${brandId}.pdf`;
-}
-
-function fileMatchesBrand(fileName: string, brandId: BrandId) {
+function fileMatchesBrand(fileName: string, brandId: string) {
   return fileName.endsWith(`-${brandId}.pdf`);
 }
 
@@ -143,24 +144,37 @@ export async function generateBookingDocuments(bookingId: string, userId?: strin
         segmentAirlineLogoSrcs,
       })
     );
-    const ticketFileName = brandedPdfName(booking.publicRef, "ticket", brandId);
+    const ticketFileName = flightTicketPdfFileName({
+      segments,
+      tripType: booking.flightBooking.tripType,
+      passengers,
+      customerName: customerForDocs.name,
+      brandId,
+    });
     const ticketPath = path.join(storageDir, ticketFileName);
     await fs.writeFile(ticketPath, ticketBuffer);
     documents.push({ type: "TICKET", fileName: ticketFileName, storagePath: ticketPath });
   }
 
   if (booking.productType === "HOTEL" && booking.hotelBooking) {
+    const guests = booking.hotelBooking.guests as unknown as HotelGuest[];
     const voucherBuffer = await renderToBuffer(
       HotelVoucherPDF({
         agency,
         booking,
         hotel: booking.hotelBooking,
         customer: customerForDocs,
-        guests: booking.hotelBooking.guests as unknown as HotelGuest[],
+        guests,
         logoSrc,
       })
     );
-    const voucherFileName = brandedPdfName(booking.publicRef, "voucher", brandId);
+    const voucherFileName = hotelVoucherPdfFileName({
+      propertyName: booking.hotelBooking.propertyName,
+      checkIn: booking.hotelBooking.checkIn,
+      guests,
+      customerName: customerForDocs.name,
+      brandId,
+    });
     const voucherPath = path.join(storageDir, voucherFileName);
     await fs.writeFile(voucherPath, voucherBuffer);
     documents.push({ type: "VOUCHER", fileName: voucherFileName, storagePath: voucherPath });

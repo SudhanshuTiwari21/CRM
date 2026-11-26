@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AddHotelProfileDialog } from "@/components/hotels/add-hotel-profile-dialog";
 import { EditHotelProfileDialog } from "@/components/hotels/edit-hotel-profile-dialog";
+import { hotelEmailsForForm } from "@/lib/validators/hotel";
 
 export default async function HotelsPage({
   searchParams,
@@ -51,7 +52,13 @@ export default async function HotelsPage({
                   <p className="font-semibold">{hotel.name}</p>
                   <p className="text-sm text-muted-foreground">{hotel.address}</p>
                   <p className="text-xs text-muted-foreground">
-                    {[hotel.city, hotel.phone, hotel.email].filter(Boolean).join(" • ")}
+                    {[
+                      [hotel.city, hotel.country].filter(Boolean).join(", ") || null,
+                      hotel.phone,
+                      hotelEmailsForForm(hotel).filter(Boolean).join(", ") || null,
+                    ]
+                      .filter(Boolean)
+                      .join(" • ")}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -64,8 +71,10 @@ export default async function HotelsPage({
                       name: hotel.name,
                       address: hotel.address,
                       city: hotel.city,
+                      country: hotel.country,
                       phone: hotel.phone,
                       email: hotel.email,
+                      emails: hotel.emails,
                       checkInTime: hotel.checkInTime,
                       checkOutTime: hotel.checkOutTime,
                     }}

@@ -91,25 +91,41 @@ export function Upcoming48hTable() {
   async function toggleExtraServicesNotified(row: UpcomingHotelRow, notified: boolean) {
     setNotifyingId(row.id);
     try {
+      // Prefer auto-email with voucher when marking notified
       const res = await fetch(`/api/crm/bookings/${row.id}/extra-services`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ extraServicesNotifiedToHotel: notified }),
+        body: JSON.stringify(
+          notified
+            ? { emailHotel: true }
+            : { extraServicesNotifiedToHotel: false }
+        ),
       });
-      const { ok, error } = await parseApiResponse(res);
+      const { ok, error, data } = await parseApiResponse(res);
       if (!ok) throw new Error(error || "Update failed");
       setHotels((prev) =>
         prev.map((h) =>
           h.id === row.id
             ? {
                 ...h,
-                extraServicesNotifiedToHotel: notified,
-                extraServicesNotifiedAt: notified ? new Date().toISOString() : null,
+                extraServicesNotifiedToHotel: notified
+                  ? Boolean(data?.extraServicesNotifiedToHotel ?? true)
+                  : false,
+                extraServicesNotifiedAt: notified
+                  ? (data?.extraServicesNotifiedAt as string | null) ||
+                    new Date().toISOString()
+                  : null,
               }
             : h
         )
       );
-      toast.success(notified ? "Marked as notified to hotel" : "Marked as not notified");
+      toast.success(
+        notified
+          ? data?.to
+            ? `Emailed hotel (${String(data.to)}) with voucher`
+            : "Hotel notified"
+          : "Marked as not notified"
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Update failed");
     } finally {
@@ -331,8 +347,8 @@ export function Upcoming48hTable() {
                                   <BellRing className="mr-1 h-3.5 w-3.5" />
                                 )}
                                 {row.extraServicesNotifiedToHotel
-                                  ? "Notified to hotel"
-                                  : "Mark notified"}
+                                  ? "Emailed / notified"
+                                  : "Email hotel"}
                               </Button>
                               {row.extraServicesNotifiedToHotel && row.extraServicesNotifiedAt ? (
                                 <p className="text-xs text-muted-foreground">

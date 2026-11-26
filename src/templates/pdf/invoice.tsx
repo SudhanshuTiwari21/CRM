@@ -11,6 +11,7 @@ import { PdfLogo } from "@/templates/pdf/pdf-logo";
 import { brandUsesSquareLogo } from "@/lib/branding";
 import { buildFullRoute, buildSectorLegs, buildSectorSummary } from "@/lib/flight-layover";
 import { buildBaseFareLines, farePassengerQtyLabel, passengerDisplayName, paxTypeUnitLabel } from "@/lib/flight-fare-breakup";
+import { formatInvoiceBuyerName } from "@/lib/cash-customer";
 import { addonDetailLines, addonTypeLabel } from "@/lib/flight-addon";
 
 const styles = StyleSheet.create({
@@ -256,7 +257,9 @@ export function InvoicePDF({
         <View style={styles.box}>
           <Text style={styles.boxHeader}>Buyer (Bill to)</Text>
           <View style={styles.boxBody}>
-            <Text style={[styles.boxLine, { fontWeight: "bold" }]}>{customer.name}</Text>
+            <Text style={[styles.boxLine, { fontWeight: "bold" }]}>
+              {formatInvoiceBuyerName(customer)}
+            </Text>
             {(customer.address || customer.city) && (
               <Text style={styles.boxLine}>
                 {[customer.address, customer.city, customer.state, customer.pincode].filter(Boolean).join(", ")}

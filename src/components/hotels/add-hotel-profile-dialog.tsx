@@ -7,6 +7,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneWithCountry } from "@/components/ui/phone-with-country";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -15,13 +23,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { parseApiResponse } from "@/lib/parse-api-response";
+import { COUNTRY_DIAL_CODES } from "@/lib/country-dial-codes";
+
+const HOTEL_COUNTRY_OPTIONS = [...COUNTRY_DIAL_CODES].sort((a, b) =>
+  a.name.localeCompare(b.name)
+);
 
 const emptyForm = {
   name: "",
   address: "",
   city: "",
+  country: "",
   phone: "",
-  email: "",
+  emails: ["", "", ""] as [string, string, string],
   checkInTime: "02:00 PM",
   checkOutTime: "12:00 PM",
 };
@@ -45,6 +59,14 @@ export function AddHotelProfileDialog({
     setOpen(true);
   }
 
+  function setEmailAt(index: 0 | 1 | 2, value: string) {
+    setForm((f) => {
+      const emails = [...f.emails] as [string, string, string];
+      emails[index] = value;
+      return { ...f, emails };
+    });
+  }
+
   async function save() {
     if (!form.name.trim() || form.name.trim().length < 2) {
       toast.error("Hotel name is required");
@@ -53,6 +75,14 @@ export function AddHotelProfileDialog({
     if (!form.address.trim() || form.address.trim().length < 3) {
       toast.error("Address is required");
       return;
+    }
+
+    const emailValues = form.emails.map((e) => e.trim()).filter(Boolean);
+    for (const e of emailValues) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+        toast.error(`Invalid email: ${e}`);
+        return;
+      }
     }
 
     setSaving(true);
@@ -65,8 +95,9 @@ export function AddHotelProfileDialog({
           name: form.name.trim(),
           address: form.address.trim(),
           city: form.city.trim() || undefined,
+          country: form.country.trim() || undefined,
           phone: form.phone.trim() || undefined,
-          email: form.email.trim() || "",
+          emails: form.emails.map((e) => e.trim()),
           checkInTime: form.checkInTime.trim() || "02:00 PM",
           checkOutTime: form.checkOutTime.trim() || "12:00 PM",
         }),
@@ -127,24 +158,55 @@ export function AddHotelProfileDialog({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="add-hotel-phone">Phone</Label>
-                <Input
-                  id="add-hotel-phone"
-                  value={form.phone}
-                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                  placeholder="+91..."
-                />
+                <Label>Country</Label>
+                <Select
+                  value={form.country || undefined}
+                  onValueChange={(v) => setForm((f) => ({ ...f, country: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select country" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {HOTEL_COUNTRY_OPTIONS.map((c) => (
+                      <SelectItem key={c.iso2} value={c.name}>
+                        <span className="flex items-center gap-2">
+                          <span aria-hidden>{c.flag}</span>
+                          <span>{c.name}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="add-hotel-email">Email</Label>
-              <Input
-                id="add-hotel-email"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                placeholder="reservations@hotel.com"
+              <Label>Phone</Label>
+              <PhoneWithCountry
+                value={form.phone}
+                defaultCountryIso2={
+                  HOTEL_COUNTRY_OPTIONS.find((c) => c.name === form.country)?.iso2 || "IN"
+                }
+                placeholder="Phone number"
+                onChange={(full) => setForm((f) => ({ ...f, phone: full }))}
               />
+            </div>
+            <div className="space-y-3">
+              <div>
+                <Label>Emails</Label>
+                <p className="text-xs text-muted-foreground">Up to 3 hotel contact emails</p>
+              </div>
+              {([0, 1, 2] as const).map((i) => (
+                <Input
+                  key={i}
+                  id={`add-hotel-email-${i}`}
+                  type="email"
+                  value={form.emails[i]}
+                  onChange={(e) => setEmailAt(i, e.target.value)}
+                  placeholder={
+                    i === 0 ? "reservations@hotel.com" : i === 1 ? "sales@hotel.com" : "fo@hotel.com"
+                  }
+                />
+              ))}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">

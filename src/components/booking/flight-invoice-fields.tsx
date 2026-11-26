@@ -151,7 +151,7 @@ export function FlightInvoiceFields({ form }: FlightInvoiceFieldsProps) {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Fare reimbursement per adult/child - shown as separate lines on the tax invoice.
+              Fare reimbursement per adult/child/infant — shown as separate lines on the tax invoice.
             </p>
             {farePassengers.map((p) => {
               const passengerIndex = passengers.indexOf(p);

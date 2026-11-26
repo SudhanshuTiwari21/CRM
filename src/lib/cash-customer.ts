@@ -1,3 +1,5 @@
+import { formatCompanyBillingName } from "@/lib/utils";
+
 /** System placeholder - not a real customer profile. Cash contact details live in booking metadata. */
 export const CASH_WALK_IN_PHONE = "0000000000";
 
@@ -68,7 +70,7 @@ export function parseCashCustomerSnapshot(metadata: unknown): CashCustomerSnapsh
 export function getBookingCustomerContact(booking: {
   billingType: string;
   metadata: unknown;
-  customer: BookingCustomerContact;
+  customer: BookingCustomerContact & { type?: string | null };
 }): BookingCustomerContact {
   if (booking.billingType === "CASH") {
     const snap = parseCashCustomerSnapshot(booking.metadata);
@@ -89,4 +91,14 @@ export function getBookingCustomerContact(booking: {
     }
   }
   return booking.customer;
+}
+
+/** Buyer name for invoices / docs — company billing gets M/s prefix. */
+export function formatInvoiceBuyerName(contact: {
+  name: string;
+  billTo?: CashBillTo | null;
+  type?: string | null;
+}) {
+  const isCompany = contact.billTo === "COMPANY" || contact.type === "BUSINESS";
+  return isCompany ? formatCompanyBillingName(contact.name) : contact.name;
 }

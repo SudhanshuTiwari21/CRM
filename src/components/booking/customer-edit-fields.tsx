@@ -10,6 +10,8 @@ import {
   CustomerNameAutocomplete,
   type CustomerProfileFill,
 } from "@/components/booking/customer-name-autocomplete";
+import { GstinAutofillButton } from "@/components/booking/gstin-autofill-button";
+import { formatCompanyBillingName } from "@/lib/utils";
 
 export type CustomerEditFieldValues = {
   title?: string;
@@ -129,7 +131,39 @@ export function CustomerEditFields<T extends FieldValues & CustomerFormShape>({
         </div>
         <div className="space-y-2">
           <Label>GSTIN</Label>
-          <Input {...form.register(gstinPath)} />
+          <div className="flex gap-2">
+            <Input
+              {...form.register(gstinPath)}
+              className="flex-1"
+              placeholder="15-character GSTIN"
+              onChange={(e) =>
+                form.setValue(gstinPath, e.target.value.toUpperCase() as never, {
+                  shouldDirty: true,
+                })
+              }
+            />
+            <GstinAutofillButton
+              gstin={form.watch(gstinPath) as string}
+              onFetched={(data) => {
+                form.setValue(gstinPath, data.gstin as never, { shouldDirty: true });
+                if (data.pan) form.setValue(panPath, data.pan as never, { shouldDirty: true });
+                if (data.address)
+                  form.setValue(addressPath, data.address as never, { shouldDirty: true });
+                if (data.city) form.setValue(cityPath, data.city as never, { shouldDirty: true });
+                if (data.state) form.setValue(statePath, data.state as never, { shouldDirty: true });
+                if (data.pincode)
+                  form.setValue(pincodePath, data.pincode as never, { shouldDirty: true });
+                const companyName = data.tradeName || data.legalName;
+                if (companyName && billingType === "LEDGER") {
+                  form.setValue(
+                    namePath,
+                    formatCompanyBillingName(companyName) as never,
+                    { shouldDirty: true }
+                  );
+                }
+              }}
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <Label>PAN</Label>

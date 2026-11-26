@@ -16,6 +16,8 @@ import {
   CustomerNameAutocomplete,
   type CustomerProfileFill,
 } from "@/components/booking/customer-name-autocomplete";
+import { GstinAutofillButton } from "@/components/booking/gstin-autofill-button";
+import { formatCompanyBillingName } from "@/lib/utils";
 
 
 
@@ -613,17 +615,46 @@ export function CustomerBillingSection({ form, onCreditAvailabilityChange }: Cus
             </div>
             <div className="space-y-2">
               <Label>GSTIN</Label>
-              <Input
-                {...form.register("customer.gstin")}
-                placeholder="Optional"
-                onChange={(e) => {
-                  const value = e.target.value.toUpperCase();
-                  form.setValue("customer.gstin", value);
-                  if (productType === "FLIGHT") {
-                    form.setValue("buyerGstin", value);
-                  }
-                }}
-              />
+              <div className="flex gap-2">
+                <Input
+                  {...form.register("customer.gstin")}
+                  placeholder="15-character GSTIN"
+                  className="flex-1"
+                  onChange={(e) => {
+                    const value = e.target.value.toUpperCase();
+                    form.setValue("customer.gstin", value);
+                    if (productType === "FLIGHT" || productType === "HOTEL") {
+                      form.setValue("buyerGstin", value);
+                    }
+                  }}
+                />
+                <GstinAutofillButton
+                  gstin={form.watch("customer.gstin")}
+                  onFetched={(data) => {
+                    form.setValue("customer.gstin", data.gstin);
+                    if (data.pan) form.setValue("customer.pan", data.pan);
+                    if (data.address) form.setValue("customer.address", data.address);
+                    if (data.city) form.setValue("customer.city", data.city);
+                    if (data.state) form.setValue("customer.state", data.state);
+                    if (data.pincode) form.setValue("customer.pincode", data.pincode);
+                    if (isCompanyBill) {
+                      const companyName = data.tradeName || data.legalName;
+                      if (companyName) {
+                        form.setValue(
+                          "customer.name",
+                          formatCompanyBillingName(companyName)
+                        );
+                      }
+                    }
+                    if (productType === "FLIGHT" || productType === "HOTEL") {
+                      form.setValue("buyerGstin", data.gstin);
+                    }
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Fetch fills name (company), PAN, address, city, state, pincode from GSTIN.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>PAN{panRequired ? " *" : ""}</Label>

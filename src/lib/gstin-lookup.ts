@@ -76,30 +76,39 @@ export async function lookupGstin(gstin: string): Promise<GstinLookupResult> {
   const pan = extractPanFromGstin(normalized) || undefined;
   const state = getStateFromGstin(normalized) || undefined;
 
-  const apiKey = process.env.GSTIN_API_KEY;
+  // AppyFlow wraps GST taxpayer search (official GSTN search is captcha/GSP-only).
+  const apiKey = process.env.GSTIN_API_KEY?.trim();
   if (apiKey) {
     try {
-      const res = await fetch(
-        `https://appyflow.in/api/verifyGST?gstNo=${normalized}&key=${apiKey}`,
-        { next: { revalidate: 86400 } }
-      );
-      if (res.ok) {
+      const urls = [
+        `https://appyflow.in/api/verifyGST?gstNo=${encodeURIComponent(normalized)}&key_secret=${encodeURIComponent(apiKey)}`,
+        `https://appyflow.in/api/verifyGST?gstNo=${encodeURIComponent(normalized)}&key=${encodeURIComponent(apiKey)}`,
+      ];
+
+      for (const url of urls) {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) continue;
         const data = await res.json();
+        if (data?.error) continue;
+
         const taxpayer = data.taxpayerInfo || data;
         const addr = taxpayer.pradr?.addr || taxpayer.adadr?.[0]?.addr;
         const addressLine = addr
-          ? [addr.bno, addr.bnm, addr.st, addr.loc, addr.dst, addr.stcd, addr.pncd]
+          ? [addr.bno, addr.bnm, addr.flno, addr.st, addr.loc, addr.dst, addr.stcd, addr.pncd]
               .filter(Boolean)
               .join(", ")
           : taxpayer.principalPlaceOfBusiness || taxpayer.address;
 
+        const legalName = taxpayer.lgnm || taxpayer.legalName;
+        const tradeName = taxpayer.tradeNam || taxpayer.tradeName;
+
         return {
           gstin: normalized,
-          legalName: taxpayer.lgnm || taxpayer.legalName || taxpayer.tradeNam,
-          tradeName: taxpayer.tradeNam || taxpayer.tradeName,
+          legalName: legalName || tradeName,
+          tradeName: tradeName || legalName,
           pan: pan || taxpayer.pan,
           address: addressLine,
-          city: addr?.loc || addr?.dst,
+          city: addr?.city || addr?.loc || addr?.dst,
           state: addr?.stcd || state,
           pincode: addr?.pncd,
           status: taxpayer.sts || taxpayer.status,

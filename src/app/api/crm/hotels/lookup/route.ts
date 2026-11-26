@@ -14,14 +14,23 @@ export async function GET(request: Request) {
     const hotel = await findHotelProfileByName(name);
     if (!hotel) return jsonOk({ found: false });
 
+    const emails =
+      hotel.emails?.length > 0
+        ? hotel.emails
+        : hotel.email
+          ? [hotel.email]
+          : [];
+
     return jsonOk({
       found: true,
       id: hotel.id,
       name: hotel.name,
       address: hotel.address,
       city: hotel.city,
+      country: hotel.country,
       phone: hotel.phone,
-      email: hotel.email,
+      email: emails[0] || hotel.email,
+      emails,
       checkInTime: hotel.checkInTime,
       checkOutTime: hotel.checkOutTime,
     });
