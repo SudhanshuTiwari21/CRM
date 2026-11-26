@@ -172,19 +172,7 @@ const styles = StyleSheet.create({
   paymentAmount: { fontFamily: "Times-Roman", fontSize: 8, color: C.text },
   paymentTotalRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 4 },
   paymentTotal: { fontSize: 11.5, fontFamily: "Helvetica-Bold", color: C.navy },
-  footerNoteRow: { flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 4 },
-  footerIcon: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: C.muted,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 1,
-  },
-  footerIconText: { fontSize: 5.5, color: C.muted },
-  footerNote: { fontSize: 6.5, color: C.muted, flex: 1, lineHeight: 1.4 },
+  footerNote: { fontSize: 6.5, color: C.muted, marginTop: 4, lineHeight: 1.4 },
   termsBorder: {
     borderWidth: 1,
     borderColor: C.termsBorder,
@@ -558,14 +546,9 @@ export function FlightTicketPDF({
               </View>
             </View>
 
-            <View style={styles.footerNoteRow}>
-              <View style={styles.footerIcon}>
-                <Text style={styles.footerIconText}>i</Text>
-              </View>
-              <Text style={styles.footerNote}>
-                Please keep this e-ticket for your travel records.
-              </Text>
-            </View>
+            <Text style={styles.footerNote}>
+              Please keep this e-ticket for your travel records.
+            </Text>
           </Page>
 
           <Page size="A4" style={styles.page}>
